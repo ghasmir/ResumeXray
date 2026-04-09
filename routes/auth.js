@@ -71,12 +71,15 @@ router.post('/signup', authLimiter, async (req, res) => {
     if (name.length > 100) {
       return res.status(400).json({ error: 'Name must be 100 characters or fewer.' });
     }
-    // §10.13: NIST 800-63B minimum 8 chars + at least one digit
+    // §10.13: NIST 800-63B minimum 8 chars + at least one digit + uppercase
     if (!password || password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters.' });
     }
     if (!/\d/.test(password)) {
       return res.status(400).json({ error: 'Password must contain at least one number.' });
+    }
+    if (!/[A-Z]/.test(password)) {
+      return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
     }
 
     // Check if user already exists
@@ -321,10 +324,21 @@ router.post('/reset-password', async (req, res) => {
     if (!/\d/.test(password)) {
       return res.status(400).json({ error: 'Password must contain at least one number.' });
     }
+    if (!/[A-Z]/.test(password)) {
+      return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
+    }
 
     const user = await db.getUserByResetToken(token);
     if (!user) {
       return res.status(400).json({ error: 'Invalid or expired reset token. Please request a new reset link.' });
+    }
+
+    // Prevent reusing the same password
+    if (user.password_hash) {
+      const isSame = await bcrypt.compare(password, user.password_hash);
+      if (isSame) {
+        return res.status(400).json({ error: 'New password cannot be the same as your previous password.' });
+      }
     }
 
     const hashed = await bcrypt.hash(password, 12);

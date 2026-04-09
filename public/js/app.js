@@ -296,6 +296,58 @@ function resetScanForm() {
 
 // ── Auth Forms ─────────────────────────────────────────────────
 function setupAuthForms() {
+  // ── Password Strength Validator ──────────────────────────────
+  function setupPasswordStrength(inputId, prefix) {
+    const input = el(inputId);
+    if (!input) return;
+
+    const container = el(prefix + '-pw-strength');
+    const meter = el(prefix + '-pw-meter');
+    const rules = {
+      length:  el(prefix + '-rule-length'),
+      number:  el(prefix + '-rule-number'),
+      upper:   el(prefix + '-rule-upper'),
+      special: el(prefix + '-rule-special'),
+    };
+
+    function checkPassword(pw) {
+      const checks = {
+        length:  pw.length >= 8,
+        number:  /\d/.test(pw),
+        upper:   /[A-Z]/.test(pw),
+        special: /[^A-Za-z0-9]/.test(pw),
+      };
+
+      let score = 0;
+      for (const [key, passed] of Object.entries(checks)) {
+        if (passed) score++;
+        const ruleEl = rules[key];
+        if (ruleEl) {
+          ruleEl.classList.toggle('pass', passed);
+          const icon = ruleEl.querySelector('.pw-rule-icon');
+          if (icon) icon.textContent = passed ? '✓' : '○';
+        }
+      }
+
+      if (meter) meter.setAttribute('data-strength', String(score));
+      return checks;
+    }
+
+    input.addEventListener('focus', () => {
+      if (container) container.classList.add('visible');
+    });
+
+    input.addEventListener('input', () => {
+      checkPassword(input.value);
+    });
+
+    // Expose for form submit validation
+    input._checkStrength = () => checkPassword(input.value);
+  }
+
+  setupPasswordStrength('signup-password', 'signup');
+  setupPasswordStrength('reset-new-password', 'reset');
+
   // Signup form
   const signupForm = el('signup-form');
   if (signupForm) {

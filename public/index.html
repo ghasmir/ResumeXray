@@ -465,8 +465,17 @@
           <div class="form-group">
             <label for="signup-password">Password</label>
             <div class="password-wrapper">
-              <input type="password" id="signup-password" placeholder="6+ characters" minlength="6" required autocomplete="new-password">
+              <input type="password" id="signup-password" placeholder="8+ characters" minlength="8" required autocomplete="new-password">
               <button type="button" class="pw-toggle" aria-label="Toggle password visibility"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+            <div class="pw-strength" id="signup-pw-strength">
+              <div class="pw-meter"><div class="pw-meter-fill" id="signup-pw-meter"></div></div>
+              <ul class="pw-rules">
+                <li id="signup-rule-length"><span class="pw-rule-icon">○</span> At least 8 characters</li>
+                <li id="signup-rule-number"><span class="pw-rule-icon">○</span> Contains a number</li>
+                <li id="signup-rule-upper"><span class="pw-rule-icon">○</span> Contains an uppercase letter</li>
+                <li id="signup-rule-special"><span class="pw-rule-icon">○</span> Contains a special character</li>
+              </ul>
             </div>
           </div>
           <div id="signup-error" class="form-error" style="display:none"></div>
@@ -560,8 +569,17 @@
           <div class="form-group">
             <label for="reset-new-password">New Password</label>
             <div class="password-wrapper">
-              <input type="password" id="reset-new-password" placeholder="6+ characters" minlength="6" required>
+              <input type="password" id="reset-new-password" placeholder="8+ characters" minlength="8" required>
               <button type="button" class="pw-toggle" aria-label="Toggle password visibility"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+            <div class="pw-strength" id="reset-pw-strength">
+              <div class="pw-meter"><div class="pw-meter-fill" id="reset-pw-meter"></div></div>
+              <ul class="pw-rules">
+                <li id="reset-rule-length"><span class="pw-rule-icon">○</span> At least 8 characters</li>
+                <li id="reset-rule-number"><span class="pw-rule-icon">○</span> Contains a number</li>
+                <li id="reset-rule-upper"><span class="pw-rule-icon">○</span> Contains an uppercase letter</li>
+                <li id="reset-rule-special"><span class="pw-rule-icon">○</span> Contains a special character</li>
+              </ul>
             </div>
           </div>
           <div id="reset-error" class="form-error" style="display:none"></div>

@@ -5176,3 +5176,68 @@ a svg {
     align-self: flex-end;
   }
 }
+
+/* ── PASSWORD STRENGTH INDICATOR ──────────────────────────────── */
+.pw-strength {
+  margin-top: var(--sp-3);
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.3s ease, max-height 0.4s ease;
+}
+.pw-strength.visible {
+  opacity: 1;
+  max-height: 200px;
+}
+
+/* Strength meter bar */
+.pw-meter {
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: var(--sp-3);
+}
+.pw-meter-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1), 
+              background-color 0.4s ease;
+}
+.pw-meter-fill[data-strength="0"] { width: 0%; background: var(--red); }
+.pw-meter-fill[data-strength="1"] { width: 25%; background: var(--red); }
+.pw-meter-fill[data-strength="2"] { width: 50%; background: var(--amber); }
+.pw-meter-fill[data-strength="3"] { width: 75%; background: #e8b931; }
+.pw-meter-fill[data-strength="4"] { width: 100%; background: var(--green); }
+
+/* Rules checklist */
+.pw-rules {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 1rem;
+}
+.pw-rules li {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: color 0.25s ease;
+}
+.pw-rules li.pass {
+  color: var(--green);
+}
+.pw-rules li.pass .pw-rule-icon {
+  color: var(--green);
+}
+.pw-rule-icon {
+  font-size: 0.65rem;
+  transition: color 0.25s ease;
+}
+.pw-rules li.pass .pw-rule-icon::after {
+  content: '';
+}
