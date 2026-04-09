@@ -324,7 +324,7 @@ router.post('/reset-password', async (req, res) => {
 
     const user = await db.getUserByResetToken(token);
     if (!user) {
-      return res.status(400).json({ error: 'Invalid or expired reset token.' });
+      return res.status(400).json({ error: 'Invalid or expired reset token. Please request a new reset link.' });
     }
 
     const hashed = await bcrypt.hash(password, 12);
@@ -332,7 +332,8 @@ router.post('/reset-password', async (req, res) => {
     
     res.json({ success: true, message: 'Password updated. You can now log in.' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to reset password.' });
+    log.error('Password reset failed', { error: err.message, stack: err.stack });
+    res.status(500).json({ error: 'Failed to reset password. Please try again or request a new link.' });
   }
 });
 

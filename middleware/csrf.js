@@ -29,6 +29,8 @@ const CSRF_EXEMPT_PATHS = [
   '/auth/github/callback',
   '/auth/linkedin',
   '/auth/linkedin/callback',
+  '/auth/reset-password',     // Protected by one-time reset token (user arrives from email, no session)
+  '/auth/forgot-password',    // No sensitive action (only sends email, anti-enumeration)
   '/api/csp-report',          // Phase 6 Wave 4: Browser CSP reports (no CSRF possible)
   '/api/client-error',        // Phase 6 Wave 4: sendBeacon telemetry (no custom headers)
 ];
