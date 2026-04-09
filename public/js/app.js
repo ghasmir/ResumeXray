@@ -549,22 +549,34 @@ function setupGlobalDelegation() {
   });
 
   const logoutBtn = el('nav-logout');
-  if (logoutBtn) logoutBtn.addEventListener('click', async (e) => {
-    e.preventDefault();
+  const doLogout = async (e) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
     try {
-      const res = await fetch('/auth/logout', { method: 'POST' });
-      await res.json(); // Wait for server to confirm session destruction
+      const res = await fetch('/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      try { await res.json(); } catch {}
     } catch { /* proceed with client-side cleanup regardless */ }
     currentUser = null;
     // Clear any cached session state
-    localStorage.removeItem('resumeXray_currentScanId');
-    // Use SPA navigation instead of full reload to avoid fetchUser race
-    navigateTo('/');
-    // Force-hide authenticated UI
+    try { localStorage.removeItem('resumeXray_currentScanId'); } catch {}
+    // Force-hide authenticated UI BEFORE navigating so no guarded view can flash
     if (el('nav-user-area')) el('nav-user-area').style.display = 'none';
     if (el('nav-guest-area')) el('nav-guest-area').style.display = 'flex';
     if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'none';
-  });
+    // Also reset the mobile bottom-sheet auth regions — previously these stayed authed
+    if (el('sheet-auth-area')) el('sheet-auth-area').style.display = 'none';
+    if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'block';
+    if (el('sheet-link-dashboard')) el('sheet-link-dashboard').style.display = 'none';
+    // SPA navigate to landing — no full reload, no fetchUser race
+    navigateTo('/');
+  };
+  if (logoutBtn) logoutBtn.addEventListener('click', doLogout);
+  // Expose so the bottom-sheet handler can call the same code path directly
+  window.__rxLogout = doLogout;
 }
 
 function switchTab(tabId) {
@@ -2378,10 +2390,19 @@ function setupMobileMenu() {
   // Wire up bottom sheet logout
   const sheetLogout = el('bottom-sheet-logout');
   if (sheetLogout) {
-    sheetLogout.addEventListener('click', () => {
+    sheetLogout.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
       closeSheet();
-      const desktopLogout = el('nav-logout');
-      if (desktopLogout) desktopLogout.click();
+      // Call the real logout handler directly rather than simulating a .click()
+      // on the desktop button, which on mobile produced a ghost-click race that
+      // could land on an underlying dashboard link after the sheet animated out.
+      if (typeof window.__rxLogout === 'function') {
+        await window.__rxLogout(ev);
+      } else {
+        const desktopLogout = el('nav-logout');
+        if (desktopLogout) desktopLogout.click();
+      }
     });
   }
 

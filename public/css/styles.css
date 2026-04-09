@@ -5216,13 +5216,16 @@ a svg {
   list-style: none !important;
   list-style-type: none !important;
   padding: 0 !important;
+  padding-inline-start: 0 !important;
   margin: 0 !important;
+  margin-inline-start: 0 !important;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
 .pw-rules li {
   list-style: none !important;
+  list-style-type: none !important;
   font-size: 0.72rem;
   color: rgba(255,255,255,0.35);
   display: flex;
@@ -5230,7 +5233,11 @@ a svg {
   gap: 0.4rem;
   transition: color 0.3s ease;
   line-height: 1.3;
+  padding-inline-start: 0 !important;
 }
+/* iOS Safari still paints ::marker on flex <li> even with list-style:none */
+.pw-rules li::marker { content: '' !important; display: none !important; font-size: 0 !important; }
+.pw-rules li::before { content: none !important; }
 .pw-rules li.pass {
   color: var(--green);
 }
