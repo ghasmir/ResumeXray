@@ -78,6 +78,9 @@ router.put('/password', isAuthenticated, async (req, res) => {
     if (!/\d/.test(newPassword)) {
       return res.status(400).json({ error: 'Password must contain at least one number.' });
     }
+    if (!/[A-Z]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
+    }
 
     const user = await db.getUserById(req.user.id);
     if (user.password_hash) {
@@ -87,6 +90,11 @@ router.put('/password', isAuthenticated, async (req, res) => {
       const valid = await bcrypt.compare(currentPassword, user.password_hash);
       if (!valid) {
         return res.status(401).json({ error: 'Current password is incorrect.' });
+      }
+      // Prevent reusing the same password
+      const isSame = await bcrypt.compare(newPassword, user.password_hash);
+      if (isSame) {
+        return res.status(400).json({ error: 'New password cannot be the same as your current password.' });
       }
     }
 

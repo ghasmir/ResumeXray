@@ -294,63 +294,66 @@ function resetScanForm() {
   if (submitBtn) submitBtn.disabled = true;
 }
 
-// ── Auth Forms ─────────────────────────────────────────────────
-function setupAuthForms() {
-  // ── Password Strength Validator ──────────────────────────────
-  function setupPasswordStrength(inputId, prefix) {
-    const input = el(inputId);
-    if (!input) return;
+// ── Password Strength Validator (global helper) ───────────────
+function _setupPasswordStrength(inputId, prefix) {
+  const input = el(inputId);
+  if (!input) return;
+  // Prevent duplicate event bindings
+  if (input.dataset.strengthBound) return;
+  input.dataset.strengthBound = '1';
 
-    const container = el(prefix + '-pw-strength');
-    const meter = el(prefix + '-pw-meter');
-    const rules = {
-      length:  el(prefix + '-rule-length'),
-      number:  el(prefix + '-rule-number'),
-      upper:   el(prefix + '-rule-upper'),
-      special: el(prefix + '-rule-special'),
+  const container = el(prefix + '-pw-strength');
+  const meter = el(prefix + '-pw-meter');
+  const rules = {
+    length:  el(prefix + '-rule-length'),
+    number:  el(prefix + '-rule-number'),
+    upper:   el(prefix + '-rule-upper'),
+    special: el(prefix + '-rule-special'),
+  };
+
+  function checkPassword() {
+    const pw = input.value;
+    const checks = {
+      length:  pw.length >= 8,
+      number:  /\d/.test(pw),
+      upper:   /[A-Z]/.test(pw),
+      special: /[^A-Za-z0-9]/.test(pw),
     };
 
-    function checkPassword() {
-      const pw = input.value;
-      const checks = {
-        length:  pw.length >= 8,
-        number:  /\d/.test(pw),
-        upper:   /[A-Z]/.test(pw),
-        special: /[^A-Za-z0-9]/.test(pw),
-      };
-
-      let score = 0;
-      for (const [key, passed] of Object.entries(checks)) {
-        if (passed) score++;
-        const ruleEl = rules[key];
-        if (ruleEl) {
-          ruleEl.classList.toggle('pass', passed);
-          const icon = ruleEl.querySelector('.pw-rule-icon');
-          if (icon) icon.textContent = passed ? '✓' : '○';
-        }
+    let score = 0;
+    for (const [key, passed] of Object.entries(checks)) {
+      if (passed) score++;
+      const ruleEl = rules[key];
+      if (ruleEl) {
+        ruleEl.classList.toggle('pass', passed);
+        const icon = ruleEl.querySelector('.pw-rule-icon');
+        if (icon) icon.textContent = passed ? '✓' : '○';
       }
-
-      if (meter) meter.setAttribute('data-strength', String(score));
-      // Show the container when user starts typing
-      if (container && pw.length > 0) container.classList.add('visible');
-      return checks;
     }
 
-    // Listen to all possible input events (type, paste, autofill)
-    ['input', 'keyup', 'change', 'paste'].forEach(evt => {
-      input.addEventListener(evt, checkPassword);
-    });
-
-    input.addEventListener('focus', () => {
-      if (container && input.value.length > 0) container.classList.add('visible');
-    });
-
-    // Expose for form submit validation
-    input._checkStrength = checkPassword;
+    if (meter) meter.setAttribute('data-strength', String(score));
+    // Show the container when user starts typing
+    if (container && pw.length > 0) container.classList.add('visible');
+    return checks;
   }
 
-  setupPasswordStrength('signup-password', 'signup');
-  setupPasswordStrength('reset-new-password', 'reset');
+  // Listen to all possible input events (type, paste, autofill)
+  ['input', 'keyup', 'change', 'paste'].forEach(evt => {
+    input.addEventListener(evt, checkPassword);
+  });
+
+  input.addEventListener('focus', () => {
+    if (container && input.value.length > 0) container.classList.add('visible');
+  });
+
+  // Expose for form submit validation
+  input._checkStrength = checkPassword;
+}
+
+// ── Auth Forms ─────────────────────────────────────────────────
+function setupAuthForms() {
+  _setupPasswordStrength('signup-password', 'signup');
+  _setupPasswordStrength('reset-new-password', 'reset');
 
   // Signup form
   const signupForm = el('signup-form');
@@ -2112,10 +2115,19 @@ async function renderProfile() {
   // Password change modal
   const pwBtn = el('btn-change-password');
   if (pwBtn) {
-    pwBtn.onclick = () => { el('password-modal').style.display = 'flex'; };
+    pwBtn.onclick = () => {
+      el('password-modal').style.display = 'flex';
+      // Setup strength indicator for the profile pw modal
+      _setupPasswordStrength('pw-new', 'profile');
+    };
   }
   const pwCancel = el('pw-cancel');
-  if (pwCancel) pwCancel.onclick = () => { el('password-modal').style.display = 'none'; };
+  if (pwCancel) pwCancel.onclick = () => {
+    el('password-modal').style.display = 'none';
+    // Reset the strength indicator state
+    const container = el('profile-pw-strength');
+    if (container) container.classList.remove('visible');
+  };
   const pwForm = el('password-form');
   if (pwForm) {
     pwForm.onsubmit = async (e) => {
