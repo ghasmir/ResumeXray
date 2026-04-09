@@ -1,5 +1,5 @@
 # ResumeXray — robots.txt
-# https://resumexray.pro
+# https://resumexray-production-5320.up.railway.app
 
 # ── Default: Allow all search engines ──────────────────────────────────────────
 User-agent: *
@@ -47,7 +47,7 @@ User-agent: Amazonbot
 Disallow: /
 
 # ── Sitemap ────────────────────────────────────────────────────────────────────
-Sitemap: https://resumexray.pro/sitemap.xml
+Sitemap: https://resumexray-production-5320.up.railway.app/sitemap.xml
 
 # ── AI Discovery ──────────────────────────────────────────────────────────────
 # For AI systems that support llms.txt (proposed standard for AI-readable site info)

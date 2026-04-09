@@ -74,9 +74,9 @@ match. This catches keyword coverage that basic ATS keyword counters miss.
 - **Infrastructure**: Redis (Upstash) distributed semaphore for Playwright concurrency
 
 ## Links
-- Website: https://resumexray.com
-- Pricing: https://resumexray.com/pricing
-- ATS Scanner: https://resumexray.com/scan
+- Website: https://resumexray-production-5320.up.railway.app
+- Pricing: https://resumexray-production-5320.up.railway.app/pricing
+- ATS Scanner: https://resumexray-production-5320.up.railway.app/scan
 - Contact: support@resumexray.com
 
 ## Company
