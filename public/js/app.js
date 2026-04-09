@@ -310,7 +310,8 @@ function setupAuthForms() {
       special: el(prefix + '-rule-special'),
     };
 
-    function checkPassword(pw) {
+    function checkPassword() {
+      const pw = input.value;
       const checks = {
         length:  pw.length >= 8,
         number:  /\d/.test(pw),
@@ -330,19 +331,22 @@ function setupAuthForms() {
       }
 
       if (meter) meter.setAttribute('data-strength', String(score));
+      // Show the container when user starts typing
+      if (container && pw.length > 0) container.classList.add('visible');
       return checks;
     }
 
-    input.addEventListener('focus', () => {
-      if (container) container.classList.add('visible');
+    // Listen to all possible input events (type, paste, autofill)
+    ['input', 'keyup', 'change', 'paste'].forEach(evt => {
+      input.addEventListener(evt, checkPassword);
     });
 
-    input.addEventListener('input', () => {
-      checkPassword(input.value);
+    input.addEventListener('focus', () => {
+      if (container && input.value.length > 0) container.classList.add('visible');
     });
 
     // Expose for form submit validation
-    input._checkStrength = () => checkPassword(input.value);
+    input._checkStrength = checkPassword;
   }
 
   setupPasswordStrength('signup-password', 'signup');
@@ -542,10 +546,21 @@ function setupGlobalDelegation() {
   });
 
   const logoutBtn = el('nav-logout');
-  if (logoutBtn) logoutBtn.addEventListener('click', async () => {
-    await fetch('/auth/logout', { method: 'POST' });
+  if (logoutBtn) logoutBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/auth/logout', { method: 'POST' });
+      await res.json(); // Wait for server to confirm session destruction
+    } catch { /* proceed with client-side cleanup regardless */ }
     currentUser = null;
-    window.location.href = '/';
+    // Clear any cached session state
+    localStorage.removeItem('resumeXray_currentScanId');
+    // Use SPA navigation instead of full reload to avoid fetchUser race
+    navigateTo('/');
+    // Force-hide authenticated UI
+    if (el('nav-user-area')) el('nav-user-area').style.display = 'none';
+    if (el('nav-guest-area')) el('nav-guest-area').style.display = 'flex';
+    if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'none';
   });
 }
 
