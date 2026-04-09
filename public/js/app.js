@@ -107,6 +107,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── Auth State ─────────────────────────────────────────────────
 async function fetchUser() {
+  // Guard: if we just logged out, skip fetching to prevent stale session re-auth
+  if (sessionStorage.getItem('rx_logged_out')) {
+    sessionStorage.removeItem('rx_logged_out');
+    currentUser = null;
+    if (el('nav-user-area')) el('nav-user-area').style.display = 'none';
+    if (el('nav-guest-area')) el('nav-guest-area').style.display = 'flex';
+    if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'none';
+    if (el('sheet-auth-area')) el('sheet-auth-area').style.display = 'none';
+    if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'block';
+    if (el('sheet-link-dashboard')) el('sheet-link-dashboard').style.display = 'none';
+    return;
+  }
   try {
     const res = await fetch('/user/me');
     if (res.ok) {
@@ -552,6 +564,10 @@ function setupGlobalDelegation() {
   const doLogout = async (e) => {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+
+    // Set guard flag FIRST — prevents fetchUser from re-authenticating on reload
+    try { sessionStorage.setItem('rx_logged_out', '1'); } catch {}
+
     try {
       const res = await fetch('/auth/logout', {
         method: 'POST',
@@ -560,19 +576,20 @@ function setupGlobalDelegation() {
       });
       try { await res.json(); } catch {}
     } catch { /* proceed with client-side cleanup regardless */ }
+
     currentUser = null;
-    // Clear any cached session state
     try { localStorage.removeItem('resumeXray_currentScanId'); } catch {}
-    // Force-hide authenticated UI BEFORE navigating so no guarded view can flash
+
+    // Force-hide authenticated UI immediately
     if (el('nav-user-area')) el('nav-user-area').style.display = 'none';
     if (el('nav-guest-area')) el('nav-guest-area').style.display = 'flex';
     if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'none';
-    // Also reset the mobile bottom-sheet auth regions — previously these stayed authed
     if (el('sheet-auth-area')) el('sheet-auth-area').style.display = 'none';
     if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'block';
     if (el('sheet-link-dashboard')) el('sheet-link-dashboard').style.display = 'none';
-    // SPA navigate to landing — no full reload, no fetchUser race
-    navigateTo('/');
+
+    // Hard reload to landing — guarantees clean state, no stale cookie race
+    window.location.replace('/');
   };
   if (logoutBtn) logoutBtn.addEventListener('click', doLogout);
   // Expose so the bottom-sheet handler can call the same code path directly
