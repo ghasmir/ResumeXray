@@ -236,8 +236,8 @@
   <link rel="dns-prefetch" href="https://api.stripe.com">
 
   <link rel="stylesheet" href="/css/styles.css?v=2.8">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
-  <link rel="apple-touch-icon" href="/assets/og-image.png">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🔬%3C/text%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" sizes="180x180" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23141820'/%3E%3Ctext x='50%25' y='55%25' text-anchor='middle' dominant-baseline='central' font-size='120'%3E🔬%3C/text%3E%3C/svg%3E">
 
   <!-- Noscript fallback for crawlers and no-JS environments -->
   <noscript>
@@ -761,11 +761,11 @@
       <div id="results-dashboard" class="results-tabs-container" style="display:none">
         
         <!-- Tab Navigation -->
-        <div class="results-tab-nav" id="results-tabs-menu">
-          <button class="results-tab-btn active" data-tab="tab-diagnosis">ATS Diagnosis</button>
-          <button class="results-tab-btn" data-tab="tab-recruiter-agent" id="btn-tab-recruiter">Recruiter View</button>
-          <button class="results-tab-btn" data-tab="tab-cover-letter" id="btn-tab-cover-letter">Cover Letter</button>
-          <button class="results-tab-btn" data-tab="tab-pdf-preview" id="btn-tab-pdf">Optimized Resume</button>
+        <div class="results-tab-nav" id="results-tabs-menu" role="tablist" aria-label="Scan results">
+          <button class="results-tab-btn active" data-tab="tab-diagnosis" role="tab" aria-selected="true" aria-controls="tab-diagnosis">ATS Diagnosis</button>
+          <button class="results-tab-btn" data-tab="tab-recruiter-agent" id="btn-tab-recruiter" role="tab" aria-selected="false" aria-controls="tab-recruiter-agent">Recruiter View</button>
+          <button class="results-tab-btn" data-tab="tab-cover-letter" id="btn-tab-cover-letter" role="tab" aria-selected="false" aria-controls="tab-cover-letter">Cover Letter</button>
+          <button class="results-tab-btn" data-tab="tab-pdf-preview" id="btn-tab-pdf" role="tab" aria-selected="false" aria-controls="tab-pdf-preview">Optimized Resume</button>
         </div>
 
         <!-- TAB 1: Progress & Diagnosis -->
@@ -819,7 +819,7 @@
                 <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>
                 <circle id="gauge-after" class="gauge-ring" cx="60" cy="60" r="52" fill="none" stroke="var(--green)" stroke-width="8" stroke-dasharray="327" stroke-dashoffset="327" stroke-linecap="round" transform="rotate(-90 60 60)"/>
               </svg>
-              <div class="gauge-label">After Fixes</div>
+              <div class="gauge-label">Projected</div>
               <div class="gauge-value" id="score-job-match-after">--</div>
             </div>
           </div>

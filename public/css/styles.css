@@ -3439,12 +3439,26 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 /* ── GUEST BLURRED FUNNEL ── */
 .guest-blurred {
-  filter: blur(10px) grayscale(60%);
+  filter: blur(4px) grayscale(40%);
   pointer-events: none;
   user-select: none;
-  opacity: 0.6;
+  opacity: 0.7;
   position: relative;
   transition: filter 0.3s ease;
+}
+
+/* ── SVG inline icon base sizing ── */
+.dropdown-item svg,
+.pw-toggle svg,
+.profile-avatar svg,
+.bento-card svg,
+.nav-link svg,
+button svg:not(.score-gauge):not(.gauge-ring),
+a svg {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  vertical-align: -0.125em;
 }
 
 .blurred-container {

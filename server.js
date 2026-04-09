@@ -265,6 +265,7 @@ configurePassport();
 // Serve static files — 1-day cache with ETag revalidation.
 // Avoids the 1-year stale cache problem where deploys don't update user's CSS/JS.
 app.use(express.static(path.join(__dirname, 'public'), {
+  index: false, // SPA routes handle '/' so nonce can be injected into <script> tags
   maxAge: '1d',
   etag: true,
   lastModified: true,

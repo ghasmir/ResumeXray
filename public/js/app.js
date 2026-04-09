@@ -509,8 +509,13 @@ function switchTab(tabId) {
   // Old HTML uses data-tab values that need "tab-" prefix (e.g. "diagnosis" → "tab-diagnosis")
   let tab = document.getElementById(tabId) || el('tab-' + tabId);
   let btn = document.querySelector(`[data-tab="${tabId}"]`) || el('btn-' + tabId);
-  if (tab) { tab.classList.add('active'); tab.classList.add('active-tab'); }
-  if (btn) btn.classList.add('active');
+  if (tab) { tab.classList.add('active'); tab.classList.add('active-tab'); tab.setAttribute('role', 'tabpanel'); }
+  if (btn) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
+
+  // Update aria-selected on all tab buttons
+  document.querySelectorAll('.results-tab-btn').forEach(b => {
+    if (b !== btn) b.setAttribute('aria-selected', 'false');
+  });
 
   // Trigger lazy-loading for PDF if switched to that tab
   if (tabId === 'tab-pdf-preview' || tabId === 'pdf-preview') {
@@ -521,6 +526,14 @@ function switchTab(tabId) {
       if (!previewFrame.src || previewFrame.src.includes('about:blank') || !previewFrame.src.includes(bar.dataset.scanId)) {
         reloadPdfPreview(bar.dataset.scanId);
       }
+    }
+  }
+  // Lazy-load cover letter preview when switching to that tab
+  if (tabId === 'tab-cover-letter' || tabId === 'cover-letter') {
+    const bar = el('agent-download-bar');
+    const clContainer = el('cover-letter-content');
+    if (bar && bar.dataset.scanId && clContainer && !clContainer.querySelector('.preview-iframe')) {
+      renderCoverLetter('');
     }
   }
 }
@@ -703,23 +716,10 @@ function startAgentAnalysis(sessionId) {
   agentBulletPairs = []; // Reset bullet pairs
   agentResumeText = '';
 
-  // Nudge guests to convert
-  if (!currentUser) {
-    const timeline = el('agent-timeline');
-    const nudge = document.createElement('div');
-    nudge.className = 'agent-upgrade-prompt bento-glass animate-fade-up';
-    nudge.style.marginTop = '2rem';
-    nudge.innerHTML = `
-      <div style="font-size: 1.5rem; margin-bottom: 1rem;">👤</div>
-      <h4>Want to keep these AI fixes forever?</h4>
-      <p>Create a free account to save this analysis to your career dashboard and unlock recruiter-view insights.</p>
-      <div class="flex justify-center gap-2">
-        <button class="btn btn-primary btn-sm" data-action="navigate" data-path="/signup">Create Free Account</button>
-        <button class="btn btn-ghost btn-sm" data-action="navigate" data-path="/login">Log In</button>
-      </div>
-    `;
-    timeline.appendChild(nudge);
-  }
+  // Nudge guests to convert — single CTA at the bottom of agent timeline only
+  // (additional paywalls are overlaid on the score gauges, Cover Letter tab, etc.)
+  // Removed duplicate nudge block here (issue #6) — the unlock-overlay on 
+  // agent-score-summary already handles this.
   
   const scoreAfterCard = el('score-after-card');
   if (scoreAfterCard) scoreAfterCard.style.display = 'none';
@@ -2120,19 +2120,10 @@ function buildRecruiterRows(fieldAccuracy, extractedFields) {
 
   const isGuest = !currentUser;
 
-  // Mask sensitive PII fields for non-logged-in users
+  // Mask sensitive PII fields for non-logged-in users on shared/public links only.
+  // On a user's own just-ran scan, show full values so they can verify parsing.
   function maskValue(fieldName, value) {
-    if (!isGuest || !value) return value;
-    const lower = fieldName.toLowerCase();
-    if (lower.includes('email')) {
-      // show first 3 chars + domain hint: gha****@gm***.com
-      const parts = value.split('@');
-      if (parts.length === 2) return parts[0].substring(0, 3) + '••••@' + parts[1].substring(0, 2) + '•••.' + parts[1].split('.').pop();
-    }
-    if (lower.includes('phone') || lower.includes('tel')) {
-      // show first 4 chars: +353 •• ••• ••••
-      return value.substring(0, 4) + ' •• ••• ••••';
-    }
+    // Never mask for logged-in users or the user's own scan session
     return value;
   }
 
