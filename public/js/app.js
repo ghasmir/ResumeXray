@@ -391,13 +391,9 @@ function setupAuthForms() {
         } else {
           currentUser = data;
           await fetchUser();
-          // If user had an active scan, redirect to results instead of dashboard
-          const activeScanId = localStorage.getItem('resumeXray_currentScanId');
-          if (activeScanId) {
-            navigateTo(`/results/${activeScanId}`);
-          } else {
-            navigateTo('/dashboard');
-          }
+          // Always go to dashboard after signup — clean start
+          localStorage.removeItem('resumeXray_currentScanId');
+          navigateTo('/dashboard');
         }
       } catch {
         errEl.textContent = 'Something went wrong. Please try again.';
@@ -429,13 +425,9 @@ function setupAuthForms() {
         } else {
           currentUser = data;
           await fetchUser();
-          // If user had an active scan, redirect to results instead of dashboard
-          const activeScanId = localStorage.getItem('resumeXray_currentScanId');
-          if (activeScanId) {
-            navigateTo(`/results/${activeScanId}`);
-          } else {
-            navigateTo('/dashboard');
-          }
+          // Always go to dashboard after login — clean start
+          localStorage.removeItem('resumeXray_currentScanId');
+          navigateTo('/dashboard');
         }
       } catch {
         errEl.textContent = 'Something went wrong. Please try again.';

@@ -4774,9 +4774,7 @@ a svg {
 /* ─── 31. UI/UX AUDIT FIXES ────────────────────────────────── */
 
 /* Fix 1: Hide logo text on small mobile screens */
-@media (max-width: 480px) {
-  .logo-text { display: none; }
-}
+/* Fix 1: Logo text visible on all screens (removed mobile hide) */
 
 /* Fix 3: Discount badge utility for pricing savings pills */
 .discount-badge {
