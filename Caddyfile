@@ -1,0 +1,61 @@
+# ═══════════════════════════════════════════════════════════════
+# ResumeXray — Caddyfile
+# ═══════════════════════════════════════════════════════════════
+# Reverse proxy for Hostinger KVS 2 VPS behind Cloudflare.
+# Caddy handles: TLS termination, HSTS, gzip, proxy headers.
+# Cloudflare handles: WAF, DDoS, edge caching (free tier).
+#
+# Install: sudo apt install -y caddy
+# Test:    caddy validate --config /etc/caddy/Caddyfile
+# Reload:  sudo systemctl reload caddy
+# ═══════════════════════════════════════════════════════════════
+
+resumexray.pro {
+    # ── Reverse Proxy to Node.js (PM2 cluster) ───────────────────
+    reverse_proxy localhost:3000 {
+        # Health check — Caddy removes unhealthy upstreams
+        health_uri /healthz
+        health_interval 30s
+        health_timeout 5s
+        health_status 200
+
+        # Proxy headers — Node sees real client info
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # ── Compression ──────────────────────────────────────────────
+    encode gzip zstd
+
+    # ── Security Headers (supplement Helmet.js) ──────────────────
+    header {
+        # HSTS — 1 year, include subdomains, preload eligible
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Prevent MIME-type sniffing
+        X-Content-Type-Options "nosniff"
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Permissions policy — disable unnecessary browser features
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(self)"
+        # Remove server identification
+        -Server
+    }
+
+    # ── Static Asset Caching ─────────────────────────────────────
+    @static path *.css *.js *.woff2 *.png *.jpg *.svg *.ico *.webp
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    # ── Rate Limits (defense-in-depth on top of Express limits) ──
+    # Caddy's built-in rate limiting for DDoS at proxy level
+    # Note: Primary rate limiting is in Express via express-rate-limit
+
+    # ── Logging ──────────────────────────────────────────────────
+    log {
+        output file /var/log/caddy/resumexray.log {
+            roll_size 50MiB
+            roll_keep 5
+            roll_keep_for 168h
+        }
+        format json
+    }
+}

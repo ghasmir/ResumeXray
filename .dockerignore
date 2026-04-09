@@ -1,0 +1,21 @@
+# ═══════════════════════════════════════════════════════════════
+# ResumeXray — Docker Ignore
+# ═══════════════════════════════════════════════════════════════
+
+node_modules
+.git
+.gitignore
+.env
+.env.*
+*.md
+tests/
+deploy/
+.github/
+.vscode/
+.gemini/
+_agents/
+tmp_uploads/
+data/
+*.sqlite
+*.db
+.DS_Store

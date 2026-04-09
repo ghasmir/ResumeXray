@@ -1,0 +1,58 @@
+# ═══════════════════════════════════════════════════════════════
+# ResumeXray — systemd service unit (Hostinger KVS 2 VPS)
+# ═══════════════════════════════════════════════════════════════
+# Manages PM2 as a systemd service for auto-restart on boot.
+#
+# Install:
+#   sudo cp deploy/resumexray.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable resumexray
+#   sudo systemctl start resumexray
+#
+# Logs:
+#   sudo journalctl -u resumexray -f
+# ═══════════════════════════════════════════════════════════════
+
+[Unit]
+Description=ResumeXray (PM2 managed Node.js app)
+Documentation=https://resumexray.pro
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=forking
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/ats-resume-checker
+
+# §14.3: Environment — load from .env file
+EnvironmentFile=/home/deploy/ats-resume-checker/.env
+Environment=NODE_ENV=production
+Environment=PM2_HOME=/home/deploy/.pm2
+
+# Start PM2 with ecosystem config
+ExecStart=/usr/bin/pm2 start ecosystem.config.js --env production
+ExecReload=/usr/bin/pm2 reload ecosystem.config.js
+ExecStop=/usr/bin/pm2 kill
+
+# §14.3: Hardening — defense-in-depth
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/deploy/ats-resume-checker/uploads
+ReadWritePaths=/home/deploy/ats-resume-checker/db
+ReadWritePaths=/home/deploy/.pm2
+PrivateTmp=yes
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Resource limits (2 vCPU / 8GB VPS)
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

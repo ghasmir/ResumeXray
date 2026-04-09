@@ -1,0 +1,5 @@
+# §12.8: tmpfs mount for upload directory
+# Add this line to /etc/fstab:
+# RAM-backed, 500MB limit, owned by app user, mode 0700
+
+tmpfs /app/tmp_uploads tmpfs defaults,size=500m,mode=0700,uid=app,gid=app,noexec,nosuid 0 0

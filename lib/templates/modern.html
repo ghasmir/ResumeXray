@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>{{{baseCss}}}</style>
+  <style>
+    /* ── Modern Template ─────────────────────────────────────────────────
+     * Font: Arial / Helvetica (universal ATS-safe sans-serif)
+     * Accent: #1a56db (professional blue)
+     * Style: Clean, contemporary, section dividers with blue bottom border
+     * Best for: Tech, consulting, modern corporate, startups
+     * ───────────────────────────────────────────────────────────────────── */
+
+    body {
+      font-family: Arial, Helvetica, 'Liberation Sans', sans-serif;
+    }
+
+    .resume-name {
+      color: #111;
+      font-size: 20pt;
+      font-weight: 700;
+    }
+
+    .contact-line a {
+      color: #1a56db;
+      text-decoration: none;
+    }
+
+    .section-title {
+      color: #1a56db;
+      border-bottom: 1.5pt solid #1a56db;
+      padding-bottom: 3pt;
+      margin-bottom: 0.1in;
+    }
+
+    .entry-title {
+      color: #111;
+    }
+
+    .entry-dates {
+      color: #1a56db;
+      font-weight: 500;
+    }
+
+    .bullet-list li strong {
+      color: #111;
+    }
+
+    .skill-category-name {
+      color: #1a56db;
+    }
+  </style>
+</head>
+<body class="{{#if compact}}density-compact{{/if}}">
+
+  {{#if watermark}}
+  <div class="watermark-overlay">PREVIEW ONLY – DOWNLOAD TO UNLOCK</div>
+  {{/if}}
+
+  <!-- Header -->
+  <div class="resume-header">
+    <h1 class="resume-name">{{name}}</h1>
+    {{#if contact}}
+    <div class="contact-line">
+      {{#each contact}}
+        {{#unless @first}}<span class="separator">|</span>{{/unless}}
+        {{this}}
+      {{/each}}
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Professional Summary -->
+  {{#if summary}}
+  <div class="section">
+    <h2 class="section-title">PROFESSIONAL SUMMARY</h2>
+    <p class="summary-text">{{summary}}</p>
+  </div>
+  {{/if}}
+
+  <!-- Experience -->
+  {{#if experience}}
+  <div class="section">
+    <h2 class="section-title">EXPERIENCE</h2>
+    {{#each experience}}
+    <div class="entry">
+      <div class="entry-header">
+        <div>
+          <span class="entry-title">{{this.title}}</span>
+          {{#if this.company}}
+          <span class="entry-subtitle"> &mdash; {{this.company}}</span>
+          {{/if}}
+          {{#if this.location}}
+          <span class="entry-location">, {{this.location}}</span>
+          {{/if}}
+        </div>
+        {{#if this.dates}}
+        <span class="entry-dates">{{this.dates}}</span>
+        {{/if}}
+      </div>
+      {{#if this.bullets}}
+      <ul class="bullet-list">
+        {{#each this.bullets}}
+        <li>{{{boldMetrics this}}}</li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <!-- Education -->
+  {{#if education}}
+  <div class="section">
+    <h2 class="section-title">EDUCATION</h2>
+    {{#each education}}
+    <div class="entry">
+      <div class="entry-header">
+        <div>
+          <span class="entry-title">{{this.degree}}</span>
+          {{#if this.school}}
+          <span class="entry-subtitle"> &mdash; {{this.school}}</span>
+          {{/if}}
+        </div>
+        {{#if this.dates}}
+        <span class="entry-dates">{{this.dates}}</span>
+        {{/if}}
+      </div>
+      {{#if this.details}}
+      <ul class="bullet-list">
+        {{#each this.details}}
+        <li>{{this}}</li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <!-- Technical Skills -->
+  {{#if skills}}
+  <div class="section">
+    <h2 class="section-title">TECHNICAL SKILLS</h2>
+    <div class="skills-grid">
+      {{#each skills}}
+      <div class="skill-category">
+        {{#if this.category}}
+        <span class="skill-category-name">{{this.category}}: </span>
+        {{/if}}
+        <span class="skill-category-items">{{this.items}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Projects -->
+  {{#if projects}}
+  <div class="section">
+    <h2 class="section-title">PROJECTS</h2>
+    {{#each projects}}
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-title">{{this.name}}</span>
+        {{#if this.dates}}
+        <span class="entry-dates">{{this.dates}}</span>
+        {{/if}}
+      </div>
+      {{#if this.bullets}}
+      <ul class="bullet-list">
+        {{#each this.bullets}}
+        <li>{{{boldMetrics this}}}</li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <!-- Certifications -->
+  {{#if certifications}}
+  <div class="section">
+    <h2 class="section-title">CERTIFICATIONS</h2>
+    <ul class="simple-list">
+      {{#each certifications}}
+      <li>{{this}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+
+  <!-- Languages -->
+  {{#if languages}}
+  <div class="section">
+    <h2 class="section-title">LANGUAGES</h2>
+    <ul class="simple-list">
+      {{#each languages}}
+      <li>{{this}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+
+</body>
+</html>

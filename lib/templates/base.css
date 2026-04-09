@@ -1,0 +1,255 @@
+/*
+ * ResumeXray — Base CSS (Shared Across All Resume Templates)
+ * 
+ * ATS SAFETY RULES:
+ * 1. Single-column layout ONLY — no CSS Grid, no flex columns for text flow
+ * 2. Semantic HTML elements (h2, ul, li, p) — parsers read DOM structure
+ * 3. No decorative Unicode — standard bullets only (•, -, *)
+ * 4. No images, icons, or SVG — parsers ignore non-text
+ * 5. Contact info in <body>, NEVER in header/footer — some parsers skip them
+ * 6. Standard fonts (Arial, Calibri, Georgia, Helvetica, Times New Roman)
+ * 7. Text must be selectable — never use canvas or rasterized text
+ * 8. Dates in MM/YYYY format — consistent across all entries
+ * 9. Section headings from whitelist (EXPERIENCE, EDUCATION, SKILLS, etc.)
+ */
+
+/* ── Page Setup ─────────────────────────────────────────────────────────── */
+
+@page {
+  size: letter;
+  margin: 0.55in 0.65in;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  width: 7.2in; /* 8.5in - 2×0.65in margins */
+  max-width: 7.2in;
+  margin: 0 auto;
+  font-size: 10.5pt;
+  line-height: 1.45;
+  color: #1a1a1a;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media screen {
+  body {
+    padding: 0.55in 0;
+  }
+}
+
+/* ── Density Modifier ───────────────────────────────────────────────────── */
+
+body.density-compact {
+  font-size: 9.5pt;
+  line-height: 1.25;
+}
+
+body.density-compact .section {
+  margin-bottom: 0.15in;
+}
+
+body.density-compact .entry {
+  margin-bottom: 0.08in;
+}
+
+body.density-compact .bullet-list li {
+  margin-bottom: 1px;
+}
+
+/* ── Header (Name + Contact) ────────────────────────────────────────────── */
+
+.resume-header {
+  text-align: center;
+  margin-bottom: 0.2in;
+  padding-bottom: 0.1in;
+}
+
+.resume-name {
+  font-size: 18pt;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 4pt;
+  color: #111;
+}
+
+.contact-line {
+  font-size: 9pt;
+  color: #444;
+  line-height: 1.6;
+}
+
+.contact-line .separator {
+  margin: 0 6pt;
+  color: #999;
+}
+
+/* ── Sections ───────────────────────────────────────────────────────────── */
+
+.section {
+  margin-bottom: 0.22in;
+}
+
+.section-title {
+  font-size: 10.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.08in;
+  padding-bottom: 3pt;
+  page-break-after: avoid;
+}
+
+/* ── Experience / Education Entries ──────────────────────────────────────── */
+
+.entry {
+  margin-bottom: 0.12in;
+  page-break-inside: avoid;
+}
+
+.entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 8pt;
+}
+
+.entry-title {
+  font-weight: 700;
+  font-size: 10.5pt;
+  color: #111;
+}
+
+.entry-subtitle {
+  font-weight: 400;
+  font-size: 10pt;
+  color: #333;
+}
+
+.entry-location {
+  font-style: italic;
+  font-size: 9.5pt;
+  color: #555;
+}
+
+.entry-dates {
+  font-size: 9.5pt;
+  color: #555;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Bullet Lists ───────────────────────────────────────────────────────── */
+
+.bullet-list {
+  list-style-type: disc;
+  padding-left: 0.22in;
+  margin-top: 3pt;
+}
+
+.bullet-list li {
+  margin-bottom: 2pt;
+  font-size: 10pt;
+  line-height: 1.4;
+  color: #222;
+}
+
+.bullet-list li strong {
+  font-weight: 600;
+}
+
+/* ── Skills ──────────────────────────────────────────────────────────────── */
+
+.skills-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2pt 0;
+}
+
+.skill-category {
+  width: 100%;
+  margin-bottom: 2pt;
+  font-size: 10pt;
+  line-height: 1.5;
+}
+
+.skill-category-name {
+  font-weight: 600;
+  color: #111;
+}
+
+.skill-category-items {
+  color: #333;
+}
+
+/* ── Summary ────────────────────────────────────────────────────────────── */
+
+.summary-text {
+  font-size: 10pt;
+  line-height: 1.5;
+  color: #333;
+  text-align: justify;
+}
+
+/* ── Certifications / Languages ─────────────────────────────────────────── */
+
+.simple-list {
+  list-style: none;
+  padding: 0;
+}
+
+.simple-list li {
+  font-size: 10pt;
+  margin-bottom: 2pt;
+  color: #222;
+}
+
+/* ── Watermark Overlay ──────────────────────────────────────────────────── */
+
+.watermark-overlay {
+  position: fixed;
+  bottom: 0px;
+  left: 0;
+  width: 100%;
+  padding: 0.15in 0;
+  background-color: rgba(26, 26, 26, 0.05);
+  border-top: 1pt solid rgba(0, 0, 0, 0.1);
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── Print Overrides ────────────────────────────────────────────────────── */
+
+@media print {
+  body {
+    width: auto;
+    max-width: none;
+  }
+  
+  .watermark-overlay {
+    position: fixed;
+  }
+  
+  .entry {
+    page-break-inside: avoid;
+  }
+  
+  .section-title {
+    page-break-after: avoid;
+  }
+}

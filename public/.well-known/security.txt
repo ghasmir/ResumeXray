@@ -1,0 +1,5 @@
+Contact: mailto:security@resumexray.pro
+Expires: 2027-04-09T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://resumexray.pro/.well-known/security.txt
+Policy: https://resumexray.pro/terms

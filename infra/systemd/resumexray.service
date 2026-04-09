@@ -1,0 +1,52 @@
+# §12.6: Systemd service for ResumeXray
+# PM2 runs inside systemd — systemd owns the restart policy.
+#
+# Install: sudo cp infra/systemd/resumexray.service /etc/systemd/system/
+#          sudo systemctl daemon-reload
+#          sudo systemctl enable resumexray
+#          sudo systemctl start resumexray
+
+[Unit]
+Description=ResumeXray ATS Platform
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=app
+Group=app
+WorkingDirectory=/app
+Environment=NODE_ENV=production
+Environment=HOME=/home/app
+
+# PM2 manages Node.js processes; systemd manages PM2
+ExecStart=/usr/bin/pm2 start ecosystem.config.js --env production
+ExecReload=/usr/bin/pm2 reload ecosystem.config.js
+ExecStop=/usr/bin/pm2 stop all
+
+# Graceful shutdown budget: PM2 has 30s (kill_timeout), systemd waits 35s
+TimeoutStopSec=35
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/app/data /app/tmp_uploads /app/logs
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=4G
+CPUQuota=150%
+
+[Install]
+WantedBy=multi-user.target

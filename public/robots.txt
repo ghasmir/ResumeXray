@@ -1,0 +1,57 @@
+# ResumeXray — robots.txt
+# https://resumexray.pro
+
+# ── Default: Allow all search engines ──────────────────────────────────────────
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /auth/
+Disallow: /billing/
+Disallow: /user/
+Disallow: /ai/
+Disallow: /uploads/
+
+# ── AI Retrieval Bots (Allowed — they cite sources) ──────────────────────────
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# ── AI Training Scrapers (Blocked — consume data without attribution) ─────────
+# These bots scrape content to train models, not to answer user queries.
+# Block them to protect proprietary content and conserve bandwidth.
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+# ── Sitemap ────────────────────────────────────────────────────────────────────
+Sitemap: https://resumexray.pro/sitemap.xml
+
+# ── AI Discovery ──────────────────────────────────────────────────────────────
+# For AI systems that support llms.txt (proposed standard for AI-readable site info)
+# See: /llms.txt
+
+# Crawl-delay suggestion for polite bots
+Crawl-delay: 1

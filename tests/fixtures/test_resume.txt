@@ -1,0 +1,13 @@
+John Doe
+john@example.com
+555-0102
+
+EXPERIENCE
+Software Engineer at Google
+- Developed things
+
+EDUCATION
+BS Computer Science, Stanford
+
+SKILLS
+JavaScript, Node.js

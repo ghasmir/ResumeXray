@@ -1,0 +1,43 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+db/*.db
+uploads/
+.DS_Store
+*.log
+dist/
+coverage/
+
+# Debug/test artifacts
+debug-*.pdf
+tests/fixtures/*.pdf
+tests/fixtures/*.docx
+*.typ
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+
+# PM2
+*.pid
+logs/
+
+# Sentry
+.sentryclirc
+
+# Backups
+backups/
+*.bak
+*.backup
+*.sql.gz
+
+# Temp uploads
+tmp_uploads/

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>{{{baseCss}}}</style>
+  <style>
+    /* ── Minimal Template ────────────────────────────────────────────────
+     * Font: Helvetica Neue / Helvetica (Swiss precision)
+     * Accent: None — pure typography and whitespace
+     * Style: Maximum whitespace, no borders, sections separated by space
+     * Best for: Design, product, senior leadership, executive
+     * ───────────────────────────────────────────────────────────────────── */
+
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', sans-serif;
+      font-weight: 300;
+      font-size: 10pt;
+      line-height: 1.5;
+      color: #222;
+    }
+
+    .resume-header {
+      text-align: left;
+      margin-bottom: 0.25in;
+      padding-bottom: 0;
+      border: none;
+    }
+
+    .resume-name {
+      font-size: 22pt;
+      font-weight: 300;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #000;
+    }
+
+    .contact-line {
+      margin-top: 4pt;
+      font-size: 8.5pt;
+      font-weight: 400;
+      letter-spacing: 0.03em;
+      color: #555;
+    }
+
+    .contact-line a {
+      color: #555;
+      text-decoration: none;
+    }
+
+    .section {
+      margin-bottom: 0.3in;
+    }
+
+    .section-title {
+      font-size: 8.5pt;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #888;
+      border: none;
+      padding-bottom: 0;
+      margin-bottom: 0.1in;
+    }
+
+    .entry {
+      margin-bottom: 0.16in;
+    }
+
+    .entry-title {
+      font-weight: 500;
+      font-size: 10pt;
+      color: #000;
+    }
+
+    .entry-subtitle {
+      font-weight: 300;
+      color: #444;
+    }
+
+    .entry-dates {
+      font-weight: 400;
+      font-size: 9pt;
+      color: #777;
+    }
+
+    .bullet-list {
+      padding-left: 0.18in;
+    }
+
+    .bullet-list li {
+      font-weight: 300;
+      font-size: 9.5pt;
+      color: #333;
+      margin-bottom: 1.5pt;
+    }
+
+    .bullet-list li strong {
+      font-weight: 500;
+    }
+
+    .summary-text {
+      font-weight: 300;
+      font-size: 9.5pt;
+      line-height: 1.6;
+      color: #444;
+      text-align: left;
+    }
+
+    .skill-category-name {
+      font-weight: 500;
+      color: #000;
+    }
+
+    .skill-category-items {
+      font-weight: 300;
+      color: #444;
+    }
+
+    .simple-list li {
+      font-weight: 300;
+      font-size: 9.5pt;
+      color: #333;
+    }
+  </style>
+</head>
+<body class="{{#if compact}}density-compact{{/if}}">
+
+  {{#if watermark}}
+  <div class="watermark-overlay">PREVIEW ONLY – DOWNLOAD TO UNLOCK</div>
+  {{/if}}
+
+  <!-- Header -->
+  <div class="resume-header">
+    <h1 class="resume-name">{{name}}</h1>
+    {{#if contact}}
+    <div class="contact-line">
+      {{#each contact}}
+        {{#unless @first}}<span class="separator">|</span>{{/unless}}
+        {{this}}
+      {{/each}}
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Professional Summary -->
+  {{#if summary}}
+  <div class="section">
+    <h2 class="section-title">Summary</h2>
+    <p class="summary-text">{{summary}}</p>
+  </div>
+  {{/if}}
+
+  <!-- Experience -->
+  {{#if experience}}
+  <div class="section">
+    <h2 class="section-title">Experience</h2>
+    {{#each experience}}
+    <div class="entry">
+      <div class="entry-header">
+        <div>
+          <span class="entry-title">{{this.title}}</span>
+          {{#if this.company}}
+          <span class="entry-subtitle"> — {{this.company}}</span>
+          {{/if}}
+          {{#if this.location}}
+          <span class="entry-location">, {{this.location}}</span>
+          {{/if}}
+        </div>
+        {{#if this.dates}}
+        <span class="entry-dates">{{this.dates}}</span>
+        {{/if}}
+      </div>
+      {{#if this.bullets}}
+      <ul class="bullet-list">
+        {{#each this.bullets}}
+        <li>{{{boldMetrics this}}}</li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <!-- Education -->
+  {{#if education}}
+  <div class="section">
+    <h2 class="section-title">Education</h2>
+    {{#each education}}
+    <div class="entry">
+      <div class="entry-header">
+        <div>
+          <span class="entry-title">{{this.degree}}</span>
+          {{#if this.school}}
+          <span class="entry-subtitle"> — {{this.school}}</span>
+          {{/if}}
+        </div>
+        {{#if this.dates}}
+        <span class="entry-dates">{{this.dates}}</span>
+        {{/if}}
+      </div>
+      {{#if this.details}}
+      <ul class="bullet-list">
+        {{#each this.details}}
+        <li>{{this}}</li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <!-- Skills -->
+  {{#if skills}}
+  <div class="section">
+    <h2 class="section-title">Skills</h2>
+    <div class="skills-grid">
+      {{#each skills}}
+      <div class="skill-category">
+        {{#if this.category}}
+        <span class="skill-category-name">{{this.category}}: </span>
+        {{/if}}
+        <span class="skill-category-items">{{this.items}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Projects -->
+  {{#if projects}}
+  <div class="section">
+    <h2 class="section-title">Projects</h2>
+    {{#each projects}}
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-title">{{this.name}}</span>
+        {{#if this.dates}}
+        <span class="entry-dates">{{this.dates}}</span>
+        {{/if}}
+      </div>
+      {{#if this.bullets}}
+      <ul class="bullet-list">
+        {{#each this.bullets}}
+        <li>{{{boldMetrics this}}}</li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <!-- Certifications -->
+  {{#if certifications}}
+  <div class="section">
+    <h2 class="section-title">Certifications</h2>
+    <ul class="simple-list">
+      {{#each certifications}}
+      <li>{{this}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+
+  <!-- Languages -->
+  {{#if languages}}
+  <div class="section">
+    <h2 class="section-title">Languages</h2>
+    <ul class="simple-list">
+      {{#each languages}}
+      <li>{{this}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+
+</body>
+</html>

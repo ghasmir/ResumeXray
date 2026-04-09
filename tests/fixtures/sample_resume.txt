@@ -1,0 +1,24 @@
+John Doe
+Software Engineer
+San Francisco, CA | 555-0199 | john.doe@example.com | linkedin.com/in/johndoe
+
+SUMMARY
+Experienced software engineer with 5 years in full-stack development. Passionate about scalable infrastructure and elegant code. Synergistic team player.
+
+EXPERIENCE
+Software Engineer II | TechCorp | San Francisco, CA | 01/2020 – Present
+* Led the backend migration to microservices, reducing latency by 40%.
+* Spearheaded a new caching mechanism using Redis and Node.js.
+* Collaborated with cross-functional teams to deliver 5 major product features on schedule.
+* Delved deeply into legacy code to improve test coverage from 50% to 90%.
+
+Junior Developer | WebSolutions | Austin, TX | 06/2017 – 12/2019
+* Developed responsive frontend interfaces using React and Redux.
+* Assisted in database optimization, improving query times by 20%.
+
+EDUCATION
+Bachelor of Science in Computer Science | University of Texas
+08/2013 – 05/2017
+
+SKILLS
+JavaScript, TypeScript, React, Node.js, Python, SQL, Docker, AWS

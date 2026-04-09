@@ -1,0 +1,26 @@
+John Smith
+Software Engineer
+john.smith@email.com | (555) 123-4567 | San Francisco, CA
+
+SUMMARY
+Experienced software engineer with 5 years of experience in full-stack web development. Skilled in JavaScript, Python, and cloud technologies.
+
+EXPERIENCE
+
+Senior Software Engineer | TechCorp Inc. | Jan 2022 - Present
+- Responsible for developing and maintaining web applications
+- Helped the team with code reviews and mentoring junior developers
+- Assisted in migrating legacy systems to cloud infrastructure
+- Worked on improving application performance
+
+Software Engineer | StartupXYZ | Jun 2019 - Dec 2021
+- Built features for the company's main product
+- Helped with database management and optimization
+- Participated in agile ceremonies and sprint planning
+- Responsible for writing unit tests
+
+EDUCATION
+Bachelor of Science in Computer Science | University of California, Berkeley | 2019
+
+SKILLS
+JavaScript, TypeScript, React, Node.js, Python, Django, PostgreSQL, MongoDB, AWS, Docker, Git

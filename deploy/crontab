@@ -1,0 +1,22 @@
+# ═══════════════════════════════════════════════════════════════
+# ResumeXray — Production Cron Jobs
+# ═══════════════════════════════════════════════════════════════
+# Install: crontab -l | cat - deploy/crontab | crontab -
+#
+# All times are UTC. Run on the production VPS only.
+# ═══════════════════════════════════════════════════════════════
+
+# Health check every 5 minutes (with webhook alerts)
+*/5 * * * * /opt/resumexray/deploy/monitor.sh
+
+# Database backup daily at 02:00 UTC
+0 2 * * * /opt/resumexray/deploy/backup-db.sh >> /var/log/resumexray-backup.log 2>&1
+
+# Logrotate (usually handled by system, but force if needed)
+0 3 * * * /usr/sbin/logrotate /etc/logrotate.d/resumexray --state /tmp/logrotate.resumexray
+
+# Clear tmpfs uploads older than 1 hour (belt-and-braces cleanup)
+*/30 * * * * find /opt/resumexray/tmp_uploads -type f -mmin +60 -delete 2>/dev/null
+
+# npm audit weekly (Sunday 04:00 UTC, log results)
+0 4 * * 0 cd /opt/resumexray && npm audit --omit=dev >> /var/log/resumexray-audit.log 2>&1
