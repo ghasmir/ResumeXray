@@ -297,9 +297,6 @@ const COOKIE_NAME = process.env.NODE_ENV === 'production' ? '__Host-rxsid' : '__
 // ── Logout ─────────────────────────────────────────────────────
 router.post('/logout', (req, res, next) => {
   const isProd = process.env.NODE_ENV === 'production';
-  // Must match the attributes set in server.js session config; otherwise
-  // clearCookie() is a no-op for __Host-prefixed cookies and the client keeps
-  // sending the old session ID, leading to "logged back in after logout".
   const cookieOpts = {
     path: '/',
     httpOnly: true,
@@ -308,21 +305,21 @@ router.post('/logout', (req, res, next) => {
   };
   req.logout((err) => {
     if (err) return next(err);
-    const finish = () => {
-      res.clearCookie(COOKIE_NAME, cookieOpts);
-      // Prevent any intermediary/browser cache from serving a stale auth response
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-      res.set('Pragma', 'no-cache');
-      res.json({ success: true });
-    };
-    if (req.session && typeof req.session.destroy === 'function') {
-      req.session.destroy((destroyErr) => {
-        if (destroyErr) log.error('Session destroy error on logout', { error: destroyErr.message });
-        finish();
+    // Use regenerate() instead of destroy() — regenerate is guaranteed to
+    // invalidate the OLD session ID immediately (new empty session is issued).
+    // destroy() on Supabase session store can fail silently, leaving the old
+    // session valid and causing ghost re-authentication on next page load.
+    req.session.regenerate((regenErr) => {
+      if (regenErr) log.error('Session regenerate error on logout', { error: regenErr.message });
+      // Clear session data on the new (empty) session
+      req.session._csrfToken = undefined;
+      req.session.save(() => {
+        res.clearCookie(COOKIE_NAME, cookieOpts);
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.set('Pragma', 'no-cache');
+        res.json({ success: true });
       });
-    } else {
-      finish();
-    }
+    });
   });
 });
 

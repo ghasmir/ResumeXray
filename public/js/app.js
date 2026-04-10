@@ -66,8 +66,10 @@ window.fetch = function(url, options = {}) {
   });
 };
 
-// Fetch CSRF token immediately
-fetchCsrfToken();
+// !! DO NOT call fetchCsrfToken() here — it races with fetchUser().
+// The /user/me response auto-saves the session (rolling:true), overwriting
+// the CSRF token. Instead, fetchCsrfToken() is called at the END of fetchUser().
+
 
 // ── Helpers ───────────────────────────────────────────────────
 function timeAgo(dateStr) {
@@ -174,6 +176,9 @@ async function fetchUser() {
     if (el('sheet-auth-area')) el('sheet-auth-area').style.display = 'none';
     if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'block';
   }
+  // Fetch CSRF token AFTER /user/me has completed and session has been saved.
+  // This guarantees our token is the last write — no overwrite from rolling session save.
+  await fetchCsrfToken();
 }
 
 function updateNavCredits(balance) {
@@ -1551,6 +1556,13 @@ function reloadPdfPreview(scanId) {
 }
 
 async function downloadOptimized(format) {
+  // Gate: guests must log in to download
+  if (!currentUser) {
+    showToast('Create a free account to download your optimized resume.', 'info', { duration: 5000 });
+    setTimeout(() => navigateTo('/signup'), 1400);
+    return;
+  }
+
   const bar = el('agent-download-bar');
   if (!bar) return;
   const scanId = bar.dataset.scanId;
@@ -2815,6 +2827,13 @@ document.addEventListener('click', (e) => {
 });
 
 async function downloadCoverLetter(format) {
+  // Gate: guests must log in to download
+  if (!currentUser) {
+    showToast('Create a free account to download your cover letter.', 'info', { duration: 5000 });
+    setTimeout(() => navigateTo('/signup'), 1400);
+    return;
+  }
+
   const bar = el('agent-download-bar');
   const scanId = bar ? bar.dataset.scanId : null;
   if (!scanId) {
