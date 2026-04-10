@@ -104,7 +104,6 @@ function configurePassport() {
   if (process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET) {
     try {
       const OAuth2Strategy = require('passport-oauth2').Strategy;
-      const fetch = global.fetch || require('node-fetch');
 
       passport.use('linkedin', new OAuth2Strategy({
         authorizationURL: 'https://www.linkedin.com/oauth/v2/authorization',

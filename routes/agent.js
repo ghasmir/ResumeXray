@@ -19,7 +19,7 @@ const { upload, validateMagicBytes } = require('../middleware/upload');
 const { agentLimiter, downloadLimiter, sanitizeInput } = require('../config/security');
 const { checkExportCredit } = require('../middleware/usage');
 const parser = require('../lib/parser');
-const { getJobDescription } = require('../lib/scraper');
+const { processJobDescription } = require('../lib/jd-processor');
 const { runAgentPipeline } = require('../lib/agent-pipeline');
 const { generateDOCX, generatePDF, validatePDF, renderHtmlToPdf } = require('../lib/resume-builder');
 const { parseCoverLetter } = require('../lib/cover-letter-parser');
@@ -99,24 +99,12 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
 
     if (jdInput.trim()) {
       try {
-        const jdResult = await getJobDescription(jdInput);
-        jdText = sanitizeInput(jdResult.text || jdResult);
-
-        if (jdResult.scraped && jdText) {
-          jobUrl = jdInput;
-
-          // ARCHITECT FIX: Auto-derive job title from scraped text or URL
-          if (!jobTitle) {
-             const titleMatch = jdText.match(/Job Title:\s*([^\n]+)/i);
-             if (titleMatch) {
-                 jobTitle = sanitizeInput(titleMatch[1].trim().substring(0, 100));
-             } else {
-                 try { jobTitle = new URL(jobUrl).hostname.replace(/^www\./, ''); } catch(e) {}
-             }
-          }
-        }
+        const jdResult = await processJobDescription(jdInput, '', jobUrl);
+        jdText = jdResult.jdText;
+        jobUrl = jdResult.jobUrl || jobUrl;
+        jobTitle = jdResult.jobTitle || '';
       } catch (err) {
-        return res.status(400).json({ error: `${err.message} Cloudflare/Security might have blocked us. Please copy and paste the Job Description text manually instead of using the URL.` });
+        return res.status(400).json({ error: err.message });
       }
     }
 

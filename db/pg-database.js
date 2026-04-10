@@ -27,9 +27,15 @@ const log = require('../lib/logger');
 // §3.3: Pool sizing — Supabase free tier Transaction pooler has ~60 total connections.
 // With 2 PM2 workers × 6 max = 12, leaving 48 for sessions, webhooks, cron, migrations.
 // Never use max=20 (20 × 2 workers = 40, dangerously close to 60 limit).
+const rawPoolMax = parseInt(process.env.PG_POOL_MAX, 10);
+const PG_POOL_MAX = (!rawPoolMax || rawPoolMax < 2 || rawPoolMax > 20) ? 6 : rawPoolMax;
+if (process.env.PG_POOL_MAX && PG_POOL_MAX !== rawPoolMax) {
+  log.warn('PG_POOL_MAX out of safe range (2-20), defaulting to 6', { provided: process.env.PG_POOL_MAX });
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: parseInt(process.env.PG_POOL_MAX, 10) || 6,  // §3.3: conservative for 2-worker PM2
+  max: PG_POOL_MAX,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,  // §3.2: 5s connection timeout
   // §3.2: 5s statement timeout — prevents runaway queries from holding connections

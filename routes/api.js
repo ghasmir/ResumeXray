@@ -5,7 +5,7 @@ const { apiLimiter, sanitizeInput } = require('../config/security');
 const { checkScanLimit } = require('../middleware/usage');
 const { analyzeResume } = require('../lib/analyzer');
 const parser = require('../lib/parser');
-const { getJobDescription } = require('../lib/scraper');
+const { processJobDescription } = require('../lib/jd-processor');
 const db = require('../db/database');
 const log = require('../lib/logger');
 
@@ -41,22 +41,10 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
     const jdInput = sanitizeInput(req.body.jobDescription || '') || jobUrl || '';
     if (jdInput.trim()) {
       try {
-        const jdResult = await getJobDescription(jdInput);
-        jdText = sanitizeInput(jdResult.text || jdResult);
-
-        if (jdResult.scraped && jdText) {
-          jobUrl = jdInput;
-
-          // ARCHITECT FIX: Auto-derive job title from scraped text or URL
-          if (!jobTitle) {
-             const titleMatch = jdText.match(/Job Title:\s*([^\n]+)/i);
-             if (titleMatch) {
-                 jobTitle = sanitizeInput(titleMatch[1].trim().substring(0, 100));
-             } else {
-                 try { jobTitle = new URL(jobUrl).hostname.replace(/^www\./, ''); } catch(e) {}
-             }
-          }
-        }
+        const jdResult = await processJobDescription(jdInput, jobTitle, jobUrl);
+        jdText = jdResult.jdText;
+        jobUrl = jdResult.jobUrl || jobUrl;
+        jobTitle = jdResult.jobTitle || jobTitle;
       } catch (err) {
         log.warn('JD extraction failed', { error: err.message });
         jdScrapeFailed = true;

@@ -725,6 +725,9 @@ function setupFileUpload() {
   area.addEventListener('dragleave', () => area.classList.remove('dragover'));
   area.addEventListener('drop', e => {
     e.preventDefault(); area.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 1) {
+      showToast('Please drop only one resume file at a time.', 'warning');
+    }
     if (e.dataTransfer.files.length) {
       fileInput.files = e.dataTransfer.files;
       showFilePreview(fileInput.files[0]);
@@ -1418,9 +1421,11 @@ function setupPasswordToggles() {
         if (input.type === 'password') {
           input.type = 'text';
           btn.textContent = '🙈';
+          btn.setAttribute('aria-label', 'Hide password');
         } else {
           input.type = 'password';
           btn.textContent = '👁️';
+          btn.setAttribute('aria-label', 'Show password');
         }
       }
     });
@@ -1515,7 +1520,24 @@ function reloadPdfPreview(scanId) {
   if (previewFrame) {
     const template = getSelectedTemplate();
     const density = getSelectedDensity();
+    // §HIGH: Show loading skeleton while iframe renders
+    const container = previewFrame.parentElement;
+    let skeleton = container?.querySelector('.preview-skeleton');
+    if (!skeleton && container) {
+      skeleton = document.createElement('div');
+      skeleton.className = 'preview-skeleton';
+      skeleton.innerHTML = '<div class="loader"></div><p class="body-sm text-muted" style="margin-top:var(--sp-3)">Rendering preview…</p>';
+      skeleton.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;';
+      container.insertBefore(skeleton, previewFrame);
+    }
+    if (skeleton) skeleton.style.display = 'flex';
+    previewFrame.style.opacity = '0';
     previewFrame.src = `/api/agent/preview/${scanId}?template=${template}&density=${density}&t=${Date.now()}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
+    previewFrame.addEventListener('load', function onLoad() {
+      previewFrame.style.opacity = '1';
+      if (skeleton) skeleton.style.display = 'none';
+      previewFrame.removeEventListener('load', onLoad);
+    });
   }
 }
 
