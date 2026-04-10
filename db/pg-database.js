@@ -118,6 +118,19 @@ async function findOrCreateUser({ provider, profileId, email, name, avatarUrl })
 
   user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
   if (user) {
+    // If the existing account has a password, require re-authentication
+    // before linking the OAuth provider. Prevents account takeover via an OAuth
+    // provider that claims an email address without verification.
+    if (user.password_hash) {
+      return {
+        ...user,
+        requiresLinking: true,
+        pendingProvider: provider,
+        pendingProfileId: profileId,
+        pendingAvatarUrl: avatarUrl
+      };
+    }
+    // No password (another OAuth account) — safe to auto-link
     await pool.query(`UPDATE users SET ${column} = $1, avatar_url = COALESCE(avatar_url, $2), updated_at = NOW() WHERE id = $3`, [profileId, avatarUrl, user.id]);
     return queryOne('SELECT * FROM users WHERE id = $1', [user.id]);
   }

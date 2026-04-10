@@ -85,6 +85,16 @@ router.post('/signup', authLimiter, async (req, res) => {
     // Check if user already exists
     const existing = await db.getUserByEmail(email);
     if (existing) {
+      // If the account is SSO-only, tell the user which provider they used
+      if (!existing.password_hash) {
+        const provider = existing.google_id ? 'Google' : existing.linkedin_id ? 'LinkedIn' : existing.github_id ? 'GitHub' : null;
+        if (provider) {
+          return res.status(409).json({
+            error: `This email is linked to a ${provider} account. Please use "Continue with ${provider}" on the login page.`,
+            ssoProvider: provider.toLowerCase()
+          });
+        }
+      }
       return res.status(409).json({ error: 'An account with this email already exists. Please log in.' });
     }
 
@@ -317,18 +327,29 @@ router.post('/forgot-password', async (req, res) => {
       return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
     }
     const user = await db.getUserByEmail(email);
-    
+
     // Always return success to prevent email enumeration
     if (!user) {
       return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
     }
 
+    // SSO-only users don't have a password — send a reminder email instead of a reset link
+    if (!user.password_hash) {
+      const provider = user.google_id ? 'Google' : user.linkedin_id ? 'LinkedIn' : user.github_id ? 'GitHub' : null;
+      if (provider) {
+        mailer.sendSSOLoginReminderEmail(email, provider).catch(err => {
+          log.error('Failed to send SSO login reminder email', { error: err.message });
+        });
+        return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+      }
+    }
+
     const resetToken = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 3600000).toISOString(); // 1 hour
-    
+
     await db.setResetToken(email, resetToken, expires);
     await mailer.sendPasswordResetEmail(email, resetToken);
-    
+
     res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to process request.' });
