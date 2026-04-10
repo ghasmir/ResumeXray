@@ -1330,12 +1330,12 @@ async function finalizeAgentUI(data) {
       setTimeout(() => {
         readyOverlay.style.display = 'none';
         // Stay on ATS Diagnosis — let user navigate to Optimized Resume
-        switchTab('tab-ats-diagnosis');
+        switchTab('tab-diagnosis');
         showToast('Analysis complete! Check the Optimized Resume tab for your enhanced resume.', 'success');
       }, 400);
     }, 2500);
   } else {
-    switchTab('tab-ats-diagnosis');
+    switchTab('tab-diagnosis');
     showToast('Analysis complete! Your optimized resume is ready in the Optimized Resume tab.', 'success');
   }
 
