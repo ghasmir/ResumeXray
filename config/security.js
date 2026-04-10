@@ -44,6 +44,8 @@ function configureHelmet() {
       "'self'",
       "https://api.stripe.com",
       "https://accounts.google.com",
+      "https://*.ingest.sentry.io",      // §MED: Sentry error reporting
+      "https://*.ingest.de.sentry.io",   // Sentry EU datacenter
     ],
     frameSrc: [
       "'self'",
@@ -108,7 +110,7 @@ function permissionsPolicyMiddleware(req, res, next) {
       'magnetometer=()',
       'microphone=()',
       'midi=()',
-      'payment=(self "https://js.stripe.com")',
+      'payment=(self "https://js.stripe.com" "https://hooks.stripe.com")',
       'picture-in-picture=()',
       'publickey-credentials-get=(self)',
       'screen-wake-lock=()',

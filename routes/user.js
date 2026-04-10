@@ -5,6 +5,7 @@ const fs = require('fs');
 const db = require('../db/database');
 const { isAuthenticated } = require('../middleware/auth');
 const bcrypt = require('bcrypt');
+const { validatePassword } = require('../lib/validation');
 const log = require('../lib/logger');
 
 // All routes require authentication (except /me which checks gracefully)
@@ -72,14 +73,9 @@ router.put('/password', isAuthenticated, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     // §10.13: Match signup password policy
-    if (!newPassword || newPassword.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-    }
-    if (!/\d/.test(newPassword)) {
-      return res.status(400).json({ error: 'Password must contain at least one number.' });
-    }
-    if (!/[A-Z]/.test(newPassword)) {
-      return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
+    const pwCheck = validatePassword(newPassword);
+    if (!pwCheck.valid) {
+      return res.status(400).json({ error: pwCheck.error });
     }
 
     const user = await db.getUserById(req.user.id);
@@ -100,7 +96,12 @@ router.put('/password', isAuthenticated, async (req, res) => {
 
     const hash = await bcrypt.hash(newPassword, 12);
     await db.updatePassword(req.user.id, hash);
-    res.json({ success: true, message: 'Password updated successfully.' });
+
+    // Force re-login after password change — prevents old sessions from persisting
+    req.session.regenerate((err) => {
+      if (err) log.error('Session regeneration error after password change', { error: err.message });
+      res.json({ success: true, message: 'Password updated successfully. Please log in again.', requireRelogin: true });
+    });
   } catch (err) {
     log.error('Password change error', { error: err.message, userId: req.user?.id });
     res.status(500).json({ error: 'Failed to update password.' });

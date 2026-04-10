@@ -102,6 +102,12 @@ function csrfProtection(req, res, next) {
     });
   }
 
+  // §MED: Rotate CSRF token after successful validation (one-time use).
+  // Prevents replay attacks with a previously captured token.
+  const newToken = generateCsrfToken(req);
+  // Return the new token in a response header so the client can update transparently
+  res.set('X-CSRF-Token', newToken);
+
   next();
 }
 

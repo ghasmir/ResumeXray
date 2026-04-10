@@ -59,7 +59,23 @@
       "Bash(ls /Users/ghasmir/Documents/agents/ats-resume-checker/*.db)",
       "Bash(sqlite3 /Users/ghasmir/Documents/agents/ats-resume-checker/db/resumexray.db \"SELECT id, substr\\(job_title,1,30\\) as jt, substr\\(company_name,1,20\\) as co, substr\\(job_url,1,50\\) as url, length\\(job_description\\) as jdlen, created_at FROM scans ORDER BY created_at DESC LIMIT 5;\")",
       "Bash(sqlite3 /Users/ghasmir/Documents/agents/ats-resume-checker/db/resumexray.db \"SELECT id, substr\\(job_description,1,300\\) FROM scans ORDER BY created_at DESC LIMIT 1;\")",
-      "Bash(sqlite3 /Users/ghasmir/Documents/agents/ats-resume-checker/db/resumexray.db \"SELECT job_url FROM scans ORDER BY created_at DESC LIMIT 1;\")"
+      "Bash(sqlite3 /Users/ghasmir/Documents/agents/ats-resume-checker/db/resumexray.db \"SELECT job_url FROM scans ORDER BY created_at DESC LIMIT 1;\")",
+      "Bash(node -e ':*)",
+      "Bash(node -c lib/mailer.js)",
+      "Bash(node -c routes/auth.js)",
+      "Bash(node -c db/pg-database.js)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(sqlite3 /Users/ghasmir/Documents/agents/ats-resume-checker/db/resumexray.db ':*)",
+      "Bash(psql postgresql://postgres.cxawzyosjtcbevnddnae@aws-0-eu-west-1.pooler.supabase.com:6543/postgres -c ':*)",
+      "Bash(npm outdated:*)",
+      "Bash(node -c server.js)",
+      "Bash(node -c routes/user.js)",
+      "Bash(node -c routes/agent.js)",
+      "Bash(node -c config/security.js)",
+      "Bash(node -c lib/validation.js)",
+      "Bash(npm test:*)"
     ]
   }
 }

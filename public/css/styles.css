@@ -75,8 +75,8 @@
 
   --text-primary:   #fafafa;
   --text-secondary: #a1a1aa;
-  --text-muted:     #71717a;
-  --text-faint:     #63636e;
+  --text-muted:     #7e7e8a;
+  --text-faint:     #76767f;
 
   /* Single accent family (indigo-purple — trust + intelligence) */
   --accent:         #635bff;
@@ -3180,6 +3180,12 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   align-items: center;
   justify-content: center;
   z-index: 2000;
+  padding: var(--sp-4);
+  overflow-y: auto;
+}
+.modal-overlay > * {
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
 }
 
 /* ── Download Bar v3 ───────────────────────────────────────── */
@@ -3207,11 +3213,20 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .credit-amount-neg { color: var(--red); font-weight: 600; }
 
 /* ── Print ─────────────────────────────────────────────────── */
-/* ── Print ─────────────────────────────────────────────────── */
 @media print {
   .topbar, .agent-download-bar, .mobile-toggle, #toast-container, .footer { display: none !important; }
   body { background: white; color: black; }
   .view { display: block !important; }
+}
+
+/* ── Reduced Motion ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── Password Toggle ───────────────────────────────────────── */

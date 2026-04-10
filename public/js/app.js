@@ -58,7 +58,12 @@ window.fetch = function(url, options = {}) {
       options.headers['X-CSRF-Token'] = _csrfToken;
     }
   }
-  return _originalFetch.call(this, url, options);
+  return _originalFetch.call(this, url, options).then(res => {
+    // §MED: Pick up rotated CSRF token from response header (one-time-use tokens)
+    const newToken = res.headers.get('X-CSRF-Token');
+    if (newToken) _csrfToken = newToken;
+    return res;
+  });
 };
 
 // Fetch CSRF token immediately
@@ -207,6 +212,19 @@ function navigateTo(path, push = true) {
   if (push) history.pushState({}, '', path);
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
 
+  // §HIGH: SPA focus management — move focus to active view's heading for screen readers
+  requestAnimationFrame(() => {
+    const activeView = document.querySelector('.view.active');
+    if (activeView) {
+      const heading = activeView.querySelector('h1, h2, h3');
+      if (heading) {
+        heading.setAttribute('tabindex', '-1');
+        heading.focus({ preventScroll: false });
+      }
+      window.scrollTo(0, 0);
+    }
+  });
+
   if (path === '/') {
     el('view-landing').classList.add('active');
   } else if (path === '/signup') {
@@ -263,7 +281,13 @@ function navigateTo(path, push = true) {
   } else if (path === '/terms') {
     el('view-terms').classList.add('active');
   } else {
-    el('view-landing').classList.add('active');
+    // §LOW: 404 page for unknown routes instead of silently showing landing
+    const view404 = el('view-404');
+    if (view404) {
+      view404.classList.add('active');
+    } else {
+      el('view-landing').classList.add('active');
+    }
   }
 
   // Scroll to top
@@ -548,6 +572,22 @@ function setupGlobalDelegation() {
     if (copyBtn) {
       e.preventDefault();
       copyToClipboard(copyBtn.dataset.copyText, copyBtn);
+      return;
+    }
+
+    // Auth navigation via data-attribute (replaces inline onclick="showAuth(...)")
+    const authBtn = e.target.closest('[data-auth]');
+    if (authBtn) {
+      e.preventDefault();
+      showAuth(authBtn.dataset.auth);
+      return;
+    }
+
+    // Step toggle via data-attribute (replaces inline onclick="toggleStepBody(...)")
+    const stepToggle = e.target.closest('[data-toggle-step]');
+    if (stepToggle) {
+      e.preventDefault();
+      toggleStepBody(parseInt(stepToggle.dataset.toggleStep, 10));
       return;
     }
   });
@@ -1006,7 +1046,7 @@ function addAgentStepCard(step, name, label) {
   card.className = 'agent-step-card animate-fade-up';
   card.id = cardId;
   card.innerHTML = `
-    <div class="agent-step-header" onclick="toggleStepBody(${step})">
+    <div class="agent-step-header" data-toggle-step="${step}">
       <div class="agent-step-icon running"></div>
       <div class="agent-step-label">${esc(label)}</div>
       <div class="agent-step-status">Analyzing...</div>
@@ -1126,7 +1166,7 @@ function renderAgentBullet(data) {
       const afterSide = bulletCard.querySelector('.agent-bullet-after');
       const overlay = document.createElement('div');
       overlay.className = 'unlock-overlay-small';
-      overlay.innerHTML = `<button class="btn btn-xs btn-primary" onclick="showAuth('signup')">Sign Up to Unlock</button>`;
+      overlay.innerHTML = `<button class="btn btn-xs btn-primary" data-auth="signup">Sign Up to Unlock</button>`;
       afterSide.appendChild(overlay);
     }
     
@@ -1179,8 +1219,8 @@ function updateAgentScores(scores) {
           <div class="unlock-title">Unlock Full Analysis</div>
           <div class="unlock-text">See your detailed ATS scores and professional bullet points.</div>
           <div class="flex gap-4">
-            <button class="btn btn-primary" onclick="showAuth('signup')">Create Free Account</button>
-            <button class="btn btn-secondary" onclick="showAuth('login')">Log In</button>
+            <button class="btn btn-primary" data-auth="signup">Create Free Account</button>
+            <button class="btn btn-secondary" data-auth="login">Log In</button>
           </div>
         </div>
       `;
@@ -1661,7 +1701,7 @@ function setupAgentHistoricalView(data) {
               <div class="unlock-title">Unlock Recruiter Visibility</div>
               <div class="unlock-text">See precisely what Workday and Taleo parsers extract into their databases.</div>
               <div class="flex gap-4">
-                <button class="btn btn-primary" onclick="showAuth('signup')">Sign Up to Unlock</button>
+                <button class="btn btn-primary" data-auth="signup">Sign Up to Unlock</button>
               </div>
             </div>
           `;
@@ -1756,8 +1796,8 @@ function setupAgentHistoricalView(data) {
           <div class="unlock-title">Your AI Cover Letter is Ready</div>
           <div class="unlock-text">Sign up to preview your personalized cover letter. Export as PDF or DOCX costs 1 credit.</div>
           <div style="display:flex; gap:0.75rem; margin-top:1rem;">
-            <button class="btn btn-primary" onclick="showAuth('signup')">Create Free Account</button>
-            <button class="btn btn-ghost btn-sm" onclick="showAuth('login')" style="color:var(--text-muted)">Log In</button>
+            <button class="btn btn-primary" data-auth="signup">Create Free Account</button>
+            <button class="btn btn-ghost btn-sm" data-auth="login" style="color:var(--text-muted)">Log In</button>
           </div>
         </div>
       `;
@@ -1776,8 +1816,8 @@ function setupAgentHistoricalView(data) {
           <div class="unlock-title">ATS-Optimized Resume Ready</div>
           <div class="unlock-text">Your resume has been rebuilt with FAANG formatting rules. Sign up to preview and export.</div>
           <div style="display:flex; gap:0.75rem; margin-top:1rem;">
-            <button class="btn btn-primary" onclick="showAuth('signup')">Create Free Account</button>
-            <button class="btn btn-ghost btn-sm" onclick="showAuth('login')" style="color:var(--text-muted)">Log In</button>
+            <button class="btn btn-primary" data-auth="signup">Create Free Account</button>
+            <button class="btn btn-ghost btn-sm" data-auth="login" style="color:var(--text-muted)">Log In</button>
           </div>
         </div>
       `;
@@ -2507,6 +2547,15 @@ function showToast(message, type = 'info', options = {}) {
     // Resume auto-dismiss (remaining time approximated)
     setTimeout(() => dismissToast(toast), 2000);
   });
+
+  // §MED: Dismiss toast with Escape key (accessibility)
+  function onEscapeDismiss(e) {
+    if (e.key === 'Escape') {
+      dismissToast(toast);
+      document.removeEventListener('keydown', onEscapeDismiss);
+    }
+  }
+  document.addEventListener('keydown', onEscapeDismiss);
 
   // Limit to 5 visible toasts
   while (container.children.length > 5) {

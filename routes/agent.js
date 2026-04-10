@@ -30,6 +30,12 @@ const log = require('../lib/logger');
 // §9.5: Track active SSE connections per user for concurrent stream limiting
 const activeStreams = new Map(); // userId|ip → Set<res>
 
+// Helper: parse and validate scanId from URL params
+function parseScanId(raw) {
+  const id = parseInt(raw, 10);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 // ── Session + Upload Storage (Phase 3: DB Sessions + Disk Uploads) ────────────
 // Resume buffers are written to disk (prevents OOM with concurrent uploads).
 // Session data is persisted in SQLite scan_sessions table (survives restarts).
@@ -130,7 +136,9 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     const sessionId = uuidv4();
 
     // Phase 3 #12: Write buffer to disk instead of keeping in memory
-    const tmpPath = path.join(UPLOAD_TMP, `${sessionId}-${req.file.originalname}`);
+    // Sanitize filename to prevent path traversal
+    const safeName = req.file.originalname.replace(/[^a-z0-9._-]/gi, '_').substring(0, 100);
+    const tmpPath = path.join(UPLOAD_TMP, `${sessionId}-${safeName}`);
     fs.writeFileSync(tmpPath, req.file.buffer);
 
     // Phase 3 #13: Persist session in database (survives server restart)
@@ -311,6 +319,15 @@ router.get('/stream/:sessionId', async (req, res) => {
 
   let aborted = false;
   req.on('close', () => { aborted = true; });
+  // §HIGH: Clean up SSE tracking if client disconnects (crash, network drop, tab close).
+  // Without this, activeStreams leaks entries when the finally block hasn't run yet.
+  res.on('close', () => {
+    aborted = true;
+    clearInterval(heartbeat);
+    clearTimeout(maxLifetime);
+    userStreams.delete(res);
+    if (userStreams.size === 0) activeStreams.delete(streamKey);
+  });
 
   // ── EARLY PERSISTENCE ──
   // Save a placeholder scan immediately so we have a persistent ID
@@ -431,7 +448,9 @@ router.get('/stream/:sessionId', async (req, res) => {
 router.get('/preview/:scanId', async (req, res) => {
   try {
     const userId = req.user ? req.user.id : null;
-    const scan = await db.getFullScan(parseInt(req.params.scanId), userId);
+    const scanId = parseScanId(req.params.scanId);
+    if (!scanId) return res.status(400).json({ error: 'Invalid scan ID.' });
+    const scan = await db.getFullScan(scanId, userId);
     if (!scan) return res.status(404).json({ error: 'Scan not found.' });
 
     // SECURITY: Guest scans require a valid access token (prevents IDOR)
@@ -489,7 +508,9 @@ router.get('/preview/:scanId', async (req, res) => {
 router.get('/cover-letter-preview/:scanId', async (req, res) => {
   try {
     const userId = req.user ? req.user.id : null;
-    const scan = await db.getFullScan(parseInt(req.params.scanId), userId);
+    const scanId = parseScanId(req.params.scanId);
+    if (!scanId) return res.status(400).send('Invalid scan ID.');
+    const scan = await db.getFullScan(scanId, userId);
     if (!scan) return res.status(404).send('Scan not found.');
 
     // SECURITY: Guest scans require a valid access token (prevents IDOR)
@@ -642,7 +663,9 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
 router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, res) => {
   try {
     const userId = req.user ? req.user.id : null;
-    const scan = await db.getFullScan(parseInt(req.params.scanId), userId);
+    const scanId = parseScanId(req.params.scanId);
+    if (!scanId) return res.status(400).json({ error: 'Invalid scan ID.' });
+    const scan = await db.getFullScan(scanId, userId);
     if (!scan) return res.status(404).json({ error: 'Scan not found.' });
 
     const format = req.query.format || 'docx';
@@ -709,7 +732,7 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
 
       // Record watermarked download for audit
       if (req.isWatermarked && req.user) {
-        await db.recordWatermarkedDownload(req.user.id, parseInt(req.params.scanId), format, 'cover_letter');
+        await db.recordWatermarkedDownload(req.user.id, scanId, format, 'cover_letter');
       }
       return;
     }
@@ -743,7 +766,7 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
 
     // Record watermarked download for audit 
     if (req.isWatermarked && req.user) {
-      await db.recordWatermarkedDownload(req.user.id, parseInt(req.params.scanId), format, 'resume');
+      await db.recordWatermarkedDownload(req.user.id, scanId, format, 'resume');
     }
   } catch (err) {
     log.error('Download error', { error: err.message, scanId: req.params.scanId });

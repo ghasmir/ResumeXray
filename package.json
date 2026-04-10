@@ -29,6 +29,7 @@
     "better-sqlite3-session-store": "^0.1.0",
     "body-parser": "^2.2.2",
     "cheerio": "^1.0.0-rc.12",
+    "compression": "^1.8.1",
     "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",
     "docx": "^9.6.1",

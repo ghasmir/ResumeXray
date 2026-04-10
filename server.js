@@ -19,7 +19,7 @@ if (isPg) {
 }
 const { getDb, closeDb } = require('./db/database');
 const { configurePassport } = require('./config/passport');
-const { configureHelmet, generalLimiter, cspNonceMiddleware } = require('./config/security');
+const { configureHelmet, generalLimiter, cspNonceMiddleware, permissionsPolicyMiddleware, authLimiter } = require('./config/security');
 const { AppError } = require('./lib/errors');
 const log = require('./lib/logger');
 const { initSentry, flushSentry } = require('./lib/error-tracker');
@@ -85,7 +85,7 @@ async function gracefulShutdown(signal) {
 
   // Step 3: Give in-flight requests up to 25s to finish
   // (PM2 kill_timeout is 30s, so we need headroom)
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise(resolve => setTimeout(resolve, 25000));
 
   // Step 4: Close external resources
   try { await flushSentry(); } catch {}
@@ -177,7 +177,12 @@ app.use(cspNonceMiddleware);
 
 // Configure Security
 app.use(configureHelmet());
+app.use(permissionsPolicyMiddleware);
 app.use(generalLimiter);
+
+// Compression — gzip/brotli for all responses (3-5x smaller payloads)
+const compression = require('compression');
+app.use(compression());
 
 // Stripe Webhook needs raw body — must be registered BEFORE express.json()
 const billingRoutes = require('./routes/billing');
@@ -215,10 +220,18 @@ if (isPg) {
   });
 }
 
+// §HIGH: Fail-fast if SESSION_SECRET is missing in production.
+// A hardcoded fallback in prod would let any attacker forge sessions.
+if (isProd && !process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET environment variable is required in production.');
+  process.exit(1);
+}
+const SESSION_SECRET = process.env.SESSION_SECRET || 'fallback-secret-development-only';
+
 app.use(session({
   store: storeConfig,
   name: COOKIE_NAME,     // Phase 6 §10.7: __Host- in prod, __rxsid in dev
-  secret: process.env.SESSION_SECRET || 'fallback-secret-development-only',
+  secret: SESSION_SECRET,
   resave: true,          // Required for rolling sessions
   saveUninitialized: false,
   rolling: true,         // Resets idle timer on every response (sliding expiration)
@@ -455,7 +468,7 @@ app.get('/metrics', (req, res) => {
 
 // Phase 6 Wave 4: CSP violation reporting endpoint
 // Receives browser reports when CSP blocks a resource — critical for auditing
-app.post('/api/csp-report', express.json({ type: ['application/csp-report', 'application/json'] }), (req, res) => {
+app.post('/api/csp-report', generalLimiter, express.json({ type: ['application/csp-report', 'application/json'] }), (req, res) => {
   const report = req.body?.['csp-report'] || req.body;
   if (report) {
     log.warn('CSP violation', {
@@ -471,7 +484,7 @@ app.post('/api/csp-report', express.json({ type: ['application/csp-report', 'app
 
 // Phase 6 Wave 4: Client-side error reporting
 // Receives window.onerror and unhandledrejection events from the browser
-app.post('/api/client-error', express.json(), (req, res) => {
+app.post('/api/client-error', generalLimiter, express.json(), (req, res) => {
   const { message, source, line, column, stack, type } = req.body || {};
   if (message) {
     log.warn('Client-side error', {

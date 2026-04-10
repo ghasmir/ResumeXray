@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const db = require('../db/database');
 const mailer = require('../lib/mailer');
 const { authLimiter } = require('../config/security');
+const { validatePassword, validateEmail } = require('../lib/validation');
 const log = require('../lib/logger');
 
 const router = express.Router();
@@ -33,6 +34,25 @@ function checkLockout(key) {
 }
 
 function recordFailedLogin(key) {
+  // Cap map size to prevent unbounded memory growth from distributed attacks
+  if (loginAttempts.size > 10000) {
+    const now = Date.now();
+    for (const [k, v] of loginAttempts) {
+      if (now - v.firstAttempt > LOCKOUT_WINDOW || (v.lockedUntil && now >= v.lockedUntil)) {
+        loginAttempts.delete(k);
+      }
+    }
+    // If still over limit after cleanup, drop oldest entries
+    if (loginAttempts.size > 10000) {
+      const toDelete = loginAttempts.size - 8000;
+      let deleted = 0;
+      for (const k of loginAttempts.keys()) {
+        if (deleted >= toDelete) break;
+        loginAttempts.delete(k);
+        deleted++;
+      }
+    }
+  }
   const entry = loginAttempts.get(key) || { count: 0, firstAttempt: Date.now(), lockedUntil: null };
   entry.count++;
   if (entry.count >= LOCKOUT_THRESHOLD) {
@@ -63,23 +83,18 @@ router.post('/signup', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Name, email, and password are required.' });
     }
     // §10.14: Email format validation (RFC 5322 simplified)
-    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!EMAIL_RE.test(email) || email.length > 254) {
-      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      return res.status(400).json({ error: emailCheck.error });
     }
     // §10.14: Name length guard
     if (name.length > 100) {
       return res.status(400).json({ error: 'Name must be 100 characters or fewer.' });
     }
-    // §10.13: NIST 800-63B minimum 8 chars + at least one digit + uppercase
-    if (!password || password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-    }
-    if (!/\d/.test(password)) {
-      return res.status(400).json({ error: 'Password must contain at least one number.' });
-    }
-    if (!/[A-Z]/.test(password)) {
-      return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
+    // §10.13: NIST 800-63B password policy
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      return res.status(400).json({ error: pwCheck.error });
     }
 
     // Check if user already exists
@@ -318,12 +333,11 @@ router.get('/verify/:token', async (req, res) => {
   }
 });
 
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     // §10.14: Early validation — same pattern as signup
-    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !EMAIL_RE.test(email) || email.length > 254) {
+    if (!validateEmail(email).valid) {
       return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
     }
     const user = await db.getUserByEmail(email);
@@ -356,17 +370,12 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', authLimiter, async (req, res) => {
   try {
     const { token, password } = req.body;
-    if (!password || password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-    }
-    if (!/\d/.test(password)) {
-      return res.status(400).json({ error: 'Password must contain at least one number.' });
-    }
-    if (!/[A-Z]/.test(password)) {
-      return res.status(400).json({ error: 'Password must contain at least one uppercase letter.' });
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      return res.status(400).json({ error: pwCheck.error });
     }
 
     const user = await db.getUserByResetToken(token);

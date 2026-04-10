@@ -110,8 +110,16 @@ function getDb() {
 
 // ── User Helpers ──────────────────────────────────────────────────────────────
 
+// §CRIT: Provider → column whitelist. Prevents SQL injection via string interpolation.
+const PROVIDER_COLUMNS = Object.freeze({
+  google:   'google_id',
+  linkedin: 'linkedin_id',
+  github:   'github_id',
+});
+
 async function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
-  const column = provider === 'google' ? 'google_id' : provider === 'linkedin' ? 'linkedin_id' : 'github_id';
+  const column = PROVIDER_COLUMNS[provider];
+  if (!column) throw new Error(`Unknown OAuth provider: ${provider}`);
 
   let user = await queryOne(`SELECT * FROM users WHERE ${column} = $1`, [profileId]);
   if (user) return user;
@@ -241,13 +249,18 @@ async function deductCredit(userId, type, description = '') {
 }
 
 async function deductCreditAtomic(userId, type, idempotencyKey, description = '') {
-  const existing = await queryOne('SELECT id FROM download_history WHERE idempotency_key = $1', [idempotencyKey]);
-  if (existing) {
-    log.warn('Duplicate export key — skipping deduction', { idempotencyKey });
-    return { success: true, alreadyProcessed: true };
-  }
-
   return withTx(async (client) => {
+    // §CRIT: Idempotency check INSIDE transaction — prevents TOCTOU race.
+    // Two concurrent requests can no longer both pass the check before insert.
+    const { rows: existing } = await client.query(
+      'SELECT id FROM download_history WHERE idempotency_key = $1 FOR UPDATE',
+      [idempotencyKey]
+    );
+    if (existing.length > 0) {
+      log.warn('Duplicate export key — skipping deduction', { idempotencyKey });
+      return { success: true, alreadyProcessed: true };
+    }
+
     const { rows } = await client.query('SELECT credit_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
     if (!rows[0] || (rows[0].credit_balance ?? 0) < 1) {
       return { success: false, alreadyProcessed: false };
@@ -265,7 +278,9 @@ async function deductCreditAtomic(userId, type, idempotencyKey, description = ''
     const exportType = parts[3] || 'resume';
 
     await client.query(
-      'INSERT INTO download_history (user_id, scan_id, idempotency_key, format, type, watermarked) VALUES ($1, $2, $3, $4, $5, FALSE)',
+      `INSERT INTO download_history (user_id, scan_id, idempotency_key, format, type, watermarked)
+       VALUES ($1, $2, $3, $4, $5, FALSE)
+       ON CONFLICT (idempotency_key) DO NOTHING`,
       [userId, scanId, idempotencyKey, format, exportType]
     );
 
