@@ -493,8 +493,36 @@ router.get('/preview/:scanId', async (req, res) => {
     res.setHeader('Content-Disposition', `inline; filename="optimized-preview.pdf"`);
     res.send(buffer);
   } catch (err) {
-    log.error('Preview error', { error: err.message, scanId: req.params.scanId });
-    res.status(500).json({ error: 'Failed to generate preview PDF.' });
+    log.error('Preview error', { error: err.message, stack: err.stack, scanId: req.params.scanId });
+    
+    // Fallback: render an HTML preview instead of failing completely
+    try {
+      const scan = await db.getFullScan(parseScanId(req.params.scanId), req.user ? req.user.id : null);
+      if (scan) {
+        const resumeText = scan.optimized_resume_text || scan.resume_text || '';
+        const { renderTemplate } = require('../lib/template-renderer');
+        const { buildResumeData } = require('../lib/resume-builder');
+        const data = buildResumeData(resumeText, scan.section_data || {}, scan.optimized_bullets || [], scan.keyword_plan || []);
+        const html = renderTemplate('modern', data, { watermark: true, density: 'standard', jobUrl: scan.job_url || '' });
+        return res.setHeader('Content-Type', 'text/html; charset=utf-8').send(html);
+      }
+    } catch (fallbackErr) {
+      log.error('HTML fallback also failed', { error: fallbackErr.message });
+    }
+    
+    res.status(500).send(`
+      <!DOCTYPE html><html><head><style>
+        body { margin:0; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:-apple-system,sans-serif; background:#f8f9fa; }
+        .msg { text-align:center; padding:2rem; max-width:400px; }
+        .msg h3 { margin-bottom:0.75rem; }
+        .msg p { color:#666; font-size:0.9rem; line-height:1.6; }
+      </style></head><body>
+        <div class="msg">
+          <h3>PDF Preview Temporarily Unavailable</h3>
+          <p>The PDF rendering engine is starting up. Please try refreshing in a few seconds, or download the DOCX version instead.</p>
+        </div>
+      </body></html>
+    `);
   }
 });
 
