@@ -31,6 +31,10 @@ const log = require('../lib/logger');
 // §9.5: Track active SSE connections per user for concurrent stream limiting
 const activeStreams = new Map(); // userId|ip → Set<res>
 
+// In-process ATS profile cache: sessionId → atsProfile
+// Lives only between POST /start and GET /stream (seconds). Auto-expires after 15min.
+const atsProfileCache = new Map();
+
 // Helper: parse and validate scanId from URL params
 function parseScanId(raw) {
   const id = parseInt(raw, 10);
