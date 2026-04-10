@@ -238,9 +238,9 @@ a:hover { color: #818cf8; }
 
 /* ── Topbar ────────────────────────────────────────────────── */
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;  /* [credits] [logo] [nav+controls] */
   align-items: center;
-  justify-content: space-between;
   padding: 0 var(--sp-8);
   height: 64px;
   background: rgba(9, 9, 11, 0.7);
@@ -253,14 +253,31 @@ a:hover { color: #818cf8; }
   transition: all 0.3s var(--ease);
 }
 
-.topbar-left, .topbar-right {
+.topbar-left {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
+  justify-content: flex-start;
+}
+.topbar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .topbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-3);
   position: relative;
-  z-index: 2; /* Must layer above absolutely-positioned .nav-links to prevent click-through */
+  z-index: 2;
+}
+
+/* Spacer that mirrors the credits badge width on the left when guest (keeps logo centred) */
+.topbar-credits-spacer {
+  width: 72px;  /* approximate credits-badge width */
+  height: 1px;
+  display: block;
 }
 
 .logo {
@@ -294,9 +311,7 @@ a:hover { color: #818cf8; }
   display: flex;
   align-items: center;
   gap: var(--sp-1);
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  /* Removed absolute centering — now sits inside topbar-right flex */
 }
 .nav-links a {
   color: var(--text-muted);
@@ -383,8 +398,9 @@ a:hover { color: #818cf8; }
   object-fit: cover;
 }
 
-/* ── Mobile Menu Button (Animated Hamburger → X) ────────── */
+/* ── Mobile Menu Button (Animated Hamburger → X) ──────────── */
 .mobile-menu-btn {
+  /* Hidden on desktop — shown via media query at ≤640px */
   display: none;
   flex-direction: column;
   align-items: center;
@@ -2590,11 +2606,15 @@ a:hover { color: #818cf8; }
 
 /* -- Small phones: ≤480px -- */
 @media (max-width: 480px) {
-  .topbar { height: 56px; }
+  .topbar { height: 56px; padding: 0 var(--sp-3); }
+  /* Collapse to 2-col: [credits+logo] [controls] on very small screens */
+  .topbar { grid-template-columns: 1fr 1fr; }
+  .topbar-center { display: none; } /* Logo hidden at 480px — use left slot */
+  .topbar-left { gap: var(--sp-2); }
 
   .agent-progress { flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
   .progress-step { min-width: 40px; }
-  .agent-scores { grid-template-columns: 1fr; }
+  .agent-scores { grid-template-columns: 1fr 1fr; gap: var(--sp-8); padding: var(--sp-4); }
 
   .hero-title { font-size: 1.75rem; }
   .card-elevated { padding: var(--sp-6); }
@@ -2754,6 +2774,34 @@ a:hover { color: #818cf8; }
   transition: opacity var(--duration-fast) var(--ease);
   z-index: 10;
 }
+.agent-scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-6);
+  margin: var(--sp-6) 0;
+}
+
+@media (max-width: 768px) {
+  .agent-scores {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-8);
+    padding: var(--sp-4) var(--sp-2);
+  }
+  .score-gauge-card {
+    padding: var(--sp-6);
+    min-height: 160px;
+  }
+}
+
+@media (max-width: 480px) {
+  .agent-scores {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-8);
+    padding: var(--sp-4);
+  }
+}
+
+/* ── Recruiter View (Plain Text) ─────────────────── */
 [data-tooltip]:hover::after { opacity: 1; }
 
 /* ── Focus Visible (Accessibility) ─────────────────────────── */
@@ -3281,9 +3329,14 @@ body.modal-open { overflow: hidden; }
 }
 
 
+/* All tab panes share the same frosted glass foundation as the ATS Diagnosis tab */
 .results-tab-pane {
   display: none;
   animation: fadeUp 0.3s ease-in-out forwards;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6);
 }
 
 .results-tab-pane.active {
@@ -3294,27 +3347,22 @@ body.modal-open { overflow: hidden; }
   display: block;
 }
 
+#tab-recruiter-agent.active {
+  display: block;
+}
+
 #tab-pdf-preview.active,
 #tab-cover-letter.active {
   display: flex;
-}
-
-#tab-diagnosis {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--sp-6);
 }
 
 #tab-pdf-preview,
 #tab-cover-letter {
   flex-direction: column;
   height: calc(100vh - 120px);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
   overflow: hidden;
   position: relative;
+  padding: 0; /* PDF/CL tabs have internal padding via their child containers */
 }
 
 #tab-cover-letter {
@@ -3324,6 +3372,28 @@ body.modal-open { overflow: hidden; }
 }
 #tab-cover-letter.active {
   display: flex;
+}
+
+/* Copy Protection — prevent text selection + clipboard extraction from generated content */
+.cover-letter-container,
+#tab-cover-letter .cover-letter-container {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Invisible pointer-event overlay on cover letter text prevents drag-to-select */
+.cover-letter-container > #cover-letter-stream {
+  position: relative;
+}
+.cover-letter-container > #cover-letter-stream::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: auto;  /* captures mousedown/drag to prevent selection */
+  background: transparent;
 }
 
 .preview-frame,
@@ -5277,3 +5347,149 @@ a svg {
   color: var(--green);
   transform: scale(1.1);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   NEW COMPONENTS — Upgrade Additions
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Profile: Email + Verified Badge Row ──────────────────── */
+.profile-email-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* ── Verified Badge ───────────────────────────────────────── */
+.verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 999px;
+  color: #4ade80;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── Provider Badges (Google Connected, etc.) ─────────────── */
+.provider-badges {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--sp-2);
+}
+
+.provider-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+.provider-badge svg { opacity: 0.7; }
+
+/* ── Email Verification Banner ────────────────────────────── */
+.verify-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15));
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--sp-4);
+  animation: fadeUp 0.4s ease;
+}
+.verify-banner-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-md);
+  color: #a78bfa;
+}
+.verify-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+.verify-banner-body strong {
+  display: block;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+.verify-banner-btn {
+  flex-shrink: 0;
+  background: rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(99, 102, 241, 0.5);
+  color: #c4b5fd;
+  white-space: nowrap;
+}
+.verify-banner-btn:hover {
+  background: rgba(99, 102, 241, 0.5);
+  color: white;
+}
+
+/* ── ATS Platform Badge (Download Bar) ───────────────────── */
+.ats-platform-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: rgba(6, 182, 212, 0.15);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #22d3ee;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ats-platform-badge::before {
+  content: '✓';
+  font-size: 0.65rem;
+}
+
+/* ── Credits Badge: Left-side positioning override ─────────── */
+/* When in topbar-left, override the badge's default behaviour */
+.topbar-left .credits-badge {
+  cursor: pointer;
+}
+
+/* ── Topbar on tablet: shrink nav gap ────────────────────── */
+@media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: auto 1fr auto; /* Credits | [logo stretches] | Controls */
+    padding: 0 var(--sp-5);
+  }
+  .nav-links { gap: 0; }
+  .nav-links a { padding: var(--sp-2) var(--sp-2); font-size: 0.82rem; }
+}
+
+/* ── Topbar on mobile: collapse to left-credits + right-controls ── */
+@media (max-width: 640px) {
+  .topbar {
+    grid-template-columns: auto 1fr; /* Credits side | right controls */
+    height: 56px;
+    padding: 0 var(--sp-3);
+  }
+  .topbar-center { display: none; } /* Logo hides — credits badge becomes visible ID */
+  .topbar-credits-spacer { display: none; } /* No spacer on mobile */
+  .nav-links { display: none !important; }
+  .mobile-menu-btn { display: flex; }
+  #nav-guest-area .btn-ghost { display: none; } /* Hide 'Login' text on mobile, keep hamburger */
+}
+

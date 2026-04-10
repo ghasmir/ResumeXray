@@ -145,6 +145,12 @@ async function fetchUser() {
         }
       }
       if (el('nav-credits-count')) el('nav-credits-count').textContent = user.creditBalance || 0;
+
+      // Show left-side credits badge (new layout: credits on far left)
+      const leftBadge = el('nav-credits-badge');
+      const spacer = el('nav-credits-spacer');
+      if (leftBadge) leftBadge.style.display = 'inline-flex';
+      if (spacer) spacer.style.display = 'none'; // Hide spacer when badge is visible
       
       // Show/Hide areas — authenticated
       if (el('nav-user-area')) el('nav-user-area').style.display = 'flex';
@@ -159,6 +165,12 @@ async function fetchUser() {
       updateNavCredits(user.creditBalance || 0);
     } else {
       currentUser = null;
+      // Hide credits badge + show spacer (keeps logo centered)
+      const leftBadge = el('nav-credits-badge');
+      const spacer = el('nav-credits-spacer');
+      if (leftBadge) leftBadge.style.display = 'none';
+      if (spacer) spacer.style.display = 'block';
+
       if (el('nav-user-area')) el('nav-user-area').style.display = 'none';
       if (el('nav-guest-area')) el('nav-guest-area').style.display = 'flex';
       if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'none';
@@ -986,6 +998,17 @@ function startAgentAnalysis(sessionId) {
 
       case 'coverLetter':
         if (data.text) renderCoverLetter(data.text);
+        break;
+
+      case 'atsProfile':
+        // Show ATS platform badge in download bar
+        if (data.displayName && data.name !== 'generic') {
+          const atsBadge = el('ats-platform-badge');
+          if (atsBadge) {
+            atsBadge.textContent = `Optimized for ${data.displayName}`;
+            atsBadge.style.display = 'inline-flex';
+          }
+        }
         break;
 
       case 'complete':
@@ -2109,6 +2132,71 @@ async function renderProfile() {
     creditBar.style.width = Math.min(100, (creditBalance / maxCredits) * 100) + '%';
   }
 
+  // ── Verified Badge ────────────────────────────────────────────
+  const verifiedBadge = el('profile-verified-badge');
+  if (verifiedBadge) {
+    verifiedBadge.style.display = user.isVerified ? 'inline-flex' : 'none';
+  }
+
+  // ── Email Verification Banner (unverified email/password users only) ──
+  const verifyBanner = el('verify-email-banner');
+  if (verifyBanner) {
+    const isOAuthUser = !!user.provider;
+    verifyBanner.style.display = (!user.isVerified && !isOAuthUser) ? 'flex' : 'none';
+  }
+
+  // Resend verification email button
+  const resendBtn = el('btn-resend-verification');
+  if (resendBtn && !resendBtn._bound) {
+    resendBtn._bound = true;
+    resendBtn.addEventListener('click', async () => {
+      resendBtn.disabled = true;
+      resendBtn.textContent = 'Sending...';
+      try {
+        const res = await fetch('/auth/resend-verification', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          showToast('Verification email sent! Check your inbox.', 'success');
+          resendBtn.textContent = 'Sent ✓';
+        } else {
+          showToast(data.error || 'Failed to resend.', 'error');
+          resendBtn.disabled = false;
+          resendBtn.textContent = 'Resend Email';
+        }
+      } catch {
+        showToast('Failed to send. Check your connection.', 'error');
+        resendBtn.disabled = false;
+        resendBtn.textContent = 'Resend Email';
+      }
+    });
+  }
+
+  // ── OAuth Provider Badges ─────────────────────────────────────
+  const providerBadgesEl = el('profile-provider-badges');
+  if (providerBadgesEl && user.provider) {
+    const providerInfo = {
+      google:   { label: 'Google Connected', color: '#ea4335' },
+      linkedin: { label: 'LinkedIn Connected', color: '#0a66c2' },
+      github:   { label: 'GitHub Connected', color: '#6e5494' },
+    };
+    const info = providerInfo[user.provider];
+    if (info) {
+      providerBadgesEl.style.display = 'flex';
+      providerBadgesEl.innerHTML = `
+        <span class="provider-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          ${info.label}
+        </span>`;
+    }
+  }
+
+  // ── Hide password section for OAuth-only users ────────────────
+  const passwordSection = el('password-section');
+  if (passwordSection) {
+    // Users with no password_hash are OAuth-only — password management doesn't apply
+    passwordSection.style.display = user.hasPassword ? 'block' : 'none';
+  }
+
   // Avatar (safe DOM construction — no innerHTML to prevent XSS)
   const avatarEl = el('profile-avatar');
   if (user.avatar && user.avatar !== 'null') {
@@ -2119,19 +2207,28 @@ async function renderProfile() {
     avatarEl.appendChild(img);
   }
 
-  // Avatar upload
+  // Avatar upload — uses FormData to match the multer middleware on the server
   const avatarInput = el('avatar-file-input');
   if (avatarInput) {
     avatarInput.onchange = async () => {
       if (!avatarInput.files.length) return;
       const file = avatarInput.files[0];
+
+      // Client-side size check before the round trip
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('Image must be under 5MB.', 'error');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('avatar', file);
       try {
         const res = await fetch('/user/avatar', {
           method: 'PUT',
-          headers: { 'Content-Type': file.type },
-          body: file
+          body: formData  // Let browser set Content-Type multipart/form-data automatically
         });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
         if (data.avatarUrl) {
           const img = document.createElement('img');
           img.src = data.avatarUrl;
@@ -2140,7 +2237,9 @@ async function renderProfile() {
           avatarEl.appendChild(img);
           showToast('Avatar updated!', 'success');
         }
-      } catch { showToast('Unable to upload avatar. Please try a smaller image.', 'error'); }
+      } catch (err) {
+        showToast(err.message || 'Unable to upload avatar. Please try a smaller JPEG or PNG.', 'error');
+      }
     };
   }
 
@@ -2686,6 +2785,18 @@ function renderCoverLetter(text) {
   }
 
   if (actions) actions.style.display = 'flex';
+
+  // ── Copy Protection ─────────────────────────────────────────────
+  // Block text selection and clipboard events on cover letter content.
+  // This complements the CSS user-select:none by also preventing programmatic
+  // clipboard extraction via keyboard shortcuts (Ctrl+C / Cmd+C).
+  const protectedEl = container;
+  if (protectedEl && !protectedEl._copyProtected) {
+    protectedEl._copyProtected = true;
+    protectedEl.addEventListener('selectstart', (e) => e.preventDefault(), { passive: false });
+    protectedEl.addEventListener('copy', (e) => { e.preventDefault(); e.clipboardData?.clearData(); }, { passive: false });
+    protectedEl.addEventListener('contextmenu', (e) => e.preventDefault(), { passive: false });
+  }
 }
 
 // Cover letter action handlers

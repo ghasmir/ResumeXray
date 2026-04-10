@@ -132,9 +132,7 @@ async function findOrCreateUser({ provider, profileId, email, name, avatarUrl })
 
   user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
   if (user) {
-    // If the existing account has a password, require re-authentication
-    // before linking the OAuth provider. Prevents account takeover via an OAuth
-    // provider that claims an email address without verification.
+    // Existing password account — require re-auth before linking OAuth to prevent takeover
     if (user.password_hash) {
       return {
         ...user,
@@ -144,21 +142,30 @@ async function findOrCreateUser({ provider, profileId, email, name, avatarUrl })
         pendingAvatarUrl: avatarUrl
       };
     }
-    // No password (another OAuth account) — safe to auto-link
-    await pool.query(`UPDATE users SET ${column} = $1, avatar_url = COALESCE(avatar_url, $2), updated_at = NOW() WHERE id = $3`, [profileId, avatarUrl, user.id]);
+    // Existing OAuth account with same email — safe to auto-link
+    await pool.query(
+      `UPDATE users SET ${column} = $1, avatar_url = COALESCE(avatar_url, $2), updated_at = NOW() WHERE id = $3`,
+      [profileId, avatarUrl, user.id]
+    );
     return queryOne('SELECT * FROM users WHERE id = $1', [user.id]);
   }
 
-  const result = await pool.query(
-    `INSERT INTO users (${column}, email, name, avatar_url, credit_balance) VALUES ($1, $2, $3, $4, 1) RETURNING *`,
-    [profileId, email, name, avatarUrl]
-  );
-  const newUser = result.rows[0];
-
-  await pool.query(
-    `INSERT INTO credit_transactions (user_id, amount, type, description) VALUES ($1, 1, 'signup_bonus', 'Welcome bonus credit')`,
-    [newUser.id]
-  );
+  // New user via OAuth: mark as verified immediately (email ownership proven by provider)
+  // and grant the welcome credit in the same transaction.
+  const newUser = await withTx(async (client) => {
+    const result = await client.query(
+      `INSERT INTO users (${column}, email, name, avatar_url, credit_balance, is_verified, email_verified_at)
+       VALUES ($1, $2, $3, $4, 1, TRUE, NOW()) RETURNING *`,
+      [profileId, email, name, avatarUrl]
+    );
+    const u = result.rows[0];
+    await client.query(
+      `INSERT INTO credit_transactions (user_id, amount, type, description)
+       VALUES ($1, 1, 'signup_bonus', 'Welcome credit — OAuth verified account')`,
+      [u.id]
+    );
+    return u;
+  });
 
   return newUser;
 }
@@ -193,11 +200,44 @@ async function getUserTier(userId) {
 }
 
 async function verifyUser(userId) {
-  await pool.query('UPDATE users SET is_verified = TRUE, verification_token = NULL, updated_at = NOW() WHERE id = $1', [userId]);
+  // Atomically mark verified + grant the welcome credit in one transaction.
+  // Only grants credit if the user hasn't been verified before (email_verified_at IS NULL)
+  // to prevent duplicate credit grants if the link is clicked twice.
+  await withTx(async (client) => {
+    const { rows } = await client.query(
+      'SELECT is_verified, email_verified_at FROM users WHERE id = $1 FOR UPDATE',
+      [userId]
+    );
+    if (!rows[0]) return;
+
+    const alreadyVerified = rows[0].email_verified_at !== null;
+
+    await client.query(
+      'UPDATE users SET is_verified = TRUE, email_verified_at = COALESCE(email_verified_at, NOW()), verification_token = NULL, updated_at = NOW() WHERE id = $1',
+      [userId]
+    );
+
+    // Only grant welcome credit on first verification
+    if (!alreadyVerified) {
+      await client.query(
+        'UPDATE users SET credit_balance = credit_balance + 1, updated_at = NOW() WHERE id = $1',
+        [userId]
+      );
+      await client.query(
+        `INSERT INTO credit_transactions (user_id, amount, type, description)
+         VALUES ($1, 1, 'signup_bonus', 'Welcome credit — email verified')`,
+        [userId]
+      );
+    }
+  });
 }
 
 async function getUserByVerificationToken(token) {
   return queryOne('SELECT * FROM users WHERE verification_token = $1', [token]);
+}
+
+async function setVerificationToken(userId, token) {
+  await pool.query('UPDATE users SET verification_token = $1, updated_at = NOW() WHERE id = $2', [token, userId]);
 }
 
 async function getUserByResetToken(token) {
@@ -390,10 +430,10 @@ async function getScan(id, userId) {
   return queryOne('SELECT * FROM scans WHERE id = $1 AND user_id IS NULL', [id]);
 }
 
-async function updateScanWithOptimizations(scanId, { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText }) {
+async function updateScanWithOptimizations(scanId, { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform = null }) {
   await pool.query(
-    'UPDATE scans SET optimized_bullets = $1, keyword_plan = $2, optimized_resume_text = $3, cover_letter_text = $4 WHERE id = $5',
-    [JSON.stringify(optimizedBullets || []), JSON.stringify(keywordPlan || []), optimizedResumeText || null, coverLetterText || null, scanId]
+    'UPDATE scans SET optimized_bullets = $1, keyword_plan = $2, optimized_resume_text = $3, cover_letter_text = $4, ats_platform = $5 WHERE id = $6',
+    [JSON.stringify(optimizedBullets || []), JSON.stringify(keywordPlan || []), optimizedResumeText || null, coverLetterText || null, atsPlatform, scanId]
   );
 }
 
@@ -656,7 +696,7 @@ module.exports = {
   saveCoverLetter, getUserCoverLetters, getCoverLetter,
   recordGuestScan, getGuestScanCount,
   deleteUserAccount, closeDb,
-  verifyUser, getUserByVerificationToken, getUserByResetToken, setResetToken, updatePassword,
+  verifyUser, getUserByVerificationToken, setVerificationToken, getUserByResetToken, setResetToken, updatePassword,
   createScanSession, getScanSession, deleteScanSession, purgeExpiredScanSessions,
   encryptPii, decryptPii,
   isStripeEventProcessed, recordStripeEvent,

@@ -155,7 +155,8 @@ router.post('/signup', authLimiter, async (req, res) => {
         res.json({ 
           success: true, 
           user: { id: user.id, name: user.name, email: user.email, plan: user.plan },
-          message: 'Account created. Please check your email to verify your account.'
+          needsVerification: true,
+          message: 'Account created! Check your email to verify and unlock your welcome credit.'
         });
       });
     });
@@ -334,11 +335,48 @@ router.get('/verify/:token', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired verification token.' });
     }
     await db.verifyUser(user.id);
-    res.json({ success: true, message: 'Email verified successfully! You can now access all features.' });
+    res.json({
+      success: true,
+      creditGranted: true,
+      message: 'Email verified! Your welcome credit has been unlocked. You can now run your first scan.'
+    });
   } catch (err) {
     res.status(500).json({ error: 'Verification failed.' });
   }
 });
+
+// POST /auth/resend-verification — Resend verification email for logged-in unverified users
+router.post('/resend-verification', async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated.' });
+    }
+    const user = await db.getUserById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    if (user.is_verified) {
+      return res.json({ success: true, message: 'Your email is already verified.' });
+    }
+    if (!user.verification_token) {
+      // Re-generate token if it was cleared
+      const crypto = require('crypto');
+      const newToken = crypto.randomBytes(32).toString('hex');
+      await db.setVerificationToken(user.id, newToken);
+      mailer.sendVerificationEmail(user.email, newToken).catch(err => {
+        log.error('Failed to resend verification email', { error: err.message });
+      });
+    } else {
+      mailer.sendVerificationEmail(user.email, user.verification_token).catch(err => {
+        log.error('Failed to resend verification email', { error: err.message });
+      });
+    }
+    res.json({ success: true, message: 'Verification email resent.' });
+  } catch (err) {
+    log.error('Resend verification error', { error: err.message });
+    res.status(500).json({ error: 'Failed to resend verification email.' });
+  }
+});
+
+
 
 router.post('/forgot-password', authLimiter, async (req, res) => {
   try {

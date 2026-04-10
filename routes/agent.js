@@ -110,6 +110,7 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
         jdText = jdResult.jdText;
         jobUrl = jdResult.jobUrl || jobUrl;
         jobTitle = jdResult.jobTitle || '';
+        session.atsProfile = jdResult.atsProfile; // Store for pipeline use
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -309,6 +310,13 @@ router.get('/stream/:sessionId', async (req, res) => {
     },
     emitCoverLetter(text) {
       sseWrite('coverLetter', { text });
+    },
+    emitAtsProfile(atsProfile) {
+      sseWrite('atsProfile', {
+        name: atsProfile.name,
+        displayName: atsProfile.displayName,
+        template: atsProfile.template,
+      });
     }
   };
 
@@ -376,7 +384,7 @@ router.get('/stream/:sessionId', async (req, res) => {
       session.resumeText,
       session.jdText,
       emitter,
-      { maxBulletRewrites, limitKeywords: 5 }
+      { maxBulletRewrites, limitKeywords: 5, atsProfile: session.atsProfile }
     );
 
     if (aborted) return;
@@ -405,7 +413,8 @@ router.get('/stream/:sessionId', async (req, res) => {
       optimizedBullets: results.optimizedBullets,
       keywordPlan: results.keywordPlan,
       optimizedResumeText: results.optimizedResumeText,
-      coverLetterText: results.coverLetter || null
+      coverLetterText: results.coverLetter || null,
+      atsPlatform: results.atsProfile?.name || null
     });
 
     // v3: No credit deduction for AI rewrites — they're free (sandbox mode)

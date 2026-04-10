@@ -21,11 +21,12 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT,
   avatar_url TEXT,
   tier TEXT DEFAULT 'free' CHECK(tier IN ('free','starter','pro','hustler')),
-  credit_balance INTEGER DEFAULT 1,
+  credit_balance INTEGER DEFAULT 0,        -- Email users get 0 until verified; OAuth users get 1 on creation
   stripe_customer_id TEXT UNIQUE,
   scans_used INTEGER DEFAULT 0,
   ai_credits_used INTEGER DEFAULT 0,
   is_verified BOOLEAN DEFAULT FALSE,
+  email_verified_at TIMESTAMPTZ,           -- Timestamp of first verification (never reset)
   verification_token TEXT,
   reset_password_token TEXT,
   reset_password_expires TIMESTAMPTZ,
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS scans (
   job_url TEXT,
   job_title TEXT,
   company_name TEXT,
+  ats_platform TEXT,                       -- Detected ATS: workday, greenhouse, lever, icims, etc.
   parse_rate DOUBLE PRECISION,
   format_health DOUBLE PRECISION,
   match_rate DOUBLE PRECISION,
@@ -191,3 +193,15 @@ CREATE INDEX IF NOT EXISTS idx_credit_transactions_stripe ON credit_transactions
 CREATE INDEX IF NOT EXISTS idx_scan_sessions_created ON scan_sessions(created_at);
 CREATE INDEX IF NOT EXISTS idx_download_history_user ON download_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_stripe_events_event_id ON stripe_events(event_id);
+
+-- ── Safe Migrations (idempotent ALTER TABLE for existing deployments) ──────
+-- Add new columns to existing tables without dropping/recreating them.
+-- Each statement is wrapped in a DO block to silently skip if column exists.
+
+DO $$ BEGIN
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE scans ADD COLUMN IF NOT EXISTS ats_platform TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
