@@ -799,8 +799,10 @@ function setupFileUpload() {
     } catch (err) {
       form.style.display = 'block';
       el('scan-loading').style.display = 'none';
-      el('scan-error').textContent = 'Analysis failed. Please try again.';
+      const errMsg = err.message || 'Analysis failed. Please try again.';
+      el('scan-error').textContent = errMsg;
       el('scan-error').style.display = 'block';
+      console.error('Scan submit error:', err);
     }
   });
 }
