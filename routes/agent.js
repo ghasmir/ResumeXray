@@ -95,6 +95,7 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     let jdText = '';
     let jobUrl = req.body.jobUrl || '';
     let jobTitle = '';
+    let atsProfileTemp = null; // Populated if JD provided
     const jdInput = req.body.jobDescription || jobUrl || '';
 
     if (jobUrl && jobUrl.length > 2048) {
@@ -110,7 +111,7 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
         jdText = jdResult.jdText;
         jobUrl = jdResult.jobUrl || jobUrl;
         jobTitle = jdResult.jobTitle || '';
-        session.atsProfile = jdResult.atsProfile; // Store for pipeline use
+        atsProfileTemp = jdResult.atsProfile;
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -130,6 +131,13 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     const creditBalance = req.user ? await db.getCreditBalance(req.user.id) : 0;
 
     const sessionId = uuidv4();
+
+    // Cache atsProfile keyed by sessionId (in-process Map, lives seconds until /stream reads it)
+    if (atsProfileTemp) {
+      atsProfileCache.set(sessionId, atsProfileTemp);
+      // Auto-expire after 15 minutes so the Map never leaks memory
+      setTimeout(() => atsProfileCache.delete(sessionId), 15 * 60 * 1000);
+    }
 
     // Phase 3 #12: Write buffer to disk instead of keeping in memory
     // Sanitize filename to prevent path traversal
@@ -199,6 +207,7 @@ router.get('/stream/:sessionId', async (req, res) => {
   }
 
   // Map DB column names → camelCase for pipeline compatibility
+  // Also read atsProfile from the in-process cache (stored during /start)
   const session = {
     resumeText: dbSession.resume_text,
     resumeFilePath: dbSession.resume_file_path,
@@ -210,7 +219,10 @@ router.get('/stream/:sessionId', async (req, res) => {
     companyName: dbSession.company_name,
     userId: dbSession.user_id,
     creditBalance: dbSession.credit_balance,
+    atsProfile: atsProfileCache.get(req.params.sessionId) || null,
   };
+  // Clean up cache entry now that stream has consumed it
+  atsProfileCache.delete(req.params.sessionId);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',

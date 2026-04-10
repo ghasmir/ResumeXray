@@ -133,9 +133,10 @@ async function fetchUser() {
       // Update UI elements
       const initials = (user.name || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
       if (el('nav-avatar-initials')) el('nav-avatar-initials').textContent = initials;
-      if (user.avatarUrl && el('nav-avatar')) {
+      const avatarUrl = user.avatarUrl || user.avatar || null; // handle both field names
+      if (avatarUrl && el('nav-avatar')) {
         // Safe avatar rendering — validate URL protocol before injection
-        const safeUrl = user.avatarUrl.startsWith('https://') ? encodeURI(user.avatarUrl) : '';
+        const safeUrl = (avatarUrl.startsWith('https://') || avatarUrl.startsWith('/')) ? avatarUrl : '';
         if (safeUrl) {
           const img = document.createElement('img');
           img.src = safeUrl;

@@ -69,6 +69,7 @@ router.get('/me', isAuthenticated, async (req, res) => {
         name: user.name,
         email: user.email,
         avatar: user.avatar_url,
+        avatarUrl: user.avatar_url,  // alias for backwards compat with older JS code paths
         tier,
         creditBalance,
         scansUsed: user.scans_used,
