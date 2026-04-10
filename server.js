@@ -309,8 +309,15 @@ app.get('/robots.txt', (req, res) => {
 const { csrfProtection, getCsrfToken } = require('./middleware/csrf');
 
 // CSRF token endpoint — frontend fetches this on load
+// IMPORTANT: Must call req.session.save() before responding.
+// Without it, the token is set in memory but the async session write to Supabase
+// may not complete before the client fires its next POST → "Security validation failed".
 app.get('/api/csrf-token', (req, res) => {
-  res.json({ token: getCsrfToken(req) });
+  const token = getCsrfToken(req);
+  req.session.save((err) => {
+    if (err) log.warn('CSRF session save error', { error: err.message });
+    res.json({ token });
+  });
 });
 
 // Apply CSRF protection to all state-changing requests

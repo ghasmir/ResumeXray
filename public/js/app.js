@@ -416,9 +416,13 @@ function setupAuthForms() {
         } else {
           currentUser = data;
           await fetchUser();
-          // Always go to dashboard after signup — clean start
+          // Always go to scan page after signup — ready to run first scan
           localStorage.removeItem('resumeXray_currentScanId');
-          navigateTo('/dashboard');
+          navigateTo('/scan');
+          // Show persistent nudge: verification email was sent
+          setTimeout(() => {
+            showToast('📧 Check your inbox! Verify your email to claim your free download credit.', 'info', { duration: 8000 });
+          }, 600);
         }
       } catch {
         errEl.textContent = 'Something went wrong. Please try again.';
