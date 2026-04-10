@@ -347,15 +347,19 @@ a:hover { color: #818cf8; }
   position: relative;
   display: flex;
   align-items: center;
+  gap: var(--sp-2);
   padding: var(--sp-1) 0;
 }
 
+/* Profile link — wraps credits badge + avatar */
 .nav-user-info {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-1) var(--sp-3);
+  padding: var(--sp-1) var(--sp-2);
   border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: inherit;
   cursor: pointer;
   transition: background 0.2s var(--ease);
 }
@@ -556,55 +560,28 @@ a:hover { color: #818cf8; }
   100% { box-shadow: 0 0 5px rgba(168, 85, 247, 0.1); }
 }
 
-.nav-user-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  width: 180px;
-  background: #18181b;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--sp-2);
-  margin-top: var(--sp-2);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-  visibility: hidden;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(10px);
-  transition: all 0.2s var(--ease);
-  z-index: 1001;
+/* ── Logout Button (always visible in topbar) ─────────────── */
+.nav-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md);
+  color: #ef4444;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-#nav-user-area:hover .nav-user-dropdown {
-  visibility: visible;
-  pointer-events: auto;
-  opacity: 1;
-  transform: translateY(0);
+.nav-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.6);
 }
 
-.dropdown-item {
-  display: block;
-  width: 100%;
-  padding: var(--sp-2) var(--sp-3);
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: 0.875rem;
-  border-radius: var(--radius-md);
-  text-align: left;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.dropdown-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
-}
-.logout-btn {
-  color: #ef4444 !important;
-}
-.logout-btn:hover {
-  background: rgba(239, 68, 68, 0.1) !important;
-}
 
 #nav-guest-area {
   display: flex;
@@ -2595,8 +2572,8 @@ a:hover { color: #818cf8; }
   /* Hide desktop guest buttons — bottom sheet handles auth on mobile */
   #nav-guest-area { display: none !important; }
 
-  /* Keep avatar + credits visible on mobile, but hide dropdown (use bottom sheet) */
-  .nav-user-dropdown { display: none !important; }
+  /* On mobile: keep credits+avatar link, hide the logout button (bottom sheet has it) */
+  .nav-logout-btn { display: none !important; }
   .nav-user-info { gap: var(--sp-2); padding: var(--sp-1); }
 
   /* Touch targets */
@@ -4701,18 +4678,6 @@ a svg {
   background: linear-gradient(135deg, rgba(168,85,247,0.18), rgba(99,91,255,0.12));
   border-color: rgba(168,85,247,0.3);
   transform: scale(1.05);
-}
-
-/* ─── 20. USER DROPDOWN PREMIUM ────────────────────────────── */
-
-.nav-user-dropdown {
-  background: rgba(24,24,27,0.95);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow:
-    0 16px 48px rgba(0,0,0,0.5),
-    0 0 0 1px rgba(255,255,255,0.03);
 }
 
 

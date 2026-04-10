@@ -2148,7 +2148,11 @@ async function renderProfile() {
       resendBtn.disabled = true;
       resendBtn.textContent = 'Sending...';
       try {
-        const res = await fetch('/auth/resend-verification', { method: 'POST' });
+        if (!_csrfToken) await fetchCsrfToken();
+        const res = await fetch('/auth/resend-verification', {
+          method: 'POST',
+          headers: _csrfToken ? { 'X-CSRF-Token': _csrfToken } : {}
+        });
         const data = await res.json();
         if (res.ok) {
           showToast('Verification email sent! Check your inbox.', 'success');
