@@ -788,6 +788,12 @@ function setupFileUpload() {
         localStorage.removeItem('resumeXray_currentScanId');
         currentScan = null;
         history.pushState({}, '', '/agent-results');
+        
+        document.getElementById('upload-area').style.display = 'none';
+        document.getElementById('progress-area').style.display = 'block';
+        // Ensure we are viewing the diagnosis tab during the scan
+        switchTab('tab-diagnosis');
+
         startAgentAnalysis(data.sessionId);
       }
     } catch (err) {
@@ -1527,7 +1533,9 @@ function reloadPdfPreview(scanId) {
     }
     if (skeleton) skeleton.style.display = 'flex';
     previewFrame.style.opacity = '0';
-    previewFrame.src = `/api/agent/preview/${scanId}?template=${template}&density=${density}&t=${Date.now()}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
+    let url = `/api/agent/preview/${scanId}?template=${template}&density=${density}&t=${Date.now()}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
+    if (currentScan && currentScan.access_token) url += `&token=${currentScan.access_token}`;
+    previewFrame.src = url;
     previewFrame.addEventListener('load', function onLoad() {
       previewFrame.style.opacity = '1';
       if (skeleton) skeleton.style.display = 'none';
