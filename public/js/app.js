@@ -8,7 +8,7 @@ let currentScan = null;
 let lastJobInput = '';
 let loadResultsToken = 0; // Cancellation token for loadResults retries
 
-// Phase 6 Wave 4: Client-side error telemetry — sends to /api/client-error
+// Client-side error telemetry — sends to /api/client-error
 (function initErrorReporting() {
   let errorCount = 0;
   const MAX_ERRORS = 5; // Throttle to prevent spam
@@ -59,7 +59,7 @@ window.fetch = function(url, options = {}) {
     }
   }
   return _originalFetch.call(this, url, options).then(res => {
-    // §MED: Pick up rotated CSRF token from response header (one-time-use tokens)
+    // Pick up rotated CSRF token from response header (one-time-use tokens)
     const newToken = res.headers.get('X-CSRF-Token');
     if (newToken) _csrfToken = newToken;
     return res;
@@ -212,7 +212,7 @@ function navigateTo(path, push = true) {
   if (push) history.pushState({}, '', path);
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
 
-  // §HIGH: SPA focus management — move focus to active view's heading for screen readers
+  // SPA focus management — move focus to active view's heading for screen readers
   requestAnimationFrame(() => {
     const activeView = document.querySelector('.view.active');
     if (activeView) {
@@ -281,7 +281,7 @@ function navigateTo(path, push = true) {
   } else if (path === '/terms') {
     el('view-terms').classList.add('active');
   } else {
-    // §LOW: 404 page for unknown routes instead of silently showing landing
+    // 404 page for unknown routes instead of silently showing landing
     const view404 = el('view-404');
     if (view404) {
       view404.classList.add('active');
@@ -567,7 +567,7 @@ function setupGlobalDelegation() {
       return;
     }
 
-    // Phase 6 §4.10: Copy button via data-attribute (replaces inline onclick)
+    // Copy button via data-attribute (replaces inline onclick)
     const copyBtn = e.target.closest('[data-copy-text]');
     if (copyBtn) {
       e.preventDefault();
@@ -866,7 +866,7 @@ function startAgentAnalysis(sessionId) {
     s.classList.remove('complete', 'running', 'error');
   });
   
-  // Phase 6 §9.1: fetch + ReadableStream replaces EventSource.
+  // fetch + ReadableStream replaces EventSource.
   // fetch() sends session cookies automatically (same-origin), enabling server-side auth.
   // EventSource cannot send custom headers and had no authentication — anyone could stream.
   const abortController = new AbortController();
@@ -1001,6 +1001,13 @@ function startAgentAnalysis(sessionId) {
         break;
 
       case 'error':
+        abortController.abort();
+        agentSource = null;
+        // Hide loading state and restore the upload form so the user can retry
+        const loadingEl = el('scan-loading');
+        const formEl = el('scan-form');
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (formEl) formEl.style.display = 'block';
         if (data.message && data.message.includes('professional resume')) {
           showToast('This file doesn\'t appear to be a standard resume. Please upload a professional resume in PDF or DOCX format.', 'warning');
           document.querySelectorAll('.progress-step.running').forEach(item => {
@@ -1010,8 +1017,6 @@ function startAgentAnalysis(sessionId) {
         } else {
           showToast(data.message || 'Analysis interrupted — please try again. If this persists, contact support.', 'error');
         }
-        abortController.abort();
-        agentSource = null;
         if (data.step) updateAgentProgress(data.step, 'error');
         break;
     }
@@ -1433,35 +1438,15 @@ function setupPasswordToggles() {
 }
 
 function setupResultsTabs() {
+  // Delegate to switchTab() which handles activation, lazy-loading, and aria attributes
   document.querySelectorAll('.results-tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      // Remove active from all buttons
-      document.querySelectorAll('.results-tab-btn').forEach(b => b.classList.remove('active'));
-      
-      // Remove active from all panes AND clear any rogue inline display styles
-      document.querySelectorAll('.results-tab-pane').forEach(p => {
-        p.classList.remove('active');
-        p.style.display = '';  // Clear inline styles so CSS class takes over
-      });
-      
-      // Activate clicked tab
-      btn.classList.add('active');
       const targetId = btn.getAttribute('data-tab');
-      const pane = document.getElementById(targetId);
-      if (pane) pane.classList.add('active');
-
-      // Save active tab to sessionStorage for persistence
-      sessionStorage.setItem('resumeXray_activeTab', targetId);
-
-      // Lazy load the PDF when its tab is clicked
-      if (targetId === 'tab-pdf-preview') {
-        const previewFrame = el('pdf-preview-frame');
-        const bar = el('agent-download-bar');
-        if (previewFrame && bar && bar.dataset.scanId) {
-          if (!previewFrame.src || !previewFrame.src.includes(bar.dataset.scanId) || previewFrame.src.includes('about:blank')) {
-            reloadPdfPreview(bar.dataset.scanId);
-          }
-        }
+      if (targetId) {
+        // Clear rogue inline display styles before switching
+        document.querySelectorAll('.results-tab-pane').forEach(p => p.style.display = '');
+        switchTab(targetId);
+        sessionStorage.setItem('resumeXray_activeTab', targetId);
       }
     });
   });
@@ -1520,7 +1505,7 @@ function reloadPdfPreview(scanId) {
   if (previewFrame) {
     const template = getSelectedTemplate();
     const density = getSelectedDensity();
-    // §HIGH: Show loading skeleton while iframe renders
+    // Show loading skeleton while iframe renders
     const container = previewFrame.parentElement;
     let skeleton = container?.querySelector('.preview-skeleton');
     if (!skeleton && container) {
@@ -1569,6 +1554,7 @@ async function downloadOptimized(format) {
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
+    a.remove();
     showToast('Resume downloaded!', 'success');
   } catch {
     showToast('Download failed — please check your connection and try again.', 'error');
@@ -1851,16 +1837,8 @@ function setupAgentHistoricalView(data) {
 
   // 9. Restore tab from sessionStorage (or default to ATS Diagnosis)
   const savedTab = sessionStorage.getItem('resumeXray_activeTab');
-  if (savedTab) {
-    const tabBtn = document.querySelector(`.results-tab-btn[data-tab="${savedTab}"]`);
-    if (tabBtn) {
-      // Simulate click to activate the saved tab
-      document.querySelectorAll('.results-tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.results-tab-pane').forEach(p => { p.classList.remove('active'); p.style.display = ''; });
-      tabBtn.classList.add('active');
-      const pane = document.getElementById(savedTab);
-      if (pane) pane.classList.add('active');
-    }
+  if (savedTab && document.querySelector(`.results-tab-btn[data-tab="${savedTab}"]`)) {
+    switchTab(savedTab);
   }
 }
 
@@ -2202,6 +2180,7 @@ async function renderProfile() {
   if (pwBtn) {
     pwBtn.onclick = () => {
       el('password-modal').style.display = 'flex';
+      document.body.classList.add('modal-open');
       // Setup strength indicator for the profile pw modal
       _setupPasswordStrength('pw-new', 'profile');
     };
@@ -2209,6 +2188,7 @@ async function renderProfile() {
   const pwCancel = el('pw-cancel');
   if (pwCancel) pwCancel.onclick = () => {
     el('password-modal').style.display = 'none';
+    document.body.classList.remove('modal-open');
     // Reset the strength indicator state
     const container = el('profile-pw-strength');
     if (container) container.classList.remove('visible');
@@ -2227,16 +2207,16 @@ async function renderProfile() {
         });
         const data = await res.json();
         if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; }
-        else { el('password-modal').style.display = 'none'; showToast('Password updated!', 'success'); pwForm.reset(); }
+        else { el('password-modal').style.display = 'none'; document.body.classList.remove('modal-open'); showToast('Password updated!', 'success'); pwForm.reset(); }
       } catch { errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block'; }
     };
   }
 
   // Delete account modal
   const delBtn = el('btn-delete-account');
-  if (delBtn) delBtn.onclick = () => { el('delete-modal').style.display = 'flex'; };
+  if (delBtn) delBtn.onclick = () => { el('delete-modal').style.display = 'flex'; document.body.classList.add('modal-open'); };
   const delCancel = el('delete-cancel');
-  if (delCancel) delCancel.onclick = () => { el('delete-modal').style.display = 'none'; };
+  if (delCancel) delCancel.onclick = () => { el('delete-modal').style.display = 'none'; document.body.classList.remove('modal-open'); };
   const delForm = el('delete-form');
   if (delForm) {
     delForm.onsubmit = async (e) => {
@@ -2574,7 +2554,7 @@ function showToast(message, type = 'info', options = {}) {
     setTimeout(() => dismissToast(toast), 2000);
   });
 
-  // §MED: Dismiss toast with Escape key (accessibility)
+  // Dismiss toast with Escape key (accessibility)
   function onEscapeDismiss(e) {
     if (e.key === 'Escape') {
       dismissToast(toast);
@@ -2620,7 +2600,7 @@ function esc(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// Phase 6 §4.10: DOMPurify safety net for innerHTML — belt-and-braces defense.
+// DOMPurify safety net for innerHTML — belt-and-braces defense.
 // Use safeHtml() for any innerHTML that includes dynamic content.
 function safeHtml(html) {
   if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });

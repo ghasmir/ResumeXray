@@ -2,7 +2,7 @@
 <html lang="en" dir="ltr" prefix="og: https://ogp.me/ns#">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" content="ResumeXray — See exactly what ATS software sees when it reads your resume. Fix parsing failures, missing keywords, and weak bullets with AI-powered semantic analysis. Free unlimited scans.">
   <meta name="theme-color" content="#09090b">
   <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
@@ -665,14 +665,14 @@
           <h3 style="margin-bottom:var(--sp-4)">Change Password</h3>
           <form id="password-form">
             <div class="form-group">
-              <label>Current Password</label>
+              <label for="pw-current">Current Password</label>
               <div class="password-wrapper">
                 <input type="password" id="pw-current" required>
                 <button type="button" class="pw-toggle" aria-label="Toggle password visibility"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
               </div>
             </div>
             <div class="form-group">
-              <label>New Password</label>
+              <label for="pw-new">New Password</label>
               <div class="password-wrapper">
                 <input type="password" id="pw-new" placeholder="8+ characters" minlength="8" required>
                 <button type="button" class="pw-toggle" aria-label="Toggle password visibility"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -702,7 +702,7 @@
           <h3 style="margin-bottom:var(--sp-2);color:var(--red)">⚠️ Delete Account</h3>
           <p class="body-sm" style="margin-bottom:var(--sp-4)">This action is permanent. All your scans, resumes, and credits will be lost. Type your email to confirm.</p>
           <form id="delete-form">
-            <div class="form-group"><label>Confirm Email</label><input type="email" id="delete-confirm-email" required></div>
+            <div class="form-group"><label for="delete-confirm-email">Confirm Email</label><input type="email" id="delete-confirm-email" required></div>
             <div id="delete-error" class="form-error" style="display:none"></div>
             <div style="display:flex;gap:var(--sp-2);margin-top:var(--sp-4)">
               <button type="submit" class="btn btn-sm" style="background:var(--red);color:white">Delete Forever</button>

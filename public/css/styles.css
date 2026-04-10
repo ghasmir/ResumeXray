@@ -29,7 +29,7 @@
  *  @version 5.4.0
  *  @updated 2026-04-06
  * ═══════════════════════════════════════════════════════════════ */
-/* §4.8: Self-hosted Inter font — eliminates Google Fonts CDN dependency (saves ~300ms LCP)
+/* Self-hosted Inter font — eliminates Google Fonts CDN dependency (saves ~300ms LCP)
  * Downloaded from: https://fonts.google.com/specimen/Inter
  * Latin subset only, 3 weights: 400 (body), 600 (headings), 700 (display)
  * font-display: swap — renders fallback immediately, swaps when loaded */
@@ -456,7 +456,7 @@ a:hover { color: #818cf8; }
   background: var(--bg-card);
   border-top: 1px solid var(--border-subtle);
   border-radius: 16px 16px 0 0;
-  padding: var(--sp-2) var(--sp-4) var(--sp-6);
+  padding: var(--sp-2) var(--sp-4) calc(var(--sp-6) + env(safe-area-inset-bottom, 0px));
   transform: translateY(100%);
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 999;
@@ -521,7 +521,7 @@ a:hover { color: #818cf8; }
 .credits-badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-1.5);
+  gap: 0.375rem;
   padding: 2px 10px;
   background: rgba(168, 85, 247, 0.1);
   border: 1px solid rgba(168, 85, 247, 0.2);
@@ -2475,7 +2475,7 @@ a:hover { color: #818cf8; }
   justify-content: center;
   margin-top: var(--sp-6);
   padding: var(--sp-4);
-  background: var(--bg-card-subtle);
+  background: var(--bg-elevated);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
 }
@@ -2996,7 +2996,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   color: white !important;
 }
 .recruiter-text-box {
-  background: #ffffff;
+  background: var(--bg-card, #ffffff);
   padding: var(--sp-6);
   max-height: 600px;
   overflow-y: auto;
@@ -3005,7 +3005,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   font-family: 'Courier New', monospace;
   font-size: 0.82rem;
   line-height: 1.6;
-  color: #1a1a1a;
+  color: var(--text-primary, #1a1a1a);
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
@@ -3173,7 +3173,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   color: var(--text-muted);
 }
 
-/* ── Modal Overlay ─────────────────────────────────────────── */
+/* Prevents body scroll behind modal (set via JS when modal opens/closes) */
+body.modal-open { overflow: hidden; }
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -3192,6 +3194,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .modal-overlay > * {
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
+  width: 100%;
+  max-width: 480px;
 }
 
 /* ── Download Bar v3 ───────────────────────────────────────── */
@@ -3279,7 +3283,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 .results-tab-pane {
   display: none;
-  animation: fade-up 0.3s ease-in-out forwards;
+  animation: fadeUp 0.3s ease-in-out forwards;
 }
 
 .results-tab-pane.active {
@@ -3379,7 +3383,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   left: 0;
   right: 0;
   background: var(--bg-elevated);
-  border-top: 1px solid var(--border-primary);
+  border-top: 1px solid var(--border-default);
   margin-top: 0;
   z-index: 10;
 }
@@ -3392,7 +3396,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   background: rgba(10, 10, 12, 0.85);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: 9999;
+  z-index: 9990;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3516,7 +3520,7 @@ a svg {
   padding: 1.75rem 2rem;
   max-width: 340px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  animation: fade-up 0.4s ease-out;
+  animation: fadeUp 0.4s ease-out;
 }
 
 .unlock-icon {
@@ -3614,8 +3618,9 @@ a svg {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: var(--sp-1) 0;
+    padding: var(--sp-1) var(--sp-2);
     border-bottom: none;
+    word-break: break-word;
   }
   .recruiter-table td.field-name {
     font-size: 0.7rem;
@@ -3706,7 +3711,7 @@ a svg {
     radial-gradient(ellipse 60% 55% at 50% 40%, rgba(99,91,255,0.10), transparent 70%),
     radial-gradient(ellipse 40% 35% at 30% 30%, rgba(139,92,246,0.06), transparent 65%),
     radial-gradient(ellipse 35% 40% at 70% 35%, rgba(244,114,182,0.04), transparent 60%);
-  animation: hero-mesh-drift 25s ease-in-out infinite alternate;
+  animation: hero-mesh-drift 30s ease-in-out infinite alternate;
   pointer-events: none;
   z-index: 0;
   filter: blur(40px);     /* soft feathered edges — no hard rectangle */
@@ -4992,7 +4997,7 @@ a svg {
   left: 0;
   right: 0;
   z-index: 99999;
-  padding: 0 var(--sp-4);
+  padding: 0 var(--sp-4) env(safe-area-inset-bottom, 0px);
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes slideUp {
