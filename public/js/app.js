@@ -1110,6 +1110,15 @@ function updateAgentStepCard(step, status, label, data) {
         <button class="btn btn-primary btn-sm" data-action="navigate" data-path="/pricing">Unlock All Fixes →</button>
       </div>
     `;
+  } else if (data && step === 8 && Array.isArray(data)) {
+    // Plan step — format as readable suggestions instead of raw JSON
+    const suggestions = data.map(item => {
+      const kw = item.keyword || item.Keyword || '';
+      const section = item.section || item.Section || '';
+      const suggestion = item.suggestion || item.Suggestion || '';
+      return `<li style="margin-bottom:0.5rem"><strong>${esc(kw)}</strong> → ${esc(section)}: <em>${esc(suggestion)}</em></li>`;
+    }).join('');
+    body.innerHTML = `<ul style="list-style:none;padding:0;font-size:0.85rem;color:var(--text-secondary)">${suggestions}</ul>`;
   }
 }
 
@@ -1155,7 +1164,7 @@ function renderAgentBullet(data) {
     bulletCard.id = `bullet-card-${data.index}`;
     bulletCard.innerHTML = `
       <div class="agent-bullet-before">
-        <div class="agent-bullet-label before">ORIGINAL</div>
+        <div class="agent-bullet-label before">BEFORE</div>
         <div class="agent-bullet-text">${esc(data.original)}</div>
       </div>
       <div class="agent-bullet-after ${isGuest ? 'guest-blurred' : ''}">
@@ -1318,25 +1327,14 @@ async function finalizeAgentUI(data) {
   const bar = el('agent-download-bar');
   if (bar && data.scanId) bar.dataset.scanId = data.scanId;
 
-  // 6. Success Animation — stay on ATS Diagnosis, don't auto-switch
-  const readyOverlay = el('ready-animation-overlay');
+  // 6. No full-page overlay — just show the tab and toast
+  switchTab('tab-diagnosis');
+  showToast('Analysis complete! Your optimized resume is ready in the Optimized Resume tab.', 'success');
   
-  if (readyOverlay) {
-    readyOverlay.style.display = 'flex';
-    requestAnimationFrame(() => readyOverlay.classList.add('show'));
-
-    setTimeout(() => {
-      readyOverlay.classList.remove('show');
-      setTimeout(() => {
-        readyOverlay.style.display = 'none';
-        // Stay on ATS Diagnosis — let user navigate to Optimized Resume
-        switchTab('tab-diagnosis');
-        showToast('Analysis complete! Check the Optimized Resume tab for your enhanced resume.', 'success');
-      }, 400);
-    }, 2500);
-  } else {
-    switchTab('tab-diagnosis');
-    showToast('Analysis complete! Your optimized resume is ready in the Optimized Resume tab.', 'success');
+  // Smooth scroll to the score gauges
+  const scoreSummary = el('agent-score-summary');
+  if (scoreSummary) {
+    scoreSummary.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // 7. Fetch full scan data from API to populate Recruiter View + PDF preview
