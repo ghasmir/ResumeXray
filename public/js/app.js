@@ -1197,9 +1197,6 @@ function renderAgentBullet(data) {
       <span class="badge badge-purple">${esc(data.targetKeyword || 'General')}</span>
       <span class="badge badge-blue">${esc(data.method || 'CAR Formula')}</span>
       <span class="badge badge-green">Anti-Fluff ✓</span>
-      <button class="btn-copy" data-copy-text="${esc(data.rewritten)}">
-        📋 Copy
-      </button>
     `;
     card.appendChild(meta);
   }
@@ -1321,7 +1318,7 @@ async function finalizeAgentUI(data) {
   const bar = el('agent-download-bar');
   if (bar && data.scanId) bar.dataset.scanId = data.scanId;
 
-  // 6. Success Animation and Auto-Switch Tab
+  // 6. Success Animation — stay on ATS Diagnosis, don't auto-switch
   const readyOverlay = el('ready-animation-overlay');
   
   if (readyOverlay) {
@@ -1332,14 +1329,14 @@ async function finalizeAgentUI(data) {
       readyOverlay.classList.remove('show');
       setTimeout(() => {
         readyOverlay.style.display = 'none';
-        // Auto-switch to the Optimized Resume tab
-        switchTab('tab-pdf-preview');
-        showToast('Analysis Complete — Optimized resume is ready!', 'success');
+        // Stay on ATS Diagnosis — let user navigate to Optimized Resume
+        switchTab('tab-ats-diagnosis');
+        showToast('Analysis complete! Check the Optimized Resume tab for your enhanced resume.', 'success');
       }, 400);
     }, 2500);
   } else {
-    switchTab('tab-pdf-preview');
-    showToast('Analysis complete!', 'success');
+    switchTab('tab-ats-diagnosis');
+    showToast('Analysis complete! Your optimized resume is ready in the Optimized Resume tab.', 'success');
   }
 
   // 7. Fetch full scan data from API to populate Recruiter View + PDF preview
@@ -2295,7 +2292,9 @@ function buildRecruiterRows(fieldAccuracy, extractedFields) {
     const rawValue = info.value || extractedFields[fieldName] || '';
     
     const isMissing = !rawValue || rawValue.includes('[Parser could not extract');
-    const displayVal = isMissing ? null : truncate(maskValue(fieldName, String(rawValue)), 160);
+    // Use longer truncation for content-heavy fields
+    const isLongField = ['Experience', 'Education', 'Skills', 'Summary'].includes(fieldName);
+    const displayVal = isMissing ? null : truncate(maskValue(fieldName, String(rawValue)), isLongField ? 500 : 200);
     
     // Polished status pills
     const statusClass = status === 'success' ? 'status-found' : status === 'warning' ? 'status-found' : 'status-missing';

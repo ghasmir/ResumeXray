@@ -2963,8 +2963,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -65%);
+  transform: translate(-50%, -50%);
   font-family: 'JetBrains Mono', monospace;
+  /* Offset for the label below the gauge — shift up by half the label+gap height */
+  margin-top: -12px;
 }
 .agent-scores {
   display: grid;

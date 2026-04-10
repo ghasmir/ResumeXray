@@ -6,6 +6,7 @@ const { checkScanLimit } = require('../middleware/usage');
 const { analyzeResume } = require('../lib/analyzer');
 const parser = require('../lib/parser');
 const { processJobDescription } = require('../lib/jd-processor');
+const { validateResumeContent } = require('../lib/resume-validator');
 const db = require('../db/database');
 const log = require('../lib/logger');
 
@@ -29,6 +30,12 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
     const rawText = await parser.parseResume(req.file.buffer, req.file.mimetype);
     if (!rawText || rawText.trim() === '') {
       return res.status(400).json({ error: 'Could not extract text from the file. Ensure it is not an image-based PDF.' });
+    }
+
+    // Content validation: reject non-resume files
+    const resumeCheck = validateResumeContent(rawText);
+    if (!resumeCheck.isResume) {
+      return res.status(400).json({ error: `This doesn't appear to be a resume. Please upload your resume file (PDF or DOCX) containing your work experience, education, and skills.` });
     }
 
     // Smart JD handling — Security: sanitize all user-text inputs

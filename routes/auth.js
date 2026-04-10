@@ -128,6 +128,10 @@ router.post('/signup', authLimiter, async (req, res) => {
       log.error('Failed to send verification email during signup', { error: err.message });
     });
 
+    // Save guest scan tokens BEFORE regenerating (regenerate destroys session data)
+    const savedGuestTokens = req.session.guestScanTokens || [];
+    const savedGuestSessionIds = req.session.guestSessionIds || [];
+
     // Auto-login after signup with session regeneration
     req.session.regenerate(async (err) => {
       if (err) return res.status(500).json({ error: 'Account created but login failed.' });
@@ -136,18 +140,13 @@ router.post('/signup', authLimiter, async (req, res) => {
         req.session._createdAt = Date.now(); // Set absolute timeout anchor
 
         // Phase 6 §3.1-A: Claim only THIS session's guest scans (IDOR fix)
-        // Old code claimed ALL orphan scans globally — a signup would steal everyone's guest scans.
-        // Now we scope the claim to access tokens tracked in this browser session.
+        // Tokens were saved before regenerate — use the saved copies.
         try {
-          const guestTokens = req.session.guestScanTokens || [];
-          if (guestTokens.length > 0) {
-            const claimResult = await db.claimGuestScans(user.id, guestTokens);
+          if (savedGuestTokens.length > 0) {
+            const claimResult = await db.claimGuestScans(user.id, savedGuestTokens);
             if (claimResult > 0) {
               log.info('Claimed guest scans for new user', { userId: user.id, claimed: claimResult });
             }
-            // Clear tokens after claiming — prevent replay
-            delete req.session.guestScanTokens;
-            delete req.session.guestSessionIds;
           }
         } catch (claimErr) {
           log.warn('Failed to claim guest scans', { error: claimErr.message });
@@ -248,15 +247,23 @@ function oauthCallbackHandler(req, res) {
       log.error('OAuth session regeneration failed', { error: err.message });
       return res.redirect('/dashboard');
     }
-    req.login(user, (loginErr) => {
+    req.login(user, async (loginErr) => {
       if (loginErr) {
         log.error('OAuth re-login after regeneration failed', { error: loginErr.message });
         return res.redirect('/?authError=true');
       }
       req.session._createdAt = Date.now();
-      // Restore guest data for scan claiming
-      req.session.guestScanTokens = guestTokens;
-      req.session.guestSessionIds = guestSessionIds;
+
+      // Claim guest scans from before OAuth login
+      if (guestTokens.length > 0) {
+        try {
+          const claimed = await db.claimGuestScans(user.id, guestTokens);
+          if (claimed > 0) log.info('Claimed guest scans for OAuth user', { userId: user.id, claimed });
+        } catch (e) {
+          log.warn('Failed to claim guest scans on OAuth login', { error: e.message });
+        }
+      }
+
       res.redirect('/dashboard');
     });
   });

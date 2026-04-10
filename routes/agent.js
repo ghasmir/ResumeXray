@@ -20,6 +20,7 @@ const { agentLimiter, downloadLimiter, sanitizeInput } = require('../config/secu
 const { checkExportCredit } = require('../middleware/usage');
 const parser = require('../lib/parser');
 const { processJobDescription } = require('../lib/jd-processor');
+const { validateResumeContent } = require('../lib/resume-validator');
 const { runAgentPipeline } = require('../lib/agent-pipeline');
 const { generateDOCX, generatePDF, validatePDF, renderHtmlToPdf } = require('../lib/resume-builder');
 const { parseCoverLetter } = require('../lib/cover-letter-parser');
@@ -82,6 +83,12 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     const rawText = await parser.parseResume(req.file.buffer, req.file.mimetype);
     if (!rawText || rawText.trim() === '') {
       return res.status(400).json({ error: 'Could not extract text. Ensure it is not an image-based PDF.' });
+    }
+
+    // Content validation: reject non-resume files
+    const validation = validateResumeContent(rawText);
+    if (!validation.isResume) {
+      return res.status(400).json({ error: `This doesn't appear to be a resume. Please upload your resume file (PDF or DOCX) containing your work experience, education, and skills.` });
     }
 
     // §10.11: Input length validation — prevent oversized payloads before LLM processing
