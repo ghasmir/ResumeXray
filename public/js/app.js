@@ -788,9 +788,6 @@ function setupFileUpload() {
         localStorage.removeItem('resumeXray_currentScanId');
         currentScan = null;
         history.pushState({}, '', '/agent-results');
-        
-        document.getElementById('upload-area').style.display = 'none';
-        document.getElementById('progress-area').style.display = 'block';
         // Ensure we are viewing the diagnosis tab during the scan
         switchTab('tab-diagnosis');
 
