@@ -766,7 +766,13 @@ function setupFileUpload() {
     }
 
     try {
-      const res = await fetch('/api/agent/start', { method: 'POST', body: fd });
+      // Ensure we have a fresh CSRF token before submitting (prevents race on first load)
+      if (!_csrfToken) await fetchCsrfToken();
+      const res = await fetch('/api/agent/start', {
+        method: 'POST',
+        body: fd,
+        headers: _csrfToken ? { 'X-CSRF-Token': _csrfToken } : {}
+      });
       const data = await res.json();
       
       if (data.error) {

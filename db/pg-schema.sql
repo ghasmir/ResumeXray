@@ -205,3 +205,6 @@ EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE scans ADD COLUMN IF NOT EXISTS ats_platform TEXT;
 EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+-- Ensure credit_balance defaults to 0 (email users get 0 until verified; OAuth gets 1 on creation)
+ALTER TABLE users ALTER COLUMN credit_balance SET DEFAULT 0;
