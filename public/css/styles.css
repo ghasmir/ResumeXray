@@ -143,6 +143,10 @@
 /* ── Reset & Base ──────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Hide focus ring on programmatic focus (SPA nav), keep for keyboard users */
+[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
+[tabindex="-1"]:focus { outline: none; }
+
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
