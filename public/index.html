@@ -249,35 +249,28 @@
 
   <!-- ═══ NAVBAR ═══ -->
   <header class="topbar" role="banner">
-    <!-- Credits badge: far left (authenticated users only) -->
     <div class="topbar-left">
-      <div id="nav-credits-badge" class="credits-badge premium-glow" title="Credit balance — click to buy more" style="display:none">
-        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="badge-icon" style="vertical-align:-2px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        <span id="nav-credits-count">0</span>
-      </div>
-      <!-- Placeholder spacer for guest (keeps logo centred) -->
-      <div class="topbar-credits-spacer" id="nav-credits-spacer" aria-hidden="true"></div>
-    </div>
-
-    <!-- Logo: centre -->
-    <div class="topbar-center">
       <a href="/" data-link class="logo">
         <span class="logo-icon">RX</span>
         <span class="logo-text">ResumeXray</span>
       </a>
     </div>
 
-    <!-- Right: nav links (desktop) + profile/guest controls -->
-    <div class="topbar-right">
-      <nav class="nav-links" id="nav-links" aria-label="Main navigation">
-        <a href="/pricing" data-link id="nav-link-pricing">Pricing</a>
-        <a href="/scan" data-link id="nav-link-scan">Scan</a>
-        <a href="/dashboard" data-link id="nav-link-dashboard" style="display:none">Dashboard</a>
-      </nav>
+    <nav class="nav-links" id="nav-links" aria-label="Main navigation">
+      <a href="/pricing" data-link id="nav-link-pricing">Pricing</a>
+      <a href="/scan" data-link id="nav-link-scan">Scan</a>
+      <a href="/dashboard" data-link id="nav-link-dashboard" style="display:none">Dashboard</a>
+    </nav>
 
+    <div class="topbar-right">
       <!-- Authenticated user controls -->
       <div id="nav-user-area" style="display:none">
         <div class="nav-user-info">
+          <!-- Credits badge sits next to avatar for authenticated users -->
+          <div id="nav-credits-badge" class="credits-badge premium-glow" title="Credit balance — click to buy more">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="badge-icon" style="vertical-align:-2px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span id="nav-credits-count">0</span>
+          </div>
           <div class="nav-avatar" id="nav-avatar" title="Profile">
             <span class="nav-avatar-initials" id="nav-avatar-initials">U</span>
           </div>
@@ -306,6 +299,7 @@
       </button>
     </div>
   </header>
+
 
   <!-- Bottom Sheet (mobile menu) -->
   <div class="bottom-sheet-backdrop" id="bottom-sheet-backdrop"></div>

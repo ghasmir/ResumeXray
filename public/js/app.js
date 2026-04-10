@@ -145,12 +145,6 @@ async function fetchUser() {
         }
       }
       if (el('nav-credits-count')) el('nav-credits-count').textContent = user.creditBalance || 0;
-
-      // Show left-side credits badge (new layout: credits on far left)
-      const leftBadge = el('nav-credits-badge');
-      const spacer = el('nav-credits-spacer');
-      if (leftBadge) leftBadge.style.display = 'inline-flex';
-      if (spacer) spacer.style.display = 'none'; // Hide spacer when badge is visible
       
       // Show/Hide areas — authenticated
       if (el('nav-user-area')) el('nav-user-area').style.display = 'flex';
@@ -161,16 +155,10 @@ async function fetchUser() {
       if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'none';
       if (el('sheet-link-dashboard')) el('sheet-link-dashboard').style.display = 'flex';
 
-      // Update credit balance in navbar more explicitly
+      // Update credit balance in navbar
       updateNavCredits(user.creditBalance || 0);
     } else {
       currentUser = null;
-      // Hide credits badge + show spacer (keeps logo centered)
-      const leftBadge = el('nav-credits-badge');
-      const spacer = el('nav-credits-spacer');
-      if (leftBadge) leftBadge.style.display = 'none';
-      if (spacer) spacer.style.display = 'block';
-
       if (el('nav-user-area')) el('nav-user-area').style.display = 'none';
       if (el('nav-guest-area')) el('nav-guest-area').style.display = 'flex';
       if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'none';

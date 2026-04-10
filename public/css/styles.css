@@ -238,9 +238,9 @@ a:hover { color: #818cf8; }
 
 /* ── Topbar ────────────────────────────────────────────────── */
 .topbar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;  /* [credits] [logo] [nav+controls] */
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 var(--sp-8);
   height: 64px;
   background: rgba(9, 9, 11, 0.7);
@@ -257,27 +257,24 @@ a:hover { color: #818cf8; }
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  justify-content: flex-start;
 }
 .topbar-center {
+  /* Logo/brand area — auto flex item, stays naturally centred via space-between */
   display: flex;
   align-items: center;
-  justify-content: center;
 }
 .topbar-right {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--sp-3);
   position: relative;
   z-index: 2;
 }
 
-/* Spacer that mirrors the credits badge width on the left when guest (keeps logo centred) */
+/* Hidden spacer — used in topbar-left when credits badge is hidden (guests), to
+   prevent the logo shifting left when the badge disappears */
 .topbar-credits-spacer {
-  width: 72px;  /* approximate credits-badge width */
-  height: 1px;
-  display: block;
+  display: none; /* toggled by JS */
 }
 
 .logo {
@@ -311,7 +308,9 @@ a:hover { color: #818cf8; }
   display: flex;
   align-items: center;
   gap: var(--sp-1);
-  /* Removed absolute centering — now sits inside topbar-right flex */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 .nav-links a {
   color: var(--text-muted);
@@ -2774,35 +2773,9 @@ a:hover { color: #818cf8; }
   transition: opacity var(--duration-fast) var(--ease);
   z-index: 10;
 }
-.agent-scores {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--sp-6);
-  margin: var(--sp-6) 0;
-}
 
-@media (max-width: 768px) {
-  .agent-scores {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--sp-8);
-    padding: var(--sp-4) var(--sp-2);
-  }
-  .score-gauge-card {
-    padding: var(--sp-6);
-    min-height: 160px;
-  }
-}
-
-@media (max-width: 480px) {
-  .agent-scores {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--sp-8);
-    padding: var(--sp-4);
-  }
-}
-
-/* ── Recruiter View (Plain Text) ─────────────────── */
 [data-tooltip]:hover::after { opacity: 1; }
+
 
 /* ── Focus Visible (Accessibility) ─────────────────────────── */
 :focus-visible {
@@ -3019,8 +2992,20 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .agent-scores {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--sp-4);
+  gap: var(--sp-6);
   margin: var(--sp-6) 0;
+}
+
+@media (max-width: 768px) {
+  .agent-scores {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-8);
+    padding: var(--sp-4) var(--sp-2);
+  }
+  .score-gauge-card {
+    padding: var(--sp-6);
+    min-height: 160px;
+  }
 }
 
 /* ── Recruiter View (Plain Text) ───────────────────────────── */
@@ -5463,33 +5448,20 @@ a svg {
   font-size: 0.65rem;
 }
 
-/* ── Credits Badge: Left-side positioning override ─────────── */
-/* When in topbar-left, override the badge's default behaviour */
-.topbar-left .credits-badge {
+
+/* ── Credits Badge cursor ─────────────────────────────── */
+.nav-user-info .credits-badge {
   cursor: pointer;
 }
 
-/* ── Topbar on tablet: shrink nav gap ────────────────────── */
+/* ── Topbar responsive (flex-based) ────────────────────── */
 @media (max-width: 900px) {
-  .topbar {
-    grid-template-columns: auto 1fr auto; /* Credits | [logo stretches] | Controls */
-    padding: 0 var(--sp-5);
-  }
-  .nav-links { gap: 0; }
+  .topbar { padding: 0 var(--sp-5); }
   .nav-links a { padding: var(--sp-2) var(--sp-2); font-size: 0.82rem; }
 }
 
-/* ── Topbar on mobile: collapse to left-credits + right-controls ── */
 @media (max-width: 640px) {
-  .topbar {
-    grid-template-columns: auto 1fr; /* Credits side | right controls */
-    height: 56px;
-    padding: 0 var(--sp-3);
-  }
-  .topbar-center { display: none; } /* Logo hides — credits badge becomes visible ID */
-  .topbar-credits-spacer { display: none; } /* No spacer on mobile */
+  .topbar { height: 56px; padding: 0 var(--sp-3); }
   .nav-links { display: none !important; }
   .mobile-menu-btn { display: flex; }
-  #nav-guest-area .btn-ghost { display: none; } /* Hide 'Login' text on mobile, keep hamburger */
 }
-
