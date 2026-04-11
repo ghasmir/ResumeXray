@@ -916,7 +916,7 @@
               </div>
             </div>
           </div>
-          <div id="cover-letter-actions" class="agent-download-bar" style="display:none; margin-top:var(--sp-6);">
+          <div id="cover-letter-actions" class="agent-download-bar" style="display:none;">
             <div class="download-bar-inner">
               <div class="download-bar-text">
                 <strong>Export cover letter</strong>
@@ -955,28 +955,10 @@
                   Anti-Fluff Engine
                 </div>
               </div>
-              <div class="pdf-toolbar-controls">
-                <div class="pdf-control-group">
-                  <span class="pdf-control-label">Template</span>
-                  <div class="pdf-pill-group">
-                    <button class="pdf-pill active" data-template="modern" id="tpl-modern">Modern</button>
-                    <button class="pdf-pill" data-template="classic" id="tpl-classic">Classic</button>
-                    <button class="pdf-pill" data-template="minimal" id="tpl-minimal">Minimal</button>
-                  </div>
-                </div>
-                <div class="pdf-control-divider"></div>
-                <div class="pdf-control-group">
-                  <span class="pdf-control-label">Layout</span>
-                  <div class="pdf-pill-group">
-                    <button class="pdf-pill active" data-density="standard" id="density-standard">Standard</button>
-                    <button class="pdf-pill" data-density="compact" id="density-compact">Compact</button>
-                  </div>
-                </div>
-              </div>
             </div>
             
             <div class="pdf-preview-container">
-              <iframe id="pdf-preview-frame" class="pdf-preview-frame" src="about:blank" title="Resume PDF preview"></iframe>
+              <iframe id="pdf-preview-frame" class="pdf-preview-frame" src="about:blank" title="Resume PDF preview" sandbox="allow-same-origin"></iframe>
             </div>
 
             <!-- Download Bar -->

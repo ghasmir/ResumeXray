@@ -841,6 +841,8 @@ a:hover { color: #818cf8; }
     flex-wrap: wrap;
     gap: var(--sp-4);
     padding: var(--sp-6) var(--sp-4);
+    margin-left: var(--sp-4);
+    margin-right: var(--sp-4);
   }
   .proof-divider {
     display: none;
@@ -1910,7 +1912,7 @@ a:hover { color: #818cf8; }
 /* ── Agent Progress Bar ───────────────────────────────────── */
 .agent-progress {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-6);
@@ -1920,13 +1922,16 @@ a:hover { color: #818cf8; }
   margin-bottom: var(--sp-6);
   overflow-x: auto;
   white-space: nowrap;
+  flex-wrap: wrap;
+  row-gap: var(--sp-4);
 }
 .progress-step {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--sp-2);
-  flex: 1;
+  flex: 0 0 auto;
+  min-width: 52px;
   position: relative;
 }
 .progress-step:not(:last-child)::after {
@@ -2439,6 +2444,13 @@ a:hover { color: #818cf8; }
 .cover-letter-container {
   min-height: 400px;
 }
+.cover-letter-container .preview-frame {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.cover-letter-container .preview-iframe {
+  margin-bottom: 0;
+}
 .cover-letter-placeholder {
   text-align: center;
   padding: 4rem 2rem;
@@ -2465,7 +2477,7 @@ a:hover { color: #818cf8; }
   display: flex;
   gap: var(--sp-3);
   justify-content: center;
-  margin-top: var(--sp-6);
+  margin-top: 0;
   padding: var(--sp-4);
   background: var(--bg-elevated);
   border-radius: var(--radius-md);
@@ -3711,14 +3723,13 @@ a svg {
     margin-bottom: calc(-1 * var(--sp-1));
   }
 
-  /* PDF toolbar — stack controls vertically */
+  /* PDF toolbar — simplified (template/density removed) */
   .pdf-toolbar-top {
     flex-wrap: wrap;
     gap: var(--sp-2);
   }
   .pdf-toolbar-controls {
-    flex-wrap: wrap;
-    gap: var(--sp-2) !important;
+    display: none !important;
   }
 
   /* Download bar mobile */
@@ -4356,11 +4367,9 @@ a svg {
   box-shadow: 0 0 10px rgba(34,197,94,0.08);
 }
 
+/* Template/Layout controls — hidden (hardcoded to modern+standard) */
 .pdf-toolbar-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-  flex-wrap: wrap;
+  display: none;
 }
 
 .pdf-control-group {
@@ -4427,10 +4436,27 @@ a svg {
   border-left-color: transparent;
 }
 
+/* ── PDF Preview Container — Premium Document Viewer ───────── */
+.pdf-preview-container {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.1);
+  margin: var(--sp-4) 0;
+  border: 1px solid rgba(255,255,255,0.08);
+  position: relative;
+  background: #fff;
+}
+
+.pdf-preview-frame {
+  border: none !important;
+  display: block;
+}
+
 /* Mobile: stack controls */
 @media (max-width: 600px) {
   .pdf-toolbar-controls {
     gap: var(--sp-3);
+    display: none;
   }
   .pdf-control-divider {
     display: none;

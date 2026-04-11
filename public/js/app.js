@@ -1491,20 +1491,17 @@ function setupResultsTabs() {
   });
 
   // ── Layout Density Selector Event Listeners ──
+  // (Template and density selectors removed from UI — hardcoded to modern+standard)
+  // Listeners kept as no-ops for safety in case elements re-appear
   ['density-standard', 'density-compact'].forEach(id => {
     const btn = el(id);
     if (!btn) return;
     btn.addEventListener('click', () => {
-      const density = btn.getAttribute('data-density');
       const bar = el('agent-download-bar');
       const scanId = bar ? bar.dataset.scanId : null;
       if (!scanId) return;
-
-      // Update UI state
       document.querySelectorAll('[data-density]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-
-      // Reload iframe with current template + new density
       reloadPdfPreview(scanId);
     });
   });
@@ -1517,12 +1514,8 @@ function setupResultsTabs() {
       const bar = el('agent-download-bar');
       const scanId = bar ? bar.dataset.scanId : null;
       if (!scanId) return;
-
-      // Update UI state
       document.querySelectorAll('[data-template]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-
-      // Reload iframe with new template + current density
       reloadPdfPreview(scanId);
     });
   });
@@ -1530,13 +1523,13 @@ function setupResultsTabs() {
 
 // ── Helpers for current preview state ──
 function getSelectedTemplate() {
-  const active = document.querySelector('[data-template].active');
-  return active ? active.getAttribute('data-template') : 'modern';
+  // Hardcoded to 'modern' — template selector removed from UI
+  return 'modern';
 }
 
 function getSelectedDensity() {
-  const active = document.querySelector('[data-density].active');
-  return active ? active.getAttribute('data-density') : 'standard';
+  // Hardcoded to 'standard' — density selector removed from UI
+  return 'standard';
 }
 
 function reloadPdfPreview(scanId) {
@@ -1715,6 +1708,12 @@ function setupAgentHistoricalView(data) {
   const viewOverlay = el('pdf-viewer-overlay');
   if (scanOverlay) scanOverlay.style.display = 'none';
   if (viewOverlay) viewOverlay.style.display = 'none';
+
+  // 2b. Mark all progress steps as complete (scan is finished)
+  document.querySelectorAll('#agent-progress-bar .progress-step').forEach(step => {
+    step.classList.remove('running', 'error');
+    step.classList.add('complete');
+  });
 
   // 3. Update Download Bar
   const bar = el('agent-download-bar');
@@ -2044,9 +2043,12 @@ async function renderDashboard() {
     if (data.scans?.length > 0) {
       const last = data.scans[0];
       el('stat-last-score').textContent = Math.round(last.match_rate || 0) + '%';
-      const title = last.job_title || 'General Scan';
-      el('stat-last-title').textContent = title.substring(0, 20) + (title.length > 20 ? '...' : '');
-      el('stat-last-title').title = title;
+      let lastTitle = last.job_title || 'General Scan';
+      if (last.company_name && !lastTitle.toLowerCase().includes(last.company_name.toLowerCase())) {
+        lastTitle = `${lastTitle}, ${last.company_name}`;
+      }
+      el('stat-last-title').textContent = lastTitle.substring(0, 24) + (lastTitle.length > 24 ? '...' : '');
+      el('stat-last-title').title = lastTitle;
       el('stat-last-title').innerHTML += `<div class="body-xs" style="opacity:0.4;margin-top:2px">${timeAgo(last.created_at)}</div>`;
     }
 
@@ -2070,6 +2072,7 @@ async function renderDashboard() {
 
         // 1. Graceful Fallback Logic
         let title = s.job_title;
+        let companyLabel = s.company_name || '';
         if (!title || title.toLowerCase() === 'no job description') {
             // Try URL path slug first (LinkedIn: /jobs/view/data-analyst-at-company-123/)
             if (s.job_url) {
@@ -2084,6 +2087,18 @@ async function renderDashboard() {
                     } else {
                         title = u.hostname.replace(/^www\./, '');
                     }
+                    // Extract company from hostname if not already set
+                    if (!companyLabel) {
+                        const host = u.hostname.replace(/^www\./, '');
+                        const domainMap = {
+                          'linkedin.com': 'LinkedIn', 'indeed.com': 'Indeed',
+                          'greenhouse.io': 'Greenhouse', 'lever.co': 'Lever',
+                          'workday.com': 'Workday', 'naukri.com': 'Naukri',
+                          'glassdoor.com': 'Glassdoor', 'monster.com': 'Monster'
+                        };
+                        const matchedDomain = Object.keys(domainMap).find(d => host.includes(d));
+                        if (matchedDomain) companyLabel = domainMap[matchedDomain];
+                    }
                 } catch(e) { title = 'Linked Job'; }
             } else if (s.company_name) {
                 title = `Role at ${s.company_name}`;
@@ -2092,6 +2107,11 @@ async function renderDashboard() {
             } else {
                 title = 'General Scan (No JD)';
             }
+        }
+
+        // Append company name to title if available: "Data Analyst, TechGenies"
+        if (companyLabel && !title.toLowerCase().includes(companyLabel.toLowerCase())) {
+          title = `${title}, ${companyLabel}`;
         }
 
         const displayTitle = title.length > 45 ? title.substring(0, 45) + '...' : title;
@@ -2803,7 +2823,7 @@ function renderCoverLetter(text) {
       try {
         const doc = iframe.contentDocument || iframe.contentWindow.document;
         const contentHeight = doc.documentElement.scrollHeight || doc.body.scrollHeight;
-        iframe.style.height = (contentHeight + 20) + 'px';
+        iframe.style.height = contentHeight + 'px';
       } catch (e) {
         // Cross-origin fallback — use a reasonable default
         iframe.style.height = '850px';
