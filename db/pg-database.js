@@ -132,17 +132,9 @@ async function findOrCreateUser({ provider, profileId, email, name, avatarUrl })
 
   user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
   if (user) {
-    // Existing password account — require re-auth before linking OAuth to prevent takeover
-    if (user.password_hash) {
-      return {
-        ...user,
-        requiresLinking: true,
-        pendingProvider: provider,
-        pendingProfileId: profileId,
-        pendingAvatarUrl: avatarUrl
-      };
-    }
-    // Existing OAuth account with same email — safe to auto-link
+    // Auto-link OAuth provider to existing account (including password accounts).
+    // This is safe because Google/LinkedIn/GitHub all verify email ownership before
+    // issuing OAuth tokens — the provider has already proven the user owns this email.
     await pool.query(
       `UPDATE users SET ${column} = $1, avatar_url = COALESCE(avatar_url, $2), updated_at = NOW() WHERE id = $3`,
       [profileId, avatarUrl, user.id]

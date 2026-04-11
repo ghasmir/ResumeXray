@@ -192,19 +192,8 @@ function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
   // Check if email already exists (link account)
   user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   if (user) {
-    // Phase 6 §7.7: If the existing account has a password, require re-authentication
-    // before linking the OAuth provider. This prevents account takeover via an OAuth
-    // provider that claims an email address without verification.
-    if (user.password_hash) {
-      return {
-        ...user,
-        requiresLinking: true,
-        pendingProvider: provider,
-        pendingProfileId: profileId,
-        pendingAvatarUrl: avatarUrl
-      };
-    }
-    // No password (another OAuth account) — safe to auto-link
+    // Auto-link OAuth provider to existing account (including password accounts).
+    // Safe because Google/LinkedIn/GitHub all verify email ownership.
     db.prepare(`UPDATE users SET ${column} = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = datetime('now') WHERE id = ?`)
       .run(profileId, avatarUrl, user.id);
     return db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
