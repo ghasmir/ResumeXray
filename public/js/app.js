@@ -1361,7 +1361,7 @@ async function finalizeAgentUI(data) {
   if (dashboard) dashboard.style.display = '';
   
   const tabMenu = el('results-tabs-menu');
-  if (tabMenu) tabMenu.style.display = 'flex';
+  if (tabMenu) tabMenu.style.display = ''; // Let CSS (grid on mobile, flex on desktop) take over
   
   // Prepare PDF viewer overlay
   const scanOverlay = el('pdf-scanning-overlay');
@@ -1708,7 +1708,7 @@ function setupAgentHistoricalView(data) {
   const dashboard = el('results-dashboard');
   if (dashboard) dashboard.style.display = 'block';
   const tabMenu = el('results-tabs-menu');
-  if (tabMenu) tabMenu.style.display = 'flex';
+  if (tabMenu) tabMenu.style.display = ''; // Let CSS (grid on mobile, flex on desktop) take over
 
   // 2. Configure PDF viewer overlays
   const scanOverlay = el('pdf-scanning-overlay');

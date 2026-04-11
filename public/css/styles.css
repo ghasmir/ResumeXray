@@ -3380,6 +3380,41 @@ body.modal-open { overflow: hidden; }
   min-height: 400px;
 }
 
+/* ── Mobile PDF scaling ─────────────────────────────────────────
+   Resume HTML is ~794px wide (A4). On narrow viewports the iframe
+   overflows right. We scale-to-fit using a CSS transform.
+   The wrapper retains the correct visual height via padding-bottom.
+   ──────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .pdf-preview-container {
+    overflow: hidden;
+  }
+  .pdf-preview-frame {
+    /* Document width assumed ~794px; container is ~100vw.
+       Scale factor = container / document, but CSS calc can't
+       do viewport-relative divisions, so we use a fixed scale
+       that covers iPhone 12/13/14/15 Pro (390px → 794px ≈ 0.49)
+       and is overridden per-breakpoint below. */
+    width: 794px !important;
+    transform-origin: top left;
+    transform: scale(0.49);
+    height: calc(100% / 0.49) !important;
+    min-height: calc(400px / 0.49);
+  }
+}
+@media (max-width: 430px) {
+  /* iPhone 15 Plus / large phones */
+  .pdf-preview-frame { transform: scale(0.52); height: calc(100% / 0.52) !important; }
+}
+@media (min-width: 431px) and (max-width: 540px) {
+  /* Medium phones */
+  .pdf-preview-frame { transform: scale(0.55); height: calc(100% / 0.55) !important; }
+}
+@media (min-width: 541px) and (max-width: 640px) {
+  /* Large phones / small tablets */
+  .pdf-preview-frame { transform: scale(0.65); height: calc(100% / 0.65) !important; }
+}
+
 .pdf-scanning-overlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
