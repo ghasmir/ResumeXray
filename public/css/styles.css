@@ -781,7 +781,7 @@ a:hover { color: #818cf8; }
   gap: 0;
   padding: var(--sp-6) var(--sp-8);
   max-width: 760px;
-  margin: var(--sp-6) auto 0;
+  margin: var(--sp-8) auto var(--sp-8);
   background: rgba(24,24,27,0.4);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -3334,7 +3334,7 @@ body.modal-open { overflow: hidden; }
 #tab-cover-letter {
   padding: var(--sp-6);
   height: auto;
-  min-height: calc(100vh - 120px);
+  overflow: visible;
 }
 #tab-cover-letter.active {
   display: flex;
@@ -3621,31 +3621,26 @@ a svg {
 @media (max-width: 640px) {
   .container-full { padding: 0 var(--sp-3); }
 
-  /* Scrollable tab nav — bleed to edges on mobile */
+  /* 2×2 grid tab nav — all tabs visible, no scrolling */
   .results-tab-nav {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    justify-content: flex-start;
-    padding: 0 var(--sp-3);
-    gap: var(--sp-1);
-    margin-left: calc(-1 * var(--sp-3));
-    margin-right: calc(-1 * var(--sp-3));
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 4px;
   }
-  .results-tab-nav::-webkit-scrollbar { display: none; }
   .results-tab-btn {
+    font-size: 0.8rem;
+    padding: 8px 6px;
     white-space: nowrap;
-    flex-shrink: 0;
-    font-size: 0.85rem;
-    padding: var(--sp-2) var(--sp-3);
+    text-align: center;
   }
 
   /* Reduce tab pane padding on mobile */
   .results-tab-pane { padding: var(--sp-4); }
 
-  /* PDF/cover-letter tab height — account for mobile tab bar */
-  #tab-pdf-preview,
-  #tab-cover-letter { height: calc(100vh - 160px); }
+  /* PDF tab height — account for mobile tab bar */
+  #tab-pdf-preview { height: calc(100vh - 160px); }
+  #tab-cover-letter { height: auto; overflow: visible; }
   .preview-iframe,
   .pdf-preview-frame { min-height: 280px; }
 
