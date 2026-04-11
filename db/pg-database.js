@@ -661,15 +661,15 @@ async function claimGuestScans(userId, accessTokens) {
   return result.rowCount;
 }
 
-async function linkOAuthProvider(userId, provider, profileId) {
+async function linkOAuthProvider(userId, provider, profileId, avatarUrl) {
   const column = `${provider}_id`;
   const validColumns = ['google_id', 'github_id', 'linkedin_id'];
   if (!validColumns.includes(column)) {
     throw new Error(`Invalid OAuth provider: ${provider}`);
   }
   await pool.query(
-    `UPDATE users SET ${column} = $1, updated_at = NOW() WHERE id = $2`,
-    [profileId, userId]
+    `UPDATE users SET ${column} = $1, avatar_url = COALESCE(avatar_url, $3), updated_at = NOW() WHERE id = $2`,
+    [profileId, userId, avatarUrl || null]
   );
   return getUserById(userId);
 }

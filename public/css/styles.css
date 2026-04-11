@@ -2557,6 +2557,9 @@ a:hover { color: #818cf8; }
   .footer-brand { max-width: 100%; grid-column: 1 / -1; text-align: center; }
   .footer-bottom { flex-direction: column; text-align: center; gap: var(--sp-2); }
   .cover-letter-actions { flex-direction: column; align-items: stretch; }
+
+  /* On small tablets: hide topbar logout text, show icon only */
+  .nav-logout-btn span { display: none; }
 }
 
 /* -- Mobile: ≤640px — menu button + bottom sheet -- */
@@ -3278,6 +3281,7 @@ body.modal-open { overflow: hidden; }
   width: 100%;
   padding: 0 24px;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .results-tabs-container {
@@ -3615,24 +3619,38 @@ a svg {
 
 /* ── Results Tabs Responsive ──────────────────────────────── */
 @media (max-width: 640px) {
-  /* Scrollable tab nav on mobile */
+  .container-full { padding: 0 var(--sp-3); }
+
+  /* Scrollable tab nav — bleed to edges on mobile */
   .results-tab-nav {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     justify-content: flex-start;
-    padding: 0 var(--sp-4);
+    padding: 0 var(--sp-3);
     gap: var(--sp-1);
-    margin-left: calc(-1 * var(--sp-4));
-    margin-right: calc(-1 * var(--sp-4));
+    margin-left: calc(-1 * var(--sp-3));
+    margin-right: calc(-1 * var(--sp-3));
   }
   .results-tab-nav::-webkit-scrollbar { display: none; }
   .results-tab-btn {
     white-space: nowrap;
     flex-shrink: 0;
     font-size: 0.85rem;
-    padding: var(--sp-2) var(--sp-4);
+    padding: var(--sp-2) var(--sp-3);
   }
+
+  /* Reduce tab pane padding on mobile */
+  .results-tab-pane { padding: var(--sp-4); }
+
+  /* PDF/cover-letter tab height — account for mobile tab bar */
+  #tab-pdf-preview,
+  #tab-cover-letter { height: calc(100vh - 160px); }
+  .preview-iframe,
+  .pdf-preview-frame { min-height: 280px; }
+
+  /* Field map — stack label above value */
+  .field-map-row { grid-template-columns: 1fr; gap: var(--sp-1); }
 
   /* Recruiter table — card-style stacking */
   .recruiter-table thead { display: none; }

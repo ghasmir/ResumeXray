@@ -50,7 +50,8 @@ async function fetchCsrfToken() {
 const _originalFetch = window.fetch;
 window.fetch = function(url, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
-  if (_csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+  const isMutating = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+  if (_csrfToken && isMutating) {
     options.headers = options.headers || {};
     if (options.headers instanceof Headers) {
       options.headers.set('X-CSRF-Token', _csrfToken);
@@ -58,10 +59,21 @@ window.fetch = function(url, options = {}) {
       options.headers['X-CSRF-Token'] = _csrfToken;
     }
   }
-  return _originalFetch.call(this, url, options).then(res => {
-    // Pick up rotated CSRF token from response header (one-time-use tokens)
-    const newToken = res.headers.get('X-CSRF-Token');
-    if (newToken) _csrfToken = newToken;
+  return _originalFetch.call(this, url, options).then(async res => {
+    // Auto-retry once on CSRF failure: refetch token and replay the request
+    if (res.status === 403 && isMutating && !options._csrfRetried) {
+      const body = await res.clone().json().catch(() => null);
+      if (body?.code?.startsWith('CSRF_TOKEN')) {
+        await fetchCsrfToken();
+        options._csrfRetried = true;
+        if (options.headers instanceof Headers) {
+          options.headers.set('X-CSRF-Token', _csrfToken);
+        } else {
+          options.headers['X-CSRF-Token'] = _csrfToken;
+        }
+        return _originalFetch.call(this, url, options);
+      }
+    }
     return res;
   });
 };

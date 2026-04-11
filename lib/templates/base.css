@@ -34,6 +34,8 @@ html {
 body {
   width: 7.2in; /* 8.5in - 2×0.65in margins */
   max-width: 7.2in;
+  max-height: 9.9in; /* letter height (11in) - 2×0.55in margins — enforces single page */
+  overflow: hidden;
   margin: 0 auto;
   font-size: 10.5pt;
   line-height: 1.45;
@@ -51,19 +53,27 @@ body {
 
 body.density-compact {
   font-size: 9.5pt;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 body.density-compact .section {
-  margin-bottom: 0.15in;
+  margin-bottom: 0.12in;
 }
 
 body.density-compact .entry {
-  margin-bottom: 0.08in;
+  margin-bottom: 0.06in;
 }
 
 body.density-compact .bullet-list li {
-  margin-bottom: 1px;
+  margin-bottom: 0;
+}
+
+body.density-compact .resume-header {
+  margin-bottom: 0.12in;
+}
+
+body.density-compact .section-title {
+  margin-bottom: 0.05in;
 }
 
 /* ── Header (Name + Contact) ────────────────────────────────────────────── */

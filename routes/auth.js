@@ -474,7 +474,8 @@ router.post('/link-account', async (req, res) => {
     const linkedUser = await db.linkOAuthProvider(
       pendingLink.userId,
       pendingLink.provider,
-      pendingLink.profileId
+      pendingLink.profileId,
+      pendingLink.avatarUrl
     );
 
     // Clean up and log in

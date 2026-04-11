@@ -232,7 +232,7 @@ app.use(session({
   store: storeConfig,
   name: COOKIE_NAME,     // Phase 6 §10.7: __Host- in prod, __rxsid in dev
   secret: SESSION_SECRET,
-  resave: true,          // Required for rolling sessions
+  resave: false,         // Only save session when modified (prevents overwriting CSRF tokens)
   saveUninitialized: false,
   rolling: true,         // Resets idle timer on every response (sliding expiration)
   cookie: {
