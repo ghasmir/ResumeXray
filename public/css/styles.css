@@ -3623,16 +3623,17 @@ a svg {
 
   /* 2×2 grid tab nav — all tabs visible, no scrolling */
   .results-tab-nav {
-    display: grid;
+    display: grid !important;
     grid-template-columns: 1fr 1fr;
     gap: 4px;
     padding: 4px;
   }
   .results-tab-btn {
-    font-size: 0.8rem;
-    padding: 8px 6px;
-    white-space: nowrap;
+    font-size: 0.78rem;
+    padding: 7px 4px;
+    white-space: normal;
     text-align: center;
+    line-height: 1.2;
   }
 
   /* Reduce tab pane padding on mobile */
@@ -4105,13 +4106,16 @@ a svg {
 
 /* ─── 6. IMPROVED RESULTS TABS ─────────────────────────────── */
 
-.results-tab-nav {
-  background: rgba(24,24,27,0.6);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: var(--radius-lg);
-  padding: 4px;
+/* Glassmorphism overlay for desktop — does NOT override mobile grid display */
+@media (min-width: 641px) {
+  .results-tab-nav {
+    background: rgba(24,24,27,0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: var(--radius-lg);
+    padding: 4px;
+  }
 }
 
 .results-tab-btn {
