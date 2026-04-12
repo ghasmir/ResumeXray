@@ -93,8 +93,13 @@ function csrfProtection(req, res, next) {
     });
   }
 
-  // Constant-time comparison to prevent timing attacks
-  if (!crypto.timingSafeEqual(Buffer.from(sessionToken), Buffer.from(headerToken))) {
+  // Constant-time comparison to prevent timing attacks.
+  // Must check byte length first — timingSafeEqual throws if lengths differ.
+  const sessionBuf = Buffer.from(sessionToken);
+  const headerBuf = Buffer.from(headerToken);
+  const valid = sessionBuf.length === headerBuf.length &&
+    crypto.timingSafeEqual(sessionBuf, headerBuf);
+  if (!valid) {
     log.warn('CSRF token mismatch', { path: req.path, method: req.method });
     return res.status(403).json({
       error: 'Security token expired. Please refresh the page and try again.',

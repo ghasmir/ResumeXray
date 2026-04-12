@@ -724,15 +724,19 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
     const keywordPlan = scan.keyword_plan || [];
 
     // Atomic credit deduction with idempotency key (prevents double-deduction)
-    if (req.user && !req.isWatermarked) {
+    if (req.user) {
       const idempotencyKey = `export-${req.params.scanId}-${format}-${exportType}`;
       const result = await db.deductCreditAtomic(req.user.id, 'export', idempotencyKey, `Exported ${format.toUpperCase()} ${exportType}`);
-      
+
       if (!result.success && !result.alreadyProcessed) {
-        // Insufficient credits — fall back to watermarked
-        req.isWatermarked = true;
+        // Insufficient credits — block download entirely (don't serve watermarked file)
+        return res.status(402).json({
+          error: 'You have no credits remaining. Purchase credits to download your files.',
+          upgrade: true,
+          code: 'INSUFFICIENT_CREDITS',
+        });
       }
-      // If alreadyProcessed, credit was already deducted — serve clean version
+      // result.alreadyProcessed = credit was already deducted on a prior identical request → serve clean
     }
 
     const density = req.query.density || 'standard';

@@ -1262,6 +1262,7 @@ function renderAgentBullet(data) {
 
 function updateAgentScores(scores) {
   const summary = el('agent-score-summary');
+  if (!summary) return;
   summary.style.display = 'grid';
   
   const isGuest = !currentUser;
@@ -2616,10 +2617,11 @@ function setupMobileMenu() {
   // Close on backdrop click
   backdrop.addEventListener('click', closeSheet);
 
-  // Close on Escape key
-  document.addEventListener('keydown', (e) => {
+  // Close on Escape key — store so it's only added once (menuBtn._bound prevents re-entry)
+  function onSheetEscape(e) {
     if (e.key === 'Escape' && sheet.classList.contains('open')) closeSheet();
-  });
+  }
+  document.addEventListener('keydown', onSheetEscape);
 
   // Close on link/button click inside sheet
   sheet.addEventListener('click', (e) => {
@@ -2739,12 +2741,11 @@ function showToast(message, type = 'info', options = {}) {
   });
 
   // Dismiss toast with Escape key (accessibility)
+  // Store on the toast so dismissToast() can clean it up regardless of how toast is dismissed
   function onEscapeDismiss(e) {
-    if (e.key === 'Escape') {
-      dismissToast(toast);
-      document.removeEventListener('keydown', onEscapeDismiss);
-    }
+    if (e.key === 'Escape') dismissToast(toast);
   }
+  toast._onEscapeDismiss = onEscapeDismiss;
   document.addEventListener('keydown', onEscapeDismiss);
 
   // Limit to 5 visible toasts
@@ -2756,6 +2757,11 @@ function showToast(message, type = 'info', options = {}) {
 function dismissToast(toast) {
   if (!toast || toast._dismissing) return;
   toast._dismissing = true;
+  // Always clean up the Escape listener, regardless of how toast was dismissed
+  if (toast._onEscapeDismiss) {
+    document.removeEventListener('keydown', toast._onEscapeDismiss);
+    toast._onEscapeDismiss = null;
+  }
   toast.style.opacity = '0';
   toast.style.transform = 'translateX(24px) scale(0.95)';
   toast.style.maxHeight = '0';
@@ -2914,8 +2920,13 @@ async function downloadCoverLetter(format) {
   try {
     const res = await fetch(`/api/agent/download/${scanId}?format=${format}&type=cover_letter`);
     if (!res.ok) {
-      const data = await res.json();
-      if (data.error) showToast(data.error, 'error');
+      const data = await res.json().catch(() => ({}));
+      if (data.upgrade) {
+        showToast('No credits remaining — upgrade to download.', 'warning', { duration: 4000 });
+        setTimeout(() => navigateTo('/pricing'), 1200);
+      } else {
+        showToast(data.error || 'Download failed', 'error');
+      }
       return;
     }
 

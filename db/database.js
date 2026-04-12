@@ -255,6 +255,10 @@ function getUserByVerificationToken(token) {
   return getDb().prepare("SELECT * FROM users WHERE verification_token = ?").get(token);
 }
 
+function setVerificationToken(userId, token) {
+  getDb().prepare("UPDATE users SET verification_token = ?, updated_at = datetime('now') WHERE id = ?").run(token, userId);
+}
+
 function getUserByResetToken(token) {
   return getDb().prepare("SELECT * FROM users WHERE reset_password_token = ? AND reset_password_expires > datetime('now')").get(token);
 }
@@ -813,7 +817,7 @@ module.exports = {
   saveCoverLetter, getUserCoverLetters, getCoverLetter,
   recordGuestScan, getGuestScanCount,
   deleteUserAccount, closeDb,
-  verifyUser, getUserByVerificationToken, getUserByResetToken, setResetToken, updatePassword,
+  verifyUser, getUserByVerificationToken, setVerificationToken, getUserByResetToken, setResetToken, updatePassword,
   // Phase 3: Scan Sessions
   createScanSession, getScanSession, deleteScanSession, purgeExpiredScanSessions,
   // Phase 4: PII Encryption
