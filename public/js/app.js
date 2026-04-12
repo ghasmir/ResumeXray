@@ -728,12 +728,17 @@ function extractCompanyFromUrl(urlStr) {
     }
 
     // LinkedIn: linkedin.com/jobs/view/data-analyst-at-ucc-academy-4383701980/
-    // Extract company from slug via "-at-" pattern (strip trailing numeric ID first)
+    // Extract company from slug via "-at-" pattern (strip trailing numeric ID first).
+    // If the URL is a bare numeric ID (e.g. /jobs/view/4375800397/) there's no
+    // company info available — return null so no badge is shown.
     if (host === 'linkedin.com') {
       const segments = u.pathname.split('/').filter(Boolean);
       const slug = segments[segments.length - 1] || '';
-      // Strip trailing long numeric ID (LinkedIn job IDs are 10 digits)
+      // If the slug is purely numeric, we cannot extract the company → bail out
+      if (/^\d+$/.test(slug)) return null;
+      // Strip trailing long numeric ID suffix (e.g. -4383701980)
       const cleanSlug = slug.replace(/-?\d{7,}$/, '').trim();
+      if (!cleanSlug) return null;
       // Look for "-at-" pattern → everything after is the company
       const atIdx = cleanSlug.lastIndexOf('-at-');
       if (atIdx !== -1) {
@@ -742,7 +747,7 @@ function extractCompanyFromUrl(urlStr) {
           return companySlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         }
       }
-      return 'LinkedIn';
+      return null; // slug present but no -at- pattern → can't determine company
     }
     if (host === 'indeed.com') return 'Indeed';
     if (host === 'glassdoor.com') return 'Glassdoor';
@@ -2333,11 +2338,12 @@ async function renderDashboard() {
     if (data.scans?.length > 0) {
       const last = data.scans[0];
       el('stat-last-score').textContent = Math.round(last.match_rate || 0) + '%';
-      let lastTitle = last.job_title || 'General Scan';
-      if (last.company_name && !lastTitle.toLowerCase().includes(last.company_name.toLowerCase())) {
-        lastTitle = `${lastTitle}, ${last.company_name}`;
+      let lastTitle = decodeHtml(last.job_title) || 'General Scan';
+      const lastCompany = decodeHtml(last.company_name) || '';
+      if (lastCompany && !lastTitle.toLowerCase().includes(lastCompany.toLowerCase())) {
+        lastTitle = `${lastTitle}, ${lastCompany}`;
       }
-      el('stat-last-title').textContent = lastTitle.substring(0, 24) + (lastTitle.length > 24 ? '...' : '');
+      el('stat-last-title').textContent = lastTitle.substring(0, 30) + (lastTitle.length > 30 ? '…' : '');
       el('stat-last-title').title = lastTitle;
       el('stat-last-title').innerHTML += `<div class="body-xs" style="opacity:0.4;margin-top:2px">${timeAgo(last.created_at)}</div>`;
     }
@@ -2361,8 +2367,8 @@ async function renderDashboard() {
         const borderColor = best >= 80 ? 'var(--green)' : best >= 50 ? 'var(--amber)' : 'var(--red)';
 
         // 1. Graceful Fallback Logic
-        let title = s.job_title;
-        let companyLabel = s.company_name || '';
+        let title = decodeHtml(s.job_title);
+        let companyLabel = decodeHtml(s.company_name) || '';
         if (!title || title.toLowerCase() === 'no job description') {
             // Try URL path slug first (LinkedIn: /jobs/view/data-analyst-at-company-123/)
             if (s.job_url) {
@@ -2378,16 +2384,22 @@ async function renderDashboard() {
                         title = u.hostname.replace(/^www\./, '');
                     }
                     // Extract company from hostname if not already set
+                    // NOTE: Don't use job-board platform names (LinkedIn, Indeed, etc.)
+                    // as the company — they're aggregators, not the hiring company.
                     if (!companyLabel) {
                         const host = u.hostname.replace(/^www\./, '');
-                        const domainMap = {
-                          'linkedin.com': 'LinkedIn', 'indeed.com': 'Indeed',
-                          'greenhouse.io': 'Greenhouse', 'lever.co': 'Lever',
-                          'workday.com': 'Workday', 'naukri.com': 'Naukri',
-                          'glassdoor.com': 'Glassdoor', 'monster.com': 'Monster'
-                        };
-                        const matchedDomain = Object.keys(domainMap).find(d => host.includes(d));
-                        if (matchedDomain) companyLabel = domainMap[matchedDomain];
+                        const jobBoards = ['linkedin.com', 'indeed.com', 'greenhouse.io', 'lever.co',
+                          'workday.com', 'naukri.com', 'glassdoor.com', 'monster.com',
+                          'smartrecruiters.com', 'icims.com'];
+                        const isJobBoard = jobBoards.some(d => host.includes(d));
+                        // Only use hostname as company if it's NOT a generic job board
+                        if (!isJobBoard) {
+                          // Custom career site — use domain as company hint
+                          const parts = host.split('.');
+                          if (parts.length >= 2) {
+                            companyLabel = parts[parts.length - 2].charAt(0).toUpperCase() + parts[parts.length - 2].slice(1);
+                          }
+                        }
                     }
                 } catch(e) { title = 'Linked Job'; }
             } else if (s.company_name) {
@@ -2404,7 +2416,7 @@ async function renderDashboard() {
           title = `${title}, ${companyLabel}`;
         }
 
-        const displayTitle = title.length > 45 ? title.substring(0, 45) + '...' : title;
+        const displayTitle = title.length > 65 ? title.substring(0, 65) + '…' : title;
 
         return `
         <div class="card scan-history-card animate-fade-up" data-action="navigate" data-path="/results/${s.id}" role="button" tabindex="0" style="margin-bottom:1rem; border-left:3px solid ${borderColor}; cursor:pointer; padding: 1.25rem;">
@@ -3053,6 +3065,15 @@ function copyToClipboard(text, btn) {
 function esc(str) {
   if (typeof str !== 'string') str = String(str || '');
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Decode HTML entities stored in DB (e.g. &amp; → &, &amp;amp; → &amp;)
+// Uses a detached textarea so no XSS risk — value is text, not innerHTML
+function decodeHtml(str) {
+  if (!str || typeof str !== 'string') return str || '';
+  const t = document.createElement('textarea');
+  t.innerHTML = str;
+  return t.value;
 }
 
 // DOMPurify safety net for innerHTML — belt-and-braces defense.

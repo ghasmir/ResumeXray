@@ -79,7 +79,11 @@
       "Bash(node -c lib/resume-builder.js)",
       "Bash(node -c middleware/csrf.js)",
       "Bash(node -c public/js/app.js)",
-      "Bash(node -c db/database.js)"
+      "Bash(node -c db/database.js)",
+      "Bash(node /tmp/test_regex.js)",
+      "Bash(rm /Users/ghasmir/Documents/agents/ats-resume-checker/.git/index.lock)",
+      "Bash(git -C /Users/ghasmir/Documents/agents/ats-resume-checker add lib/resume-builder.js lib/xray.js public/js/app.js routes/agent.js)",
+      "Bash(git -C /Users/ghasmir/Documents/agents/ats-resume-checker commit -m ':*)"
     ]
   }
 }
