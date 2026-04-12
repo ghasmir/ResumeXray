@@ -520,31 +520,27 @@ router.get('/preview/:scanId', async (req, res) => {
   } catch (err) {
     log.error('Preview error', { error: err.message, stack: err.stack, scanId: req.params.scanId });
     
-    // Fallback: render an HTML preview instead of failing completely
-    try {
-      const scan = await db.getFullScan(parseScanId(req.params.scanId), req.user ? req.user.id : null);
-      if (scan) {
-        const resumeText = scan.optimized_resume_text || scan.resume_text || '';
-        const { renderTemplate } = require('../lib/template-renderer');
-        const { buildResumeData } = require('../lib/resume-builder');
-        const data = buildResumeData(resumeText, scan.section_data || {}, scan.optimized_bullets || [], scan.keyword_plan || []);
-        const html = renderTemplate('modern', data, { watermark: true, density: 'standard', jobUrl: scan.job_url || '' });
-        return res.setHeader('Content-Type', 'text/html; charset=utf-8').send(html);
-      }
-    } catch (fallbackErr) {
-      log.error('HTML fallback also failed', { error: fallbackErr.message });
-    }
-    
+    // Fallback: serve an in-iframe HTML error page (NOT the resume HTML — that breaks the iframe)
+    // The previous approach sent text/html resume HTML to an iframe expecting application/pdf,
+    // causing the browser to show a broken file icon.
     res.status(500).send(`
       <!DOCTYPE html><html><head><style>
-        body { margin:0; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:-apple-system,sans-serif; background:#f8f9fa; }
+        body { margin:0; display:flex; align-items:center; justify-content:center; min-height:100vh;
+               font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#1a1a1f; color:#e1e1e8; }
         .msg { text-align:center; padding:2rem; max-width:400px; }
-        .msg h3 { margin-bottom:0.75rem; }
-        .msg p { color:#666; font-size:0.9rem; line-height:1.6; }
+        .msg svg { opacity:0.35; margin-bottom:1.25rem; }
+        .msg h3 { margin:0 0 0.6rem; font-size:1rem; font-weight:600; }
+        .msg p { color:#888; font-size:0.85rem; line-height:1.6; margin:0; }
       </style></head><body>
         <div class="msg">
-          <h3>PDF Preview Temporarily Unavailable</h3>
-          <p>The PDF rendering engine is starting up. Please try refreshing in a few seconds, or download the DOCX version instead.</p>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="12" y1="9" x2="12.01" y2="9"/>
+          </svg>
+          <h3>PDF Preview Unavailable</h3>
+          <p>The renderer is starting up. Refresh in a moment, or download the DOCX version — it's identical quality.</p>
         </div>
       </body></html>
     `);

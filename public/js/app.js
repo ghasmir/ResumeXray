@@ -1159,15 +1159,38 @@ function updateAgentStepCard(step, status, label, data) {
         <button class="btn btn-primary btn-sm" data-action="navigate" data-path="/pricing">Unlock All Fixes →</button>
       </div>
     `;
-  } else if (data && step === 8 && Array.isArray(data)) {
-    // Plan step — format as readable suggestions instead of raw JSON
-    const suggestions = data.map(item => {
-      const kw = item.keyword || item.Keyword || '';
-      const section = item.section || item.Section || '';
-      const suggestion = item.suggestion || item.Suggestion || '';
-      return `<li style="margin-bottom:0.5rem"><strong>${esc(kw)}</strong> → ${esc(section)}: <em>${esc(suggestion)}</em></li>`;
-    }).join('');
-    body.innerHTML = `<ul style="list-style:none;padding:0;font-size:0.85rem;color:var(--text-secondary)">${suggestions}</ul>`;
+  } else if (step === 8 && (status === 'complete' || status === 'running')) {
+    // Keyword plan step — the plan is streamed as raw JSON tokens into stream-8.
+    // On completion, parse that text and render as structured suggestion cards.
+    const streamEl = el(`stream-${step}`);
+    if (streamEl) {
+      const raw = streamEl.textContent.trim();
+      let items = Array.isArray(data) ? data : null;
+      if (!items && raw) {
+        // Try to parse the streamed JSON blob
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) items = parsed;
+        } catch {
+          // Partial stream or non-JSON — extract objects manually
+          const matches = raw.match(/\{[^}]+\}/g) || [];
+          items = matches.map(s => { try { return JSON.parse(s); } catch { return null; } }).filter(Boolean);
+        }
+      }
+      if (items && items.length > 0) {
+        const suggestions = items.map(item => {
+          const kw = esc(item.keyword || item.Keyword || '');
+          const section = esc(item.section || item.Section || '');
+          const suggestion = esc(item.suggestion || item.Suggestion || '');
+          return `<div style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border-subtle)">
+            <span style="background:var(--accent);color:#fff;font-size:0.7rem;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0">${kw}</span>
+            <span style="font-size:0.82rem;color:var(--text-secondary)">${suggestion}</span>
+          </div>`;
+        }).join('');
+        streamEl.innerHTML = '';
+        body.innerHTML = `<div style="font-size:0.82rem">${suggestions}</div>`;
+      }
+    }
   }
 }
 
@@ -1207,7 +1230,11 @@ function renderAgentBullet(data) {
   
   const isGuest = !currentUser;
   
+  // Skip rendering if the original text isn't a real bullet (just a metric, number, or too short)
+  const isMeaningfulBullet = data.original && data.original.replace(/[\s\d%,.$-]/g, '').length >= 5;
+
   if (data.status === 'rewriting') {
+    if (!isMeaningfulBullet) return; // Don't show cards for junk originals
     const bulletCard = document.createElement('div');
     bulletCard.className = 'agent-bullet-card animate-fade-up';
     bulletCard.id = `bullet-card-${data.index}`;
