@@ -691,12 +691,120 @@ function switchTab(tabId) {
   }
 }
 
+// ── Company detection from URL ─────────────────────────────────
+function extractCompanyFromUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    const host = u.hostname.replace(/^www\./, '').toLowerCase();
+
+    // Greenhouse: boards.greenhouse.io/companyslug or greenhouse.io/company
+    const ghMatch = host.match(/^(?:boards\.)?greenhouse\.io$/) && u.pathname.match(/^\/([^/]+)/);
+    if (ghMatch) return capitalize(ghMatch[1].replace(/-/g, ' '));
+
+    // Lever: jobs.lever.co/company
+    if (host === 'lever.co' || host.endsWith('.lever.co')) {
+      const seg = u.pathname.split('/').filter(Boolean)[0];
+      if (seg) return capitalize(seg.replace(/-/g, ' '));
+    }
+
+    // Workday: companyname.wd5.myworkdayjobs.com  or  company.workday.com
+    const wdMatch = host.match(/^([a-z0-9-]+)\.(?:wd\d+\.myworkdayjobs|workday)\.com$/);
+    if (wdMatch) return capitalize(wdMatch[1].replace(/-/g, ' '));
+
+    // SmartRecruiters: jobs.smartrecruiters.com/Company/
+    if (host === 'jobs.smartrecruiters.com') {
+      const seg = u.pathname.split('/').filter(Boolean)[0];
+      if (seg) return seg.replace(/([A-Z])/g, ' $1').trim();
+    }
+
+    // iCIMS: company.icims.com
+    const icimsMatch = host.match(/^([a-z0-9-]+)\.icims\.com$/);
+    if (icimsMatch) return capitalize(icimsMatch[1].replace(/-/g, ' '));
+
+    // Ashby: jobs.ashbyhq.com/company
+    if (host === 'jobs.ashbyhq.com') {
+      const seg = u.pathname.split('/').filter(Boolean)[0];
+      if (seg) return capitalize(seg.replace(/-/g, ' '));
+    }
+
+    // LinkedIn: linkedin.com/jobs/view/data-analyst-at-ucc-academy-4383701980/
+    // Extract company from slug via "-at-" pattern (strip trailing numeric ID first)
+    if (host === 'linkedin.com') {
+      const segments = u.pathname.split('/').filter(Boolean);
+      const slug = segments[segments.length - 1] || '';
+      // Strip trailing long numeric ID (LinkedIn job IDs are 10 digits)
+      const cleanSlug = slug.replace(/-?\d{7,}$/, '').trim();
+      // Look for "-at-" pattern → everything after is the company
+      const atIdx = cleanSlug.lastIndexOf('-at-');
+      if (atIdx !== -1) {
+        const companySlug = cleanSlug.slice(atIdx + 4); // skip "-at-"
+        if (companySlug.length > 1) {
+          return companySlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+      }
+      return 'LinkedIn';
+    }
+    if (host === 'indeed.com') return 'Indeed';
+    if (host === 'glassdoor.com') return 'Glassdoor';
+    if (host === 'naukri.com') return 'Naukri';
+
+    // Generic: use SLD (e.g. stripe.com → Stripe, airbnb.jobs → Airbnb)
+    const parts = host.split('.');
+    // Try second-to-last part (the registrable domain before TLD)
+    const sld = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+    if (sld && sld.length > 2) return capitalize(sld);
+  } catch { /* invalid URL */ }
+  return null;
+}
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function setupCompanyDetection() {
+  const urlInput = el('job-url-input');
+  const preview = el('company-preview');
+  const favicon = el('company-favicon');
+  const nameEl = el('company-name-preview');
+  if (!urlInput || !preview) return;
+
+  let debounceTimer = null;
+
+  urlInput.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const val = urlInput.value.trim();
+    if (!val || (!val.startsWith('http://') && !val.startsWith('https://'))) {
+      preview.style.display = 'none';
+      return;
+    }
+    debounceTimer = setTimeout(() => {
+      const company = extractCompanyFromUrl(val);
+      if (company) {
+        nameEl.textContent = company;
+        // Load favicon via Google S2 API — safe cross-origin image
+        try {
+          const domain = new URL(val).hostname;
+          favicon.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+          favicon.onerror = () => { favicon.style.display = 'none'; };
+          favicon.onload  = () => { favicon.style.display = 'inline-block'; };
+          favicon.style.display = 'none'; // hide until loaded
+        } catch { favicon.style.display = 'none'; }
+        preview.style.display = 'flex';
+      } else {
+        preview.style.display = 'none';
+      }
+    }, 350);
+  });
+}
+
 // ── File Upload + Scan ─────────────────────────────────────────
 function setupFileUpload() {
   const form = el('scan-form');
   const fileInput = el('resume-file');
   const area = el('upload-area');
   if (!form || !area) return;
+
+  setupCompanyDetection();
 
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
   const ALLOWED_TYPES = ['.pdf', '.docx', '.doc', '.txt'];
@@ -778,9 +886,14 @@ function setupFileUpload() {
     const fd = new FormData();
     fd.append('resume', fileInput.files[0]);
 
-    // Smart input detection: if it looks like a URL, send as jobUrl. Otherwise as jobDescription text.
+    // Prefer dedicated URL input; fall back to smart detection in JD textarea.
+    const urlInputVal = (el('job-url-input') ? el('job-url-input').value.trim() : '');
     const jdVal = lastJobInput.trim();
-    if (jdVal.startsWith('http://') || jdVal.startsWith('https://')) {
+    if (urlInputVal && (urlInputVal.startsWith('http://') || urlInputVal.startsWith('https://'))) {
+      fd.append('jobUrl', urlInputVal);
+      // Also send JD text if provided alongside URL
+      if (jdVal) fd.append('jobDescription', jdVal);
+    } else if (jdVal.startsWith('http://') || jdVal.startsWith('https://')) {
       fd.append('jobUrl', jdVal);
     } else if (jdVal) {
       fd.append('jobDescription', jdVal);
@@ -844,6 +957,73 @@ function setupAgentResults() {
   if (dPdf) dPdf.addEventListener('click', () => downloadOptimized('pdf'));
 }
 
+// ── Scan Context Header ────────────────────────────────────────
+function showScanContextHeader() {
+  const header = el('scan-context-header');
+  if (!header) return;
+
+  // Pre-populate from URL input company if available
+  const urlInputVal = el('job-url-input') ? el('job-url-input').value.trim() : '';
+  const companyPreviewName = el('company-name-preview') ? el('company-name-preview').textContent.trim() : '';
+  const companyFaviconSrc = el('company-favicon') ? el('company-favicon').src : '';
+
+  const ctxTitle = el('ctx-job-title');
+  const ctxCompany = el('ctx-company-name');
+  const ctxFavicon = el('ctx-company-favicon');
+  const ctxInitial = el('ctx-company-initial');
+  const ctxStatusText = el('ctx-status-text');
+
+  if (ctxTitle) ctxTitle.textContent = 'Analyzing…';
+  if (ctxStatusText) ctxStatusText.textContent = 'Scanning…';
+
+  if (companyPreviewName) {
+    if (ctxCompany) { ctxCompany.textContent = companyPreviewName; ctxCompany.style.display = 'block'; }
+    // Try to show favicon
+    if (companyFaviconSrc && ctxFavicon) {
+      ctxFavicon.src = companyFaviconSrc;
+      ctxFavicon.style.display = 'inline-block';
+      if (ctxInitial) ctxInitial.style.display = 'none';
+    } else if (ctxInitial) {
+      ctxInitial.textContent = companyPreviewName.charAt(0);
+      ctxInitial.style.display = 'inline-block';
+      if (ctxFavicon) ctxFavicon.style.display = 'none';
+    }
+  } else {
+    if (ctxCompany) ctxCompany.style.display = 'none';
+    if (ctxInitial) { ctxInitial.textContent = '?'; ctxInitial.style.display = 'inline-block'; }
+    if (ctxFavicon) ctxFavicon.style.display = 'none';
+  }
+
+  header.style.display = 'flex';
+}
+
+function updateScanContextHeader(jobTitle, companyName) {
+  const ctxTitle = el('ctx-job-title');
+  const ctxCompany = el('ctx-company-name');
+  const ctxInitial = el('ctx-company-initial');
+  const ctxFavicon = el('ctx-company-favicon');
+  const ctxStatusText = el('ctx-status-text');
+
+  const title = jobTitle && jobTitle.toLowerCase() !== 'no job description' ? jobTitle : 'Resume Analysis';
+  if (ctxTitle) ctxTitle.textContent = title;
+  if (ctxStatusText) ctxStatusText.textContent = 'Complete';
+
+  if (companyName) {
+    if (ctxCompany) { ctxCompany.textContent = companyName; ctxCompany.style.display = 'block'; }
+    // Try to show company favicon if not already loaded
+    if (ctxFavicon && !ctxFavicon.src.includes('google.com/s2/favicons')) {
+      // Use a domain guess from company name (best-effort; works for big companies)
+      const slug = companyName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+      ctxFavicon.src = `https://www.google.com/s2/favicons?domain=${slug}.com&sz=32`;
+      ctxFavicon.onerror = () => {
+        ctxFavicon.style.display = 'none';
+        if (ctxInitial) { ctxInitial.textContent = companyName.charAt(0); ctxInitial.style.display = 'inline-block'; }
+      };
+      ctxFavicon.onload = () => { ctxFavicon.style.display = 'inline-block'; if (ctxInitial) ctxInitial.style.display = 'none'; };
+    }
+  }
+}
+
 function startAgentAnalysis(sessionId) {
   // 1. Immediately Activate View — BEFORE anything else
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -860,6 +1040,10 @@ function startAgentAnalysis(sessionId) {
 
   const tabsReset = el('results-tabs-menu');
   if (tabsReset) tabsReset.style.display = 'none';
+
+  // Hide context header until first step fires
+  const ctxHeader = el('scan-context-header');
+  if (ctxHeader) ctxHeader.style.display = 'none';
 
   // 4. Safely Clear previous analysis UI components
   const timeline = el('agent-timeline');
@@ -966,6 +1150,8 @@ function startAgentAnalysis(sessionId) {
         if (data.status === 'running') {
           if (initBlock) initBlock.style.display = 'none';
           if (dashboard) dashboard.style.display = 'block';
+          // Show context header on first step — pre-populate with URL company if available
+          if (data.step === 1) showScanContextHeader();
           addAgentStepCard(data.step, data.name, data.label);
         } else if (data.status === 'complete' || data.status === 'locked' || data.status === 'error') {
           if (initBlock) initBlock.style.display = 'none';
@@ -1035,6 +1221,8 @@ function startAgentAnalysis(sessionId) {
           history.replaceState({}, '', `/results/${data.scanId}`);
           localStorage.setItem('resumeXray_currentScanId', String(data.scanId));
         }
+        // Update context header with real job title + company from scan result
+        updateScanContextHeader(data.job_title, data.company_name);
         if (currentUser) fetchUser().then(() => finalizeAgentUI(data));
         else finalizeAgentUI(data);
         break;
@@ -1754,6 +1942,56 @@ function setupAgentHistoricalView(data) {
   if (dashboard) dashboard.style.display = 'block';
   const tabMenu = el('results-tabs-menu');
   if (tabMenu) tabMenu.style.display = ''; // Let CSS (grid on mobile, flex on desktop) take over
+
+  // 1b. Populate context header from scan data
+  (function populateContextHeader() {
+    const header = el('scan-context-header');
+    if (!header) return;
+
+    const ctxTitle    = el('ctx-job-title');
+    const ctxCompany  = el('ctx-company-name');
+    const ctxInitial  = el('ctx-company-initial');
+    const ctxFavicon  = el('ctx-company-favicon');
+    const ctxStatus   = el('ctx-status-text');
+    const ctxBadge    = header.querySelector('.scan-ctx-badge');
+
+    // Determine job title
+    let jobTitle = data.job_title || data.jobTitle || '';
+    if (!jobTitle || jobTitle.toLowerCase() === 'no job description') jobTitle = 'Resume Analysis';
+    if (ctxTitle) ctxTitle.textContent = jobTitle;
+
+    // Determine company name — from stored field or extracted from job URL
+    let company = data.company_name || data.companyName || '';
+    if (!company && (data.job_url || data.jobUrl)) {
+      company = extractCompanyFromUrl(data.job_url || data.jobUrl) || '';
+    }
+
+    if (company) {
+      if (ctxCompany) { ctxCompany.textContent = company; ctxCompany.style.display = 'block'; }
+      // Try favicon
+      const slug = company.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+      if (ctxFavicon) {
+        ctxFavicon.src = `https://www.google.com/s2/favicons?domain=${slug}.com&sz=32`;
+        ctxFavicon.onerror = () => {
+          ctxFavicon.style.display = 'none';
+          if (ctxInitial) { ctxInitial.textContent = company.charAt(0); ctxInitial.style.display = 'inline-block'; }
+        };
+        ctxFavicon.onload = () => { ctxFavicon.style.display = 'inline-block'; if (ctxInitial) ctxInitial.style.display = 'none'; };
+      }
+    } else {
+      if (ctxCompany) ctxCompany.style.display = 'none';
+      if (ctxInitial) { ctxInitial.textContent = jobTitle.charAt(0) || '?'; ctxInitial.style.display = 'inline-block'; }
+    }
+
+    // Badge — scan is done; swap to a static "Done" look
+    if (ctxStatus) ctxStatus.textContent = 'Done';
+    if (ctxBadge) {
+      const dot = ctxBadge.querySelector('.scan-ctx-status-dot');
+      if (dot) dot.style.animation = 'none'; // stop pulse, scan is not live
+    }
+
+    header.style.display = 'flex';
+  })();
 
   // 2. Configure PDF viewer overlays
   const scanOverlay = el('pdf-scanning-overlay');

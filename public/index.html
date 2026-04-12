@@ -740,45 +740,93 @@
 
   <!-- ═══ SCAN ═══ -->
   <section id="view-scan" class="view">
-    <div class="container-narrow">
-      <h1 class="headline animate-fade-up">Analyze your resume</h1>
-      <p class="body-md animate-fade-up" style="animation-delay:0.05s;margin-bottom:var(--sp-4)">Upload your resume and paste a job description for targeted ATS analysis with live AI fixes.</p>
-      <div class="scan-features animate-fade-up" style="animation-delay:0.07s;margin-bottom:var(--sp-8)">
-        <span>✓ Parses PDF, DOCX, DOC, TXT</span>
-        <span>✓ 30-second analysis</span>
-        <span>✓ Always free</span>
+    <div class="scan-page-container">
+      <div class="scan-page-header animate-fade-up">
+        <h1 class="headline">Analyze your resume</h1>
+        <p class="body-md" style="margin-top:var(--sp-2)">Upload your resume and add a job link for targeted ATS analysis with live AI fixes.</p>
+      </div>
+      <div class="scan-trust-row animate-fade-up" style="animation-delay:0.05s">
+        <span class="scan-trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> PDF, DOCX, DOC, TXT</span>
+        <span class="scan-trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> 30-second analysis</span>
+        <span class="scan-trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Always free</span>
       </div>
 
-      <form id="scan-form" class="animate-fade-up" style="animation-delay:0.1s">
-        <!-- Upload Area -->
-        <div id="upload-area" class="upload-zone">
-          <div class="upload-icon"><svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg></div>
-          <div class="upload-text">
-            <strong>Drop your resume here or <span style="color:var(--accent)">browse</span></strong>
-            <span class="body-sm" style="color:var(--text-muted)">PDF, DOCX, DOC, or TXT · Max 5MB</span>
+      <form id="scan-form" class="animate-fade-up scan-form-card" style="animation-delay:0.1s">
+        <div class="scan-form-grid">
+
+          <!-- Left column: Upload -->
+          <div class="scan-col">
+            <div class="scan-col-heading">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Your Resume
+            </div>
+            <div id="upload-area" class="upload-zone">
+              <div class="upload-icon">
+                <svg aria-hidden="true" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+              </div>
+              <div class="upload-text">
+                <strong>Drop here or <span style="color:var(--accent)">browse</span></strong>
+                <span class="body-xs" style="color:var(--text-muted);margin-top:2px">PDF, DOCX, DOC, TXT · Max 5MB</span>
+              </div>
+              <input type="file" id="resume-file" accept=".pdf,.docx,.doc,.txt" hidden>
+            </div>
+            <div id="file-preview" class="file-preview" style="display:none">
+              <div class="file-preview-icon">📄</div>
+              <div class="file-preview-info">
+                <div class="file-preview-name" id="file-name-display">resume.pdf</div>
+                <div class="file-preview-size" id="file-size-display">128 KB</div>
+              </div>
+              <button type="button" class="file-preview-remove" id="file-remove-btn" title="Remove file">×</button>
+            </div>
           </div>
-          <input type="file" id="resume-file" accept=".pdf,.docx,.doc,.txt" hidden>
-        </div>
-        <!-- File Preview (shown after selection) -->
-        <div id="file-preview" class="file-preview" style="display:none">
-          <div class="file-preview-icon">📄</div>
-          <div class="file-preview-info">
-            <div class="file-preview-name" id="file-name-display">resume.pdf</div>
-            <div class="file-preview-size" id="file-size-display">128 KB</div>
+
+          <!-- Divider (desktop only) -->
+          <div class="scan-col-divider" aria-hidden="true"></div>
+
+          <!-- Right column: Job Details -->
+          <div class="scan-col">
+            <div class="scan-col-heading">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+              Target Job
+            </div>
+
+            <!-- URL Input with company detection -->
+            <div class="form-group" style="margin-bottom:var(--sp-3)">
+              <label class="form-label" for="job-url-input">
+                Job URL
+                <span class="form-label-optional">auto-detects company</span>
+              </label>
+              <div class="job-url-wrapper">
+                <div class="job-url-icon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                </div>
+                <input type="url" id="job-url-input" class="job-url-input" placeholder="https://jobs.lever.co/company/role-title" autocomplete="off" spellcheck="false">
+              </div>
+              <div id="company-preview" class="company-preview" style="display:none">
+                <img id="company-favicon" class="company-favicon" src="" alt="" width="16" height="16">
+                <span id="company-name-preview" class="company-name-preview"></span>
+                <span class="company-preview-tick">✓ Company detected</span>
+              </div>
+            </div>
+
+            <!-- JD Textarea -->
+            <div class="form-group">
+              <label class="form-label" for="job-input">
+                Job Description
+                <span class="form-label-optional">or paste text</span>
+              </label>
+              <textarea id="job-input" class="jd-textarea" rows="4" placeholder="Paste the full job description for deep keyword matching..."></textarea>
+            </div>
           </div>
-          <button type="button" class="file-preview-remove" id="file-remove-btn" title="Remove file">×</button>
         </div>
 
-        <!-- JD Input -->
-        <div class="form-group" style="margin-top:var(--sp-6)">
-          <label class="form-label">
-            Job Description
-            <span class="form-label-optional">Recommended</span>
-          </label>
-          <textarea id="job-input" class="jd-textarea" rows="5" placeholder="Paste the full job description here for targeted keyword matching.&#10;&#10;Or paste a URL from Workday, Greenhouse, Lever, Indeed, or Naukri."></textarea>
+        <div class="scan-form-footer">
+          <button type="submit" class="btn btn-primary btn-lg scan-submit-btn" id="scan-submit-btn" disabled>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Analyze Resume
+          </button>
+          <span class="body-xs" style="color:var(--text-faint)">Free · No login required</span>
         </div>
-
-        <button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:var(--sp-4)" id="scan-submit-btn" disabled>Analyze Resume</button>
 
         <div id="scan-error" class="form-error" style="display:none;margin-top:var(--sp-4)"></div>
       </form>
@@ -810,13 +858,43 @@
 
       <!-- Dashboard Layout -->
       <div id="results-dashboard" class="results-tabs-container" style="display:none">
-        
+
+        <!-- Scan Context Header (company + job title) -->
+        <div id="scan-context-header" class="scan-context-header" style="display:none">
+          <div class="scan-ctx-company">
+            <div id="ctx-logo-wrap" class="ctx-logo-wrap">
+              <img id="ctx-company-favicon" class="ctx-company-favicon" src="" alt="" style="display:none">
+              <span id="ctx-company-initial" class="ctx-company-initial" style="display:none"></span>
+            </div>
+            <div class="ctx-company-info">
+              <span id="ctx-job-title" class="ctx-job-title">Analyzing…</span>
+              <span id="ctx-company-name" class="ctx-company-name" style="display:none"></span>
+            </div>
+          </div>
+          <div class="scan-ctx-badge">
+            <span class="scan-ctx-status-dot"></span>
+            <span id="ctx-status-text" class="body-xs">Scanning…</span>
+          </div>
+        </div>
+
         <!-- Tab Navigation -->
         <div class="results-tab-nav" id="results-tabs-menu" role="tablist" aria-label="Scan results">
-          <button class="results-tab-btn active" data-tab="tab-diagnosis" role="tab" aria-selected="true" aria-controls="tab-diagnosis">ATS Diagnosis</button>
-          <button class="results-tab-btn" data-tab="tab-recruiter-agent" id="btn-tab-recruiter" role="tab" aria-selected="false" aria-controls="tab-recruiter-agent">Recruiter View</button>
-          <button class="results-tab-btn" data-tab="tab-cover-letter" id="btn-tab-cover-letter" role="tab" aria-selected="false" aria-controls="tab-cover-letter">Cover Letter</button>
-          <button class="results-tab-btn" data-tab="tab-pdf-preview" id="btn-tab-pdf" role="tab" aria-selected="false" aria-controls="tab-pdf-preview">PDF Resume</button>
+          <button class="results-tab-btn active" data-tab="tab-diagnosis" role="tab" aria-selected="true" aria-controls="tab-diagnosis">
+            <svg class="tab-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            <span>ATS Diagnosis</span>
+          </button>
+          <button class="results-tab-btn" data-tab="tab-recruiter-agent" id="btn-tab-recruiter" role="tab" aria-selected="false" aria-controls="tab-recruiter-agent">
+            <svg class="tab-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Recruiter View</span>
+          </button>
+          <button class="results-tab-btn" data-tab="tab-cover-letter" id="btn-tab-cover-letter" role="tab" aria-selected="false" aria-controls="tab-cover-letter">
+            <svg class="tab-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <span>Cover Letter</span>
+          </button>
+          <button class="results-tab-btn" data-tab="tab-pdf-preview" id="btn-tab-pdf" role="tab" aria-selected="false" aria-controls="tab-pdf-preview">
+            <svg class="tab-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>PDF Resume</span>
+          </button>
         </div>
 
         <!-- TAB 1: Progress & Diagnosis -->
@@ -1413,6 +1491,6 @@
 
   <!-- Phase 6 §4.10: Self-hosted DOMPurify for innerHTML XSS defense -->
   <script src="/js/purify.min.js"></script>
-  <script src="/js/app.js?v=3.5" defer></script>
+  <script src="/js/app.js?v=3.6" defer></script>
 </body>
 </html>
