@@ -469,8 +469,9 @@ router.get('/preview/:scanId', async (req, res) => {
   try {
     const userId = req.user ? req.user.id : null;
     const scanId = parseScanId(req.params.scanId);
+    const accessToken = typeof req.query.token === 'string' ? req.query.token : null;
     if (!scanId) return res.status(400).json({ error: 'Invalid scan ID.' });
-    const scan = await db.getFullScan(scanId, userId);
+    const scan = await db.getFullScan(scanId, userId, accessToken);
     if (!scan) return res.status(404).json({ error: 'Scan not found.' });
 
     // SECURITY: Guest scans require a valid access token (prevents IDOR)
@@ -553,8 +554,9 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
   try {
     const userId = req.user ? req.user.id : null;
     const scanId = parseScanId(req.params.scanId);
+    const accessToken = typeof req.query.token === 'string' ? req.query.token : null;
     if (!scanId) return res.status(400).send('Invalid scan ID.');
-    const scan = await db.getFullScan(scanId, userId);
+    const scan = await db.getFullScan(scanId, userId, accessToken);
     if (!scan) return res.status(404).send('Scan not found.');
 
     // SECURITY: Guest scans require a valid access token (prevents IDOR)
@@ -708,8 +710,9 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
   try {
     const userId = req.user ? req.user.id : null;
     const scanId = parseScanId(req.params.scanId);
+    const accessToken = typeof req.query.token === 'string' ? req.query.token : null;
     if (!scanId) return res.status(400).json({ error: 'Invalid scan ID.' });
-    const scan = await db.getFullScan(scanId, userId);
+    const scan = await db.getFullScan(scanId, userId, accessToken);
     if (!scan) return res.status(404).json({ error: 'Scan not found.' });
 
     const format = req.query.format || 'docx';

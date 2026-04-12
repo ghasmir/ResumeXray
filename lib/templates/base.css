@@ -34,13 +34,13 @@ html {
 body {
   width: 7.2in; /* 8.5in - 2×0.65in margins */
   max-width: 7.2in;
-  max-height: 9.9in; /* letter height (11in) - 2×0.55in margins — enforces single page */
-  overflow: hidden;
   margin: 0 auto;
   font-size: 10.5pt;
   line-height: 1.45;
   color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 @media screen {
@@ -74,6 +74,60 @@ body.density-compact .resume-header {
 
 body.density-compact .section-title {
   margin-bottom: 0.05in;
+}
+
+body.pdf-tight {
+  font-size: 9pt;
+  line-height: 1.15;
+}
+
+body.pdf-tight .resume-header {
+  margin-bottom: 0.1in;
+  padding-bottom: 0.05in;
+}
+
+body.pdf-tight .resume-name {
+  font-size: 16pt;
+  margin-bottom: 2pt;
+}
+
+body.pdf-tight .contact-line,
+body.pdf-tight .entry-dates,
+body.pdf-tight .entry-location {
+  font-size: 8.5pt;
+}
+
+body.pdf-tight .section {
+  margin-bottom: 0.1in;
+}
+
+body.pdf-tight .section-title {
+  font-size: 9.5pt;
+  margin-bottom: 0.05in;
+  padding-bottom: 2pt;
+}
+
+body.pdf-tight .entry {
+  margin-bottom: 0.05in;
+}
+
+body.pdf-tight .entry-title,
+body.pdf-tight .entry-subtitle,
+body.pdf-tight .skill-category,
+body.pdf-tight .summary-text,
+body.pdf-tight .bullet-list li,
+body.pdf-tight .simple-list li {
+  font-size: 9pt;
+}
+
+body.pdf-tight .bullet-list {
+  margin-top: 2pt;
+  padding-left: 0.18in;
+}
+
+body.pdf-tight .bullet-list li {
+  margin-bottom: 1pt;
+  line-height: 1.25;
 }
 
 /* ── Header (Name + Contact) ────────────────────────────────────────────── */
@@ -130,7 +184,7 @@ body.density-compact .section-title {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8pt;
 }
 

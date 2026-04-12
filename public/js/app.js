@@ -932,6 +932,7 @@ function setupFileUpload() {
         // and redirects to /results/{oldId}, which races with the new SSE stream.
         // Instead, directly activate the view and start the analysis.
         localStorage.removeItem('resumeXray_currentScanId');
+        persistCurrentScanToken('');
         currentScan = null;
         history.pushState({}, '', '/agent-results');
         // Ensure we are viewing the diagnosis tab during the scan
@@ -1154,6 +1155,7 @@ function startAgentAnalysis(sessionId) {
         abortController.abort();
         agentSource = null;
         if (data.resumeText) agentResumeText = data.resumeText;
+        persistCurrentScanToken(data.accessToken || '');
         if (data.scanId) {
           history.replaceState({}, '', `/results/${data.scanId}`);
           localStorage.setItem('resumeXray_currentScanId', String(data.scanId));
@@ -1542,7 +1544,7 @@ async function finalizeAgentUI(data) {
   // 7. Fetch full scan data from API to populate Recruiter View + PDF preview
   if (data.scanId) {
     try {
-      const scanRes = await fetch('/api/scan/' + data.scanId);
+      const scanRes = await fetch(buildScanApiUrl(data.scanId));
       if (scanRes.ok) {
         const scanJson = await scanRes.json();
         if (scanJson.results) {
@@ -1724,8 +1726,7 @@ function reloadPdfPreview(scanId) {
     }
     if (skeleton) skeleton.style.display = 'flex';
     previewFrame.style.opacity = '0';
-    let url = `/api/agent/preview/${scanId}?template=${template}&density=${density}&t=${Date.now()}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
-    if (currentScan && currentScan.access_token) url += `&token=${currentScan.access_token}`;
+    let url = `/api/agent/preview/${scanId}?template=${template}&density=${density}&t=${Date.now()}${currentScanTokenQuery()}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
     previewFrame.src = url;
     previewFrame.addEventListener('load', function onLoad() {
       previewFrame.style.opacity = '1';
@@ -1819,12 +1820,16 @@ async function loadResults(scanId, retryCount = 0) {
   } else {
     // Fetch from API
     try {
-      const res = await fetch('/api/scan/' + scanId);
+      const res = await fetch(buildScanApiUrl(scanId));
       if (res.ok) {
         const json = await res.json();
         results = json.results;
         if (results) {
           results.id = results.id || scanId;
+          if (!results.access_token && !results.accessToken) {
+            const persistedToken = getPersistedCurrentScanToken();
+            if (persistedToken) results.accessToken = persistedToken;
+          }
           currentScan = results;
         }
       } else if (retryCount < MAX_RETRIES) {
@@ -1999,7 +2004,7 @@ function setupAgentHistoricalView(data) {
   const previewFrame = el('pdf-preview-frame');
 
   if (isAgentScan && previewFrame && scanId) {
-    previewFrame.src = `/api/agent/preview/${scanId}?t=${Date.now()}`;
+    previewFrame.src = `/api/agent/preview/${scanId}?t=${Date.now()}${currentScanTokenQuery()}`;
     if (viewOverlay) viewOverlay.style.display = 'flex';
   } else if (scanOverlay) {
     // Basic Scan or Error — Show upgrade message in PDF tab
@@ -2972,6 +2977,25 @@ function truncate(str, len) {
   return str.length > len ? str.substring(0, len) + '…' : str;
 }
 
+function currentScanTokenQuery() {
+  const token = currentScan?.access_token || currentScan?.accessToken || getPersistedCurrentScanToken() || null;
+  return token ? `&token=${encodeURIComponent(token)}` : '';
+}
+
+function persistCurrentScanToken(token) {
+  if (token) localStorage.setItem('resumeXray_currentScanToken', token);
+  else localStorage.removeItem('resumeXray_currentScanToken');
+}
+
+function getPersistedCurrentScanToken() {
+  return localStorage.getItem('resumeXray_currentScanToken') || '';
+}
+
+function buildScanApiUrl(scanId) {
+  const tokenQuery = currentScanTokenQuery().replace(/^&/, '');
+  return tokenQuery ? `/api/scan/${scanId}?${tokenQuery}` : `/api/scan/${scanId}`;
+}
+
 async function startCheckout(packId) {
   if (!currentUser) return navigateTo('/signup');
   try {
@@ -3027,7 +3051,7 @@ function renderCoverLetter(text) {
 
   container.innerHTML = `
     <div class="preview-frame">
-      <iframe class="preview-iframe" src="/api/agent/cover-letter-preview/${scanId}?t=${Date.now()}" title="Cover letter preview"></iframe>
+      <iframe class="preview-iframe" src="/api/agent/cover-letter-preview/${scanId}?t=${Date.now()}${currentScanTokenQuery()}" title="Cover letter preview"></iframe>
     </div>`;
 
   // Auto-resize iframe to fit content (no white space)

@@ -126,9 +126,10 @@ router.get('/scan/:id', async (req, res) => {
   try {
     const scanId = req.params.id;
     const userId = req.user ? req.user.id : null;
+    const accessToken = typeof req.query.token === 'string' ? req.query.token : null;
     
     log.debug('Scan fetch request', { scanId, userId, email: req.user?.email || 'guest' });
-    const scan = await db.getScan(scanId, userId);
+    const scan = await db.getScan(scanId, userId, accessToken);
     log.debug('Scan fetch result', { scanId, found: !!scan });
     if (!scan) return res.status(404).json({ error: 'Scan not found' });
     

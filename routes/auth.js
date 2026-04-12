@@ -7,6 +7,7 @@ const mailer = require('../lib/mailer');
 const { authLimiter } = require('../config/security');
 const { validatePassword, validateEmail } = require('../lib/validation');
 const log = require('../lib/logger');
+const { getRedis } = require('../lib/redis');
 
 const router = express.Router();
 
@@ -31,6 +32,18 @@ function checkLockout(key) {
     return false;
   }
   return false;
+}
+
+async function checkLockoutState(key) {
+  const redis = getRedis();
+  if (!redis) return checkLockout(key);
+
+  try {
+    return (await redis.exists(`auth:lock:${key}`)) === 1;
+  } catch (err) {
+    log.warn('Redis lockout read failed — falling back to local state', { error: err.message });
+    return checkLockout(key);
+  }
 }
 
 function recordFailedLogin(key) {
@@ -62,18 +75,60 @@ function recordFailedLogin(key) {
   loginAttempts.set(key, entry);
 }
 
+async function recordFailedLoginState(key) {
+  const redis = getRedis();
+  if (!redis) {
+    recordFailedLogin(key);
+    return;
+  }
+
+  const counterKey = `auth:fail:${key}`;
+  const lockKey = `auth:lock:${key}`;
+
+  try {
+    const attempts = await redis.incr(counterKey);
+    if (attempts === 1) {
+      await redis.pexpire(counterKey, LOCKOUT_WINDOW);
+    }
+    if (attempts >= LOCKOUT_THRESHOLD) {
+      await redis.set(lockKey, '1', 'PX', LOCKOUT_DURATION);
+      await redis.del(counterKey);
+      log.warn('Account locked due to failed login attempts', { key, count: attempts, backend: 'redis' });
+    }
+  } catch (err) {
+    log.warn('Redis lockout write failed — falling back to local state', { error: err.message });
+    recordFailedLogin(key);
+  }
+}
+
 function clearLoginAttempts(key) {
   loginAttempts.delete(key);
 }
 
+async function clearLoginAttemptsState(key) {
+  const redis = getRedis();
+  if (!redis) {
+    clearLoginAttempts(key);
+    return;
+  }
+
+  try {
+    await redis.del(`auth:fail:${key}`, `auth:lock:${key}`);
+  } catch (err) {
+    log.warn('Redis lockout clear failed — falling back to local state', { error: err.message });
+    clearLoginAttempts(key);
+  }
+}
+
 // Clean up stale entries every 10 min
-setInterval(() => {
+const loginAttemptCleanup = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of loginAttempts) {
     if (entry.lockedUntil && now >= entry.lockedUntil) loginAttempts.delete(key);
     else if (now - entry.firstAttempt > LOCKOUT_WINDOW) loginAttempts.delete(key);
   }
 }, 10 * 60 * 1000);
+loginAttemptCleanup.unref?.();
 
 // ── Email/Password Signup ──────────────────────────────────────
 router.post('/signup', authLimiter, async (req, res) => {
@@ -177,7 +232,7 @@ router.post('/login', authLimiter, async (req, res) => {
     // §10.12: Check lockout (IP + email dual counters)
     const ipKey = `ip:${req.ip}`;
     const emailKey = `email:${email.toLowerCase()}`;
-    if (checkLockout(ipKey) || checkLockout(emailKey)) {
+    if (await checkLockoutState(ipKey) || await checkLockoutState(emailKey)) {
       return res.status(429).json({
         error: 'Account temporarily locked due to too many failed attempts. Please try again in 30 minutes.'
       });
@@ -185,21 +240,21 @@ router.post('/login', authLimiter, async (req, res) => {
 
     const user = await db.getUserByEmail(email);
     if (!user || !user.password_hash) {
-      recordFailedLogin(ipKey);
-      recordFailedLogin(emailKey);
+      await recordFailedLoginState(ipKey);
+      await recordFailedLoginState(emailKey);
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
-      recordFailedLogin(ipKey);
-      recordFailedLogin(emailKey);
+      await recordFailedLoginState(ipKey);
+      await recordFailedLoginState(emailKey);
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
     // §10.12: Clear lockout counters on successful login
-    clearLoginAttempts(ipKey);
-    clearLoginAttempts(emailKey);
+    await clearLoginAttemptsState(ipKey);
+    await clearLoginAttemptsState(emailKey);
 
     // Session fixation prevention: regenerate session ID on login
     req.session.regenerate((err) => {

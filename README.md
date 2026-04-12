@@ -15,7 +15,7 @@ ResumeXray is a production-grade career tool that reverse-engineers ATS parsers 
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Node.js 22 LTS, Express 5, PM2 Cluster |
+| **Backend** | Node.js 22 LTS, Express 4, PM2 Cluster |
 | **Database** | SQLite (dev) / PostgreSQL via Supabase (prod) |
 | **Auth** | Passport.js (Google, GitHub, LinkedIn OAuth + email/password) |
 | **Frontend** | Vanilla JS SPA, CSS (Obsidian design system) |

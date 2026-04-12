@@ -347,22 +347,25 @@ const spaRoutes = [
 const indexHtmlPath = path.join(__dirname, 'public', 'index.html');
 let indexHtmlTemplate = null;
 
+function renderSpaShell(req, res, { robotsTag = 'index, follow', statusCode = 200 } = {}) {
+  res.status(statusCode);
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('X-Robots-Tag', robotsTag);
+
+  if (!indexHtmlTemplate || process.env.NODE_ENV !== 'production') {
+    indexHtmlTemplate = fs.readFileSync(indexHtmlPath, 'utf-8');
+  }
+
+  const nonce = res.locals.cspNonce;
+  const html = indexHtmlTemplate
+    .replace(/<script(?![^>]*type=["']application\/ld\+json["'])/gi, `<script nonce="${nonce}"`);
+
+  res.type('html').send(html);
+}
+
 spaRoutes.forEach(route => {
   app.get(route, (req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('X-Robots-Tag', 'index, follow');
-    
-    // Lazy-load template (cached in prod, fresh in dev)
-    if (!indexHtmlTemplate || process.env.NODE_ENV !== 'production') {
-      indexHtmlTemplate = fs.readFileSync(indexHtmlPath, 'utf-8');
-    }
-    
-    // Inject nonce into external script tags (not JSON-LD which is type="application/ld+json")
-    const nonce = res.locals.cspNonce;
-    const html = indexHtmlTemplate
-      .replace(/<script(?![^>]*type=["']application\/ld\+json["'])/gi, `<script nonce="${nonce}"`);
-    
-    res.type('html').send(html);
+    renderSpaShell(req, res);
   });
 });
 
@@ -520,7 +523,7 @@ app.use((req, res, next) => {
     return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
   }
   // SPA: serve index.html for all other routes — client-side router handles 404 page
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  renderSpaShell(req, res, { robotsTag: 'noindex, nofollow', statusCode: 404 });
 });
 
 // ── Centralized Error Handler ─────────────────────────────────────────────────

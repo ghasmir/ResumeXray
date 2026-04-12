@@ -532,14 +532,14 @@ function getUserScans(userId, limit = 20) {
   `).all(userId, limit);
 }
 
-function getScan(id, userId) {
+function getScan(id, userId, accessToken = null) {
   if (userId !== null && userId !== undefined) {
     // Logged-in user: match by id explicitly
     return getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id = ?').get(id, Number(userId));
-  } else {
-    // Guest scan: user_id should be NULL
-    return getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL').get(id);
   }
+  if (!accessToken) return null;
+  // Guest scan: require the access token, not just a NULL user_id.
+  return getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL AND access_token = ?').get(id, accessToken);
 }
 
 function updateScanWithOptimizations(scanId, { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText }) {
@@ -554,12 +554,13 @@ function updateScanWithOptimizations(scanId, { optimizedBullets, keywordPlan, op
   );
 }
 
-function getFullScan(scanId, userId = null) {
+function getFullScan(scanId, userId = null, accessToken = null) {
   let scan;
   if (userId !== null && userId !== undefined) {
     scan = getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id = ?').get(scanId, Number(userId));
   } else {
-    scan = getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL').get(scanId);
+    if (!accessToken) return null;
+    scan = getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL AND access_token = ?').get(scanId, accessToken);
   }
   if (!scan) return null;
   const jsonCols = ['xray_data', 'format_issues', 'keyword_data', 'section_data', 'recommendations', 'ai_suggestions', 'optimized_bullets', 'keyword_plan'];

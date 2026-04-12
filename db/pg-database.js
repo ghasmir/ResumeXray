@@ -415,11 +415,12 @@ async function getUserScans(userId, limit = 20) {
   `, [userId, limit]);
 }
 
-async function getScan(id, userId) {
+async function getScan(id, userId, accessToken = null) {
   if (userId !== null && userId !== undefined) {
     return queryOne('SELECT * FROM scans WHERE id = $1 AND user_id = $2', [id, Number(userId)]);
   }
-  return queryOne('SELECT * FROM scans WHERE id = $1 AND user_id IS NULL', [id]);
+  if (!accessToken) return null;
+  return queryOne('SELECT * FROM scans WHERE id = $1 AND user_id IS NULL AND access_token = $2', [id, accessToken]);
 }
 
 async function updateScanWithOptimizations(scanId, { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform = null }) {
@@ -429,12 +430,13 @@ async function updateScanWithOptimizations(scanId, { optimizedBullets, keywordPl
   );
 }
 
-async function getFullScan(scanId, userId = null) {
+async function getFullScan(scanId, userId = null, accessToken = null) {
   let scan;
   if (userId !== null && userId !== undefined) {
     scan = await queryOne('SELECT * FROM scans WHERE id = $1 AND user_id = $2', [scanId, Number(userId)]);
   } else {
-    scan = await queryOne('SELECT * FROM scans WHERE id = $1 AND user_id IS NULL', [scanId]);
+    if (!accessToken) return null;
+    scan = await queryOne('SELECT * FROM scans WHERE id = $1 AND user_id IS NULL AND access_token = $2', [scanId, accessToken]);
   }
   if (!scan) return null;
   const jsonCols = ['xray_data', 'format_issues', 'keyword_data', 'section_data', 'recommendations', 'ai_suggestions', 'optimized_bullets', 'keyword_plan'];
