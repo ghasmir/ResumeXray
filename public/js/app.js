@@ -1544,6 +1544,12 @@ function reloadPdfPreview(scanId) {
     }
 
     adaptPdfFrameSize(previewFrame);
+    // If the PDF cannot be rendered/read by the current model, surface a user-friendly error
+    previewFrame.onerror = function() {
+      // Clear skeleton and let user know
+      if (skeleton) skeleton.style.display = 'none';
+      showToast('Unable to render the PDF preview. The optimization model currently does not support reading PDF inputs. Consider exporting as text or DOCX for a readable preview, or retry later when a fix is available.', 'error', { duration: 10000 });
+    };
     // Bind a resize handler once per frame to adjust height on viewport changes
     if (!previewFrame._pdfrsBound) {
       const resizeHandler = () => adaptPdfFrameSize(previewFrame);
