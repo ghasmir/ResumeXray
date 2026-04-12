@@ -2414,6 +2414,20 @@ function buildRecruiterRows(fieldAccuracy, extractedFields) {
   // On a user's own just-ran scan, show full values so they can verify parsing.
   function maskValue(fieldName, value) {
     // Never mask for logged-in users or the user's own scan session
+    if (!isGuest) return value;
+    if (value == null) return value;
+    const f = String(fieldName || '').toLowerCase();
+    const sensitiveKeys = [
+      'email', 'phone', 'phone_number', 'ssn', 'ssn_number', 'address',
+      'postal', 'birthday', 'date_of_birth'
+    ];
+    // Mask only known sensitive fields or any field with a likely personal data hint
+    const isSensitive = sensitiveKeys.some(k => f.includes(k));
+    if (isSensitive || /email|phone|ssn/.test(f)) {
+      const s = String(value);
+      if (s.length <= 4) return '*'.repeat(s.length);
+      return '*'.repeat(Math.max(0, s.length - 4)) + s.slice(-4);
+    }
     return value;
   }
 
@@ -3183,4 +3197,3 @@ async function downloadCoverLetter(format) {
   }
 
 })();
-
