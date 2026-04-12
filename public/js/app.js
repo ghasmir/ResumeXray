@@ -962,72 +962,6 @@ function setupAgentResults() {
   if (dPdf) dPdf.addEventListener('click', () => downloadOptimized('pdf'));
 }
 
-// ── Scan Context Header ────────────────────────────────────────
-function showScanContextHeader() {
-  const header = el('scan-context-header');
-  if (!header) return;
-
-  // Pre-populate from URL input company if available
-  const urlInputVal = el('job-url-input') ? el('job-url-input').value.trim() : '';
-  const companyPreviewName = el('company-name-preview') ? el('company-name-preview').textContent.trim() : '';
-  const companyFaviconSrc = el('company-favicon') ? el('company-favicon').src : '';
-
-  const ctxTitle = el('ctx-job-title');
-  const ctxCompany = el('ctx-company-name');
-  const ctxFavicon = el('ctx-company-favicon');
-  const ctxInitial = el('ctx-company-initial');
-  const ctxStatusText = el('ctx-status-text');
-
-  if (ctxTitle) ctxTitle.textContent = 'Analyzing…';
-  if (ctxStatusText) ctxStatusText.textContent = 'Scanning…';
-
-  if (companyPreviewName) {
-    if (ctxCompany) { ctxCompany.textContent = companyPreviewName; ctxCompany.style.display = 'block'; }
-    // Try to show favicon
-    if (companyFaviconSrc && ctxFavicon) {
-      ctxFavicon.src = companyFaviconSrc;
-      ctxFavicon.style.display = 'inline-block';
-      if (ctxInitial) ctxInitial.style.display = 'none';
-    } else if (ctxInitial) {
-      ctxInitial.textContent = companyPreviewName.charAt(0);
-      ctxInitial.style.display = 'inline-block';
-      if (ctxFavicon) ctxFavicon.style.display = 'none';
-    }
-  } else {
-    if (ctxCompany) ctxCompany.style.display = 'none';
-    if (ctxInitial) { ctxInitial.textContent = '?'; ctxInitial.style.display = 'inline-block'; }
-    if (ctxFavicon) ctxFavicon.style.display = 'none';
-  }
-
-  header.style.display = 'flex';
-}
-
-function updateScanContextHeader(jobTitle, companyName) {
-  const ctxTitle = el('ctx-job-title');
-  const ctxCompany = el('ctx-company-name');
-  const ctxInitial = el('ctx-company-initial');
-  const ctxFavicon = el('ctx-company-favicon');
-  const ctxStatusText = el('ctx-status-text');
-
-  const title = jobTitle && jobTitle.toLowerCase() !== 'no job description' ? jobTitle : 'Resume Analysis';
-  if (ctxTitle) ctxTitle.textContent = title;
-  if (ctxStatusText) ctxStatusText.textContent = 'Complete';
-
-  if (companyName) {
-    if (ctxCompany) { ctxCompany.textContent = companyName; ctxCompany.style.display = 'block'; }
-    // Try to show company favicon if not already loaded
-    if (ctxFavicon && !ctxFavicon.src.includes('google.com/s2/favicons')) {
-      // Use a domain guess from company name (best-effort; works for big companies)
-      const slug = companyName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
-      ctxFavicon.src = `https://www.google.com/s2/favicons?domain=${slug}.com&sz=32`;
-      ctxFavicon.onerror = () => {
-        ctxFavicon.style.display = 'none';
-        if (ctxInitial) { ctxInitial.textContent = companyName.charAt(0); ctxInitial.style.display = 'inline-block'; }
-      };
-      ctxFavicon.onload = () => { ctxFavicon.style.display = 'inline-block'; if (ctxInitial) ctxInitial.style.display = 'none'; };
-    }
-  }
-}
 
 function startAgentAnalysis(sessionId) {
   // 1. Immediately Activate View — BEFORE anything else
@@ -1046,9 +980,7 @@ function startAgentAnalysis(sessionId) {
   const tabsReset = el('results-tabs-menu');
   if (tabsReset) tabsReset.style.display = 'none';
 
-  // Hide context header until first step fires
-  const ctxHeader = el('scan-context-header');
-  if (ctxHeader) ctxHeader.style.display = 'none';
+
 
   // 4. Safely Clear previous analysis UI components
   const timeline = el('agent-timeline');
@@ -1156,7 +1088,7 @@ function startAgentAnalysis(sessionId) {
           if (initBlock) initBlock.style.display = 'none';
           if (dashboard) dashboard.style.display = 'block';
           // Show context header on first step — pre-populate with URL company if available
-          if (data.step === 1) showScanContextHeader();
+
           addAgentStepCard(data.step, data.name, data.label);
         } else if (data.status === 'complete' || data.status === 'locked' || data.status === 'error') {
           if (initBlock) initBlock.style.display = 'none';
@@ -1227,7 +1159,7 @@ function startAgentAnalysis(sessionId) {
           localStorage.setItem('resumeXray_currentScanId', String(data.scanId));
         }
         // Update context header with real job title + company from scan result
-        updateScanContextHeader(data.job_title, data.company_name);
+
         if (currentUser) fetchUser().then(() => finalizeAgentUI(data));
         else finalizeAgentUI(data);
         break;
@@ -1948,55 +1880,7 @@ function setupAgentHistoricalView(data) {
   const tabMenu = el('results-tabs-menu');
   if (tabMenu) tabMenu.style.display = ''; // Let CSS (grid on mobile, flex on desktop) take over
 
-  // 1b. Populate context header from scan data
-  (function populateContextHeader() {
-    const header = el('scan-context-header');
-    if (!header) return;
 
-    const ctxTitle    = el('ctx-job-title');
-    const ctxCompany  = el('ctx-company-name');
-    const ctxInitial  = el('ctx-company-initial');
-    const ctxFavicon  = el('ctx-company-favicon');
-    const ctxStatus   = el('ctx-status-text');
-    const ctxBadge    = header.querySelector('.scan-ctx-badge');
-
-    // Determine job title
-    let jobTitle = data.job_title || data.jobTitle || '';
-    if (!jobTitle || jobTitle.toLowerCase() === 'no job description') jobTitle = 'Resume Analysis';
-    if (ctxTitle) ctxTitle.textContent = jobTitle;
-
-    // Determine company name — from stored field or extracted from job URL
-    let company = data.company_name || data.companyName || '';
-    if (!company && (data.job_url || data.jobUrl)) {
-      company = extractCompanyFromUrl(data.job_url || data.jobUrl) || '';
-    }
-
-    if (company) {
-      if (ctxCompany) { ctxCompany.textContent = company; ctxCompany.style.display = 'block'; }
-      // Try favicon
-      const slug = company.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
-      if (ctxFavicon) {
-        ctxFavicon.src = `https://www.google.com/s2/favicons?domain=${slug}.com&sz=32`;
-        ctxFavicon.onerror = () => {
-          ctxFavicon.style.display = 'none';
-          if (ctxInitial) { ctxInitial.textContent = company.charAt(0); ctxInitial.style.display = 'inline-block'; }
-        };
-        ctxFavicon.onload = () => { ctxFavicon.style.display = 'inline-block'; if (ctxInitial) ctxInitial.style.display = 'none'; };
-      }
-    } else {
-      if (ctxCompany) ctxCompany.style.display = 'none';
-      if (ctxInitial) { ctxInitial.textContent = jobTitle.charAt(0) || '?'; ctxInitial.style.display = 'inline-block'; }
-    }
-
-    // Badge — scan is done; swap to a static "Done" look
-    if (ctxStatus) ctxStatus.textContent = 'Done';
-    if (ctxBadge) {
-      const dot = ctxBadge.querySelector('.scan-ctx-status-dot');
-      if (dot) dot.style.animation = 'none'; // stop pulse, scan is not live
-    }
-
-    header.style.display = 'flex';
-  })();
 
   // 2. Configure PDF viewer overlays
   const scanOverlay = el('pdf-scanning-overlay');
