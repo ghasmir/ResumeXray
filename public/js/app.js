@@ -1535,6 +1535,22 @@ function getSelectedDensity() {
 function reloadPdfPreview(scanId) {
   const previewFrame = el('pdf-preview-frame');
   if (previewFrame) {
+    // Apply an initial responsive height and width for the PDF preview frame
+    function adaptPdfFrameSize(frame) {
+      if (!frame) return;
+      const h = Math.max(320, Math.min(900, window.innerHeight * 0.62));
+      frame.style.height = h + 'px';
+      frame.style.width = '100%';
+    }
+
+    adaptPdfFrameSize(previewFrame);
+    // Bind a resize handler once per frame to adjust height on viewport changes
+    if (!previewFrame._pdfrsBound) {
+      const resizeHandler = () => adaptPdfFrameSize(previewFrame);
+      window.addEventListener('resize', resizeHandler);
+      previewFrame._pdfrsBound = true;
+      previewFrame._pdfrsResizeHandler = resizeHandler;
+    }
     const template = getSelectedTemplate();
     const density = getSelectedDensity();
     // Show loading skeleton while iframe renders
@@ -1556,6 +1572,8 @@ function reloadPdfPreview(scanId) {
       previewFrame.style.opacity = '1';
       if (skeleton) skeleton.style.display = 'none';
       previewFrame.removeEventListener('load', onLoad);
+      // Re-apply size in case iframe content changes height after load
+      adaptPdfFrameSize(previewFrame);
     });
   }
 }
