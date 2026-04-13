@@ -278,6 +278,9 @@ router.post('/login', authLimiter, async (req, res) => {
     await clearLoginAttemptsState(ipKey);
     await clearLoginAttemptsState(emailKey);
 
+    // Save guest scan tokens BEFORE regenerating (regenerate destroys session data)
+    const savedGuestTokens = req.session.guestScanTokens || [];
+
     // Session fixation prevention: regenerate session ID on login
     req.session.regenerate(err => {
       if (err) {
@@ -285,9 +288,25 @@ router.post('/login', authLimiter, async (req, res) => {
         return res.status(500).json({ error: 'Login failed.' });
       }
 
-      req.login(user, err => {
+      req.login(user, async err => {
         if (err) return res.status(500).json({ error: 'Login failed.' });
         req.session._createdAt = Date.now(); // Set absolute timeout anchor
+
+        // Claim guest scans from before login (same pattern as signup)
+        try {
+          if (savedGuestTokens.length > 0) {
+            const claimResult = await db.claimGuestScans(user.id, savedGuestTokens);
+            if (claimResult > 0) {
+              log.info('Claimed guest scans for returning user', {
+                userId: user.id,
+                claimed: claimResult,
+              });
+            }
+          }
+        } catch (claimErr) {
+          log.warn('Failed to claim guest scans on login', { error: claimErr.message });
+        }
+
         res.json({
           success: true,
           user: { id: user.id, name: user.name, email: user.email, plan: user.plan },

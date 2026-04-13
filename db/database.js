@@ -318,7 +318,7 @@ function getUserTier(userId) {
 function verifyUser(userId) {
   getDb()
     .prepare(
-      "UPDATE users SET is_verified = 1, verification_token = NULL, verification_token_expires = NULL, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE users SET is_verified = 1, email_verified_at = COALESCE(email_verified_at, datetime('now')), verification_token = NULL, verification_token_expires = NULL, updated_at = datetime('now') WHERE id = ?"
     )
     .run(userId);
 }
@@ -859,6 +859,12 @@ function getCoverLetter(id, userId) {
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────
 
+function updateAvatarUrl(userId, avatarUrl) {
+  getDb()
+    .prepare("UPDATE users SET avatar_url = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(avatarUrl, userId);
+}
+
 function deleteUserAccount(userId) {
   const db = getDb();
   const txn = db.transaction(() => {
@@ -1094,6 +1100,7 @@ module.exports = {
   getCoverLetter,
   recordGuestScan,
   getGuestScanCount,
+  updateAvatarUrl,
   deleteUserAccount,
   closeDb,
   verifyUser,

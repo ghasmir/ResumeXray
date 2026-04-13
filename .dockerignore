@@ -16,6 +16,10 @@ deploy/
 _agents/
 tmp_uploads/
 data/
+backups/
 *.sqlite
 *.db
+*.db-wal
+*.db-shm
+*.log
 .DS_Store

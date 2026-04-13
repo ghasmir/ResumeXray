@@ -231,16 +231,7 @@ router.put('/avatar', isAuthenticated, (req, res, next) => {
     const avatarUrl = `/uploads/avatars/${filename}`;
 
     // Update avatar_url in the database
-    const { getDb } = db;
-    if (typeof getDb === 'function') {
-      const dbInst = getDb();
-      if (dbInst.query) {
-        await dbInst.query('UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2', [avatarUrl, req.user.id]);
-      } else {
-        dbInst.prepare("UPDATE users SET avatar_url = ?, updated_at = datetime('now') WHERE id = ?")
-          .run(avatarUrl, req.user.id);
-      }
-    }
+    await db.updateAvatarUrl(req.user.id, avatarUrl);
 
     res.json({ success: true, avatarUrl });
   } catch (err) {

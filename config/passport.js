@@ -81,7 +81,9 @@ function configurePassport() {
         scope: ['user:email'],
       }, async (accessToken, refreshToken, profile, done) => {
         try {
-          const email = profile.emails?.[0]?.value || `${profile.username}@github.local`;
+          // Store null if no email is provided. Our DB and downstream flows
+          // (like passport local strategy and password reset) require real emails.
+          const email = profile.emails?.[0]?.value || null;
           const user = await findOrCreateUser({
             provider: 'github',
             profileId: profile.id,

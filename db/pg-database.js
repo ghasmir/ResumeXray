@@ -677,6 +677,13 @@ async function getGuestScanCount(ipAddress) {
 
 // ── Account Deletion ──────────────────────────────────────────────────────────
 
+async function updateAvatarUrl(userId, avatarUrl) {
+  await getDb().query(
+    'UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2',
+    [avatarUrl, userId]
+  );
+}
+
 async function deleteUserAccount(userId) {
   await withTx(async client => {
     await client.query('DELETE FROM download_history WHERE user_id = $1', [userId]);
@@ -899,6 +906,7 @@ module.exports = {
   getCoverLetter,
   recordGuestScan,
   getGuestScanCount,
+  updateAvatarUrl,
   deleteUserAccount,
   closeDb,
   verifyUser,

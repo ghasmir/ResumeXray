@@ -99,7 +99,7 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
     if (req.user) {
       await db.incrementScanCount(req.user.id);
     } else {
-      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+      const ip = req.ip || 'unknown';
       await db.recordGuestScan(ip);
     }
 

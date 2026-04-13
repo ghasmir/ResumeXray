@@ -1,4 +1,4 @@
-const { PLANS } = require('../config/stripe');
+// Credit pack definitions imported from config/stripe.js if needed
 
 // Check if user is authenticated
 function isAuthenticated(req, res, next) {
