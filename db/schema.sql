@@ -16,6 +16,12 @@ CREATE TABLE IF NOT EXISTS users (
   stripe_customer_id TEXT UNIQUE,
   scans_used INTEGER DEFAULT 0,
   ai_credits_used INTEGER DEFAULT 0,
+  is_verified INTEGER DEFAULT 0,
+  email_verified_at TEXT,
+  verification_token TEXT,
+  verification_token_expires TEXT,
+  reset_password_token TEXT,
+  reset_password_expires TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -47,10 +53,12 @@ CREATE TABLE IF NOT EXISTS scans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   resume_id INTEGER REFERENCES resumes(id) ON DELETE SET NULL,
+  access_token TEXT,
   job_description TEXT,
   job_url TEXT,
   job_title TEXT,
   company_name TEXT,
+  ats_platform TEXT,
   parse_rate REAL,
   format_health REAL,
   match_rate REAL,
@@ -63,6 +71,7 @@ CREATE TABLE IF NOT EXISTS scans (
   optimized_bullets TEXT,
   keyword_plan TEXT,
   optimized_resume_text TEXT,
+  cover_letter_text TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 

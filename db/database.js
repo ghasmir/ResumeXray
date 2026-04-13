@@ -64,7 +64,17 @@ function runMigrations(database) {
 
   function migrate(version, sql) {
     if (applied.has(version)) return;
-    database.exec(sql);
+    try {
+      database.exec(sql);
+    } catch (err) {
+      // SQLite throws "duplicate column name" if ALTER TABLE ADD COLUMN
+      // is run on a fresh DB where schema.sql already has the column.
+      if (err.message && err.message.includes('duplicate column name')) {
+        log.info(`Migration ${version} skipped (column already exists)`);
+      } else {
+        throw err;
+      }
+    }
     database.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(version);
     log.info(`Migration applied: ${version}`);
   }
