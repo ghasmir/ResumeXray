@@ -781,23 +781,50 @@ function switchTab(tabId) {
   if (tabId === 'tab-pdf-preview' || tabId === 'pdf-preview') {
     const previewFrame = el('pdf-preview-frame');
     const bar = el('agent-download-bar');
-    if (previewFrame && bar && bar.dataset.scanId) {
-      // Reload if iframe is blank OR if it's pointing to a different scan
-      if (
-        !previewFrame.src ||
-        previewFrame.src.includes('about:blank') ||
-        !previewFrame.src.includes(bar.dataset.scanId)
-      ) {
-        reloadPdfPreview(bar.dataset.scanId);
+    const scanId = bar?.dataset?.scanId || currentScan?.id || currentScan?.scanId;
+
+    if (scanId) {
+      // Update the bar dataset if needed
+      if (bar && !bar.dataset.scanId) {
+        bar.dataset.scanId = scanId;
       }
+
+      // Always reload on tab switch to ensure fresh content
+      reloadPdfPreview(scanId);
+
+      // Show the viewer overlay if it was hidden
+      const viewOverlay = el('pdf-viewer-overlay');
+      const scanOverlay = el('pdf-scanning-overlay');
+      if (viewOverlay) viewOverlay.style.display = 'flex';
+      if (scanOverlay) scanOverlay.style.display = 'none';
     }
   }
+
   // Lazy-load cover letter preview when switching to that tab
   if (tabId === 'tab-cover-letter' || tabId === 'cover-letter') {
     const bar = el('agent-download-bar');
     const clContainer = el('cover-letter-content');
-    if (bar && bar.dataset.scanId && clContainer && !clContainer.querySelector('.preview-iframe')) {
-      renderCoverLetter('');
+    const scanId = bar?.dataset?.scanId || currentScan?.id || currentScan?.scanId;
+
+    if (scanId) {
+      // Update the bar dataset if needed
+      if (bar && !bar.dataset.scanId) {
+        bar.dataset.scanId = scanId;
+      }
+
+      // Render cover letter if container is empty or has no iframe
+      const hasContent =
+        clContainer?.querySelector('.preview-iframe') ||
+        clContainer?.querySelector('.preview-frame') ||
+        (clContainer?.textContent && clContainer.textContent.trim().length > 50);
+
+      if (!hasContent) {
+        renderCoverLetter('');
+      }
+
+      // Show actions bar
+      const actions = el('cover-letter-actions');
+      if (actions) actions.style.display = 'flex';
     }
   }
 }
@@ -1757,6 +1784,14 @@ async function finalizeAgentUI(data) {
   const bar = el('agent-download-bar');
   if (bar && data.scanId) bar.dataset.scanId = data.scanId;
 
+  // 5b. Initialize PDF preview immediately if on PDF tab or prepare for lazy loading
+  if (data.scanId) {
+    const currentTab = sessionStorage.getItem('resumeXray_activeTab') || 'tab-diagnosis';
+    if (currentTab === 'tab-pdf-preview') {
+      reloadPdfPreview(data.scanId);
+    }
+  }
+
   // 6. No full-page overlay — just show the tab and toast
   switchTab('tab-diagnosis');
   showToast(
@@ -1936,60 +1971,94 @@ function getSelectedDensity() {
 
 function reloadPdfPreview(scanId) {
   const previewFrame = el('pdf-preview-frame');
-  if (previewFrame) {
-    // Apply an initial responsive height and width for the PDF preview frame
-    function adaptPdfFrameSize(frame) {
-      if (!frame) return;
-      const h = Math.max(320, Math.min(900, window.innerHeight * 0.62));
-      frame.style.height = h + 'px';
-      frame.style.width = '100%';
-    }
+  if (!previewFrame) return;
 
-    adaptPdfFrameSize(previewFrame);
-    // If the PDF cannot be rendered/read by the current model, surface a user-friendly error
-    previewFrame.onerror = function () {
-      // Clear skeleton and let user know
-      if (skeleton) skeleton.style.display = 'none';
-      showToast(
-        'Unable to render the PDF preview. The optimization model currently does not support reading PDF inputs. Consider exporting as text or DOCX for a readable preview, or retry later when a fix is available.',
-        'error',
-        { duration: 10000 }
-      );
-    };
-    // Bind a resize handler once per frame to adjust height on viewport changes
-    if (!previewFrame._pdfrsBound) {
-      const resizeHandler = () => adaptPdfFrameSize(previewFrame);
-      window.addEventListener('resize', resizeHandler);
-      previewFrame._pdfrsBound = true;
-      previewFrame._pdfrsResizeHandler = resizeHandler;
-    }
-    const template = getSelectedTemplate();
-    const density = getSelectedDensity();
-    // Show loading skeleton while iframe renders
-    const container = previewFrame.parentElement;
-    let skeleton = container?.querySelector('.preview-skeleton');
-    if (!skeleton && container) {
-      skeleton = document.createElement('div');
-      skeleton.className = 'preview-skeleton';
-      skeleton.innerHTML = safeHtml(
-        '<div class="loader"></div><p class="body-sm text-muted" style="margin-top:var(--sp-3)">Rendering preview…</p>'
-      );
-      skeleton.style.cssText =
-        'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;';
-      container.insertBefore(skeleton, previewFrame);
-    }
-    if (skeleton) skeleton.style.display = 'flex';
-    previewFrame.style.opacity = '0';
-    let url = `/api/agent/preview/${scanId}?template=${template}&density=${density}&t=${Date.now()}${currentScanTokenQuery()}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
-    previewFrame.src = url;
-    previewFrame.addEventListener('load', function onLoad() {
-      previewFrame.style.opacity = '1';
-      if (skeleton) skeleton.style.display = 'none';
-      previewFrame.removeEventListener('load', onLoad);
-      // Re-apply size in case iframe content changes height after load
-      adaptPdfFrameSize(previewFrame);
-    });
+  // Apply an initial responsive height and width for the PDF preview frame
+  function adaptPdfFrameSize(frame) {
+    if (!frame) return;
+    const h = Math.max(320, Math.min(900, window.innerHeight * 0.62));
+    frame.style.height = h + 'px';
+    frame.style.width = '100%';
   }
+
+  adaptPdfFrameSize(previewFrame);
+
+  const template = getSelectedTemplate();
+  const density = getSelectedDensity();
+
+  // Show loading skeleton while iframe renders
+  const container = previewFrame.parentElement;
+  let skeleton = container?.querySelector('.preview-skeleton');
+  if (!skeleton && container) {
+    skeleton = document.createElement('div');
+    skeleton.className = 'preview-skeleton';
+    skeleton.innerHTML = safeHtml(
+      '<div class="loader"></div><p class="body-sm text-muted" style="margin-top:var(--sp-3)">Rendering preview…</p>'
+    );
+    skeleton.style.cssText =
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;';
+    container.insertBefore(skeleton, previewFrame);
+  }
+  if (skeleton) skeleton.style.display = 'flex';
+  previewFrame.style.opacity = '0';
+
+  // Build the preview URL with proper token
+  let url = `/api/agent/preview/${scanId}?template=${template}&density=${density}&t=${Date.now()}${currentScanTokenQuery()}`;
+
+  // Handle iframe load errors
+  const handleError = () => {
+    if (skeleton) skeleton.style.display = 'none';
+    previewFrame.style.opacity = '1';
+    // Show error message inside the preview container
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'pdf-error-message';
+    errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
+    errorDiv.innerHTML = safeHtml(`
+      <div style="font-size:3rem;margin-bottom:1rem;opacity:0.5">📄</div>
+      <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
+      <p class="body-sm">Unable to load the PDF preview. The file may still be processing or there was an error.</p>
+      <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="reloadPdfPreview('${scanId}')">Retry</button>
+    `);
+    if (container) {
+      // Remove any existing error messages
+      const existingError = container.querySelector('.pdf-error-message');
+      if (existingError) existingError.remove();
+      container.appendChild(errorDiv);
+    }
+  };
+
+  // Set up load handler
+  const handleLoad = () => {
+    previewFrame.style.opacity = '1';
+    if (skeleton) skeleton.style.display = 'none';
+    // Remove any error messages on successful load
+    const existingError = container?.querySelector('.pdf-error-message');
+    if (existingError) existingError.remove();
+    // Re-apply size in case iframe content changes height after load
+    adaptPdfFrameSize(previewFrame);
+  };
+
+  // Remove old event listeners to prevent duplicates
+  previewFrame.removeEventListener('load', previewFrame._loadHandler);
+  previewFrame.removeEventListener('error', previewFrame._errorHandler);
+
+  // Store handlers for cleanup
+  previewFrame._loadHandler = handleLoad;
+  previewFrame._errorHandler = handleError;
+
+  previewFrame.addEventListener('load', handleLoad);
+  previewFrame.addEventListener('error', handleError);
+
+  // Bind a resize handler once per frame to adjust height on viewport changes
+  if (!previewFrame._pdfrsBound) {
+    const resizeHandler = () => adaptPdfFrameSize(previewFrame);
+    window.addEventListener('resize', resizeHandler);
+    previewFrame._pdfrsBound = true;
+    previewFrame._pdfrsResizeHandler = resizeHandler;
+  }
+
+  // Set the iframe source
+  previewFrame.src = url;
 }
 
 async function downloadOptimized(format) {
@@ -2152,7 +2221,7 @@ function setupAgentHistoricalView(data) {
   const tabMenu = el('results-tabs-menu');
   if (tabMenu) tabMenu.style.display = ''; // Let CSS (grid on mobile, flex on desktop) take over
 
-  // 2. Configure PDF viewer overlays
+  // 2. Configure PDF viewer overlays - ensure they're properly initialized
   const scanOverlay = el('pdf-scanning-overlay');
   const viewOverlay = el('pdf-viewer-overlay');
   if (scanOverlay) scanOverlay.style.display = 'none';
@@ -3527,43 +3596,83 @@ function renderCoverLetter(text) {
   currentCoverLetterText = text;
   const container = el('cover-letter-content');
   const actions = el('cover-letter-actions');
+  const streamContainer = el('cover-letter-stream');
   if (!container) return;
 
+  // Get scanId from multiple possible sources
   const bar = el('agent-download-bar');
-  const scanId = bar ? bar.dataset.scanId : null;
+  const scanId = bar?.dataset?.scanId || currentScan?.id || currentScan?.scanId;
+
   if (!scanId) {
     container.innerHTML = safeHtml(
       '<div class="preview-empty" style="padding:2rem;text-align:center;color:var(--text-muted);">No cover letter yet.</div>'
     );
+    if (actions) actions.style.display = 'none';
     return;
   }
 
+  // If we have streaming text content, display it directly
+  if (text && text.trim().length > 0 && streamContainer) {
+    streamContainer.innerHTML = esc(text);
+    if (actions) actions.style.display = 'flex';
+    return;
+  }
+
+  // Otherwise, try to load via iframe preview
   container.innerHTML = safeHtml(`
-    <div class="preview-frame">
-      <iframe class="preview-iframe" src="/api/agent/cover-letter-preview/${esc(scanId)}?t=${Date.now()}${currentScanTokenQuery()}" title="Cover letter preview"></iframe>
+    <div class="preview-frame" style="position:relative;min-height:400px;">
+      <div class="cover-letter-skeleton" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg-card);">
+        <div class="loader"></div>
+        <p class="body-sm text-muted" style="margin-top:var(--sp-3)">Loading cover letter...</p>
+      </div>
+      <iframe class="preview-iframe" src="/api/agent/cover-letter-preview/${esc(scanId)}?t=${Date.now()}${currentScanTokenQuery()}" title="Cover letter preview" style="width:100%;min-height:400px;border:none;"></iframe>
     </div>`);
 
-  // Auto-resize iframe to fit content (no white space)
+  // Handle iframe load
   const iframe = container.querySelector('.preview-iframe');
+  const skeleton = container.querySelector('.cover-letter-skeleton');
+
   if (iframe) {
     iframe.addEventListener('load', () => {
+      if (skeleton) skeleton.style.display = 'none';
+      iframe.style.opacity = '1';
+      // Auto-resize iframe to fit content
       try {
-        const doc = iframe.contentDocument || iframe.contentWindow.document;
-        const contentHeight = doc.documentElement.scrollHeight || doc.body.scrollHeight;
-        iframe.style.height = contentHeight + 'px';
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc) {
+          const contentHeight = Math.max(
+            doc.documentElement?.scrollHeight || 0,
+            doc.body?.scrollHeight || 0
+          );
+          if (contentHeight > 100) {
+            iframe.style.height = contentHeight + 'px';
+          } else {
+            iframe.style.height = '850px';
+          }
+        }
       } catch (e) {
-        // Cross-origin fallback — use a reasonable default
+        // Cross-origin fallback
         iframe.style.height = '850px';
       }
+    });
+
+    iframe.addEventListener('error', () => {
+      if (skeleton) skeleton.style.display = 'none';
+      // Show fallback message
+      container.innerHTML = safeHtml(`
+        <div style="padding:3rem;text-align:center;color:var(--text-muted);">
+          <div style="font-size:3rem;margin-bottom:1rem;opacity:0.5">✉️</div>
+          <h4 style="color:var(--text-main);margin-bottom:0.5rem">Cover letter preview unavailable</h4>
+          <p class="body-sm">The cover letter may still be generating or there was an error loading the preview.</p>
+          <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="renderCoverLetter('')">Retry</button>
+        </div>
+      `);
     });
   }
 
   if (actions) actions.style.display = 'flex';
 
   // ── Copy Protection ─────────────────────────────────────────────
-  // Block text selection and clipboard events on cover letter content.
-  // This complements the CSS user-select:none by also preventing programmatic
-  // clipboard extraction via keyboard shortcuts (Ctrl+C / Cmd+C).
   const protectedEl = container;
   if (protectedEl && !protectedEl._copyProtected) {
     protectedEl._copyProtected = true;

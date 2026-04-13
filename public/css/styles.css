@@ -1761,7 +1761,27 @@ a:hover {
 .recruiter-table td {
   padding: var(--sp-4) var(--sp-5);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  vertical-align: middle;
+  vertical-align: top;
+  max-width: 0; /* Enable text-overflow to work properly */
+}
+
+/* Column width constraints */
+.recruiter-table th:first-child,
+.recruiter-table td:first-child {
+  width: 15%;
+  min-width: 100px;
+}
+
+.recruiter-table th:nth-child(2),
+.recruiter-table td:nth-child(2) {
+  width: 70%;
+}
+
+.recruiter-table th:nth-child(3),
+.recruiter-table td:nth-child(3) {
+  width: 15%;
+  min-width: 100px;
+  text-align: center;
 }
 .recruiter-table tr:last-child td {
   border-bottom: none;
@@ -1785,10 +1805,12 @@ a:hover {
   color: var(--text-secondary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
-  max-width: 360px;
+  max-width: 500px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
 }
 .field-missing {
   color: var(--red);
