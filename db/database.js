@@ -23,7 +23,7 @@ function getDb() {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
-    db.pragma('busy_timeout = 5000');  // Retry for 5s instead of SQLITE_BUSY crash
+    db.pragma('busy_timeout = 5000'); // Retry for 5s instead of SQLITE_BUSY crash
     runMigrations(db);
   }
   return db;
@@ -32,12 +32,12 @@ function getDb() {
 function runMigrations(database) {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
   database.exec(schema);
-  
+
   // Add password_hash column if missing (migration for existing DBs)
   try {
-    database.prepare("SELECT password_hash FROM users LIMIT 1").get();
+    database.prepare('SELECT password_hash FROM users LIMIT 1').get();
   } catch {
-    database.exec("ALTER TABLE users ADD COLUMN password_hash TEXT");
+    database.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
   }
 
   // Add agent optimization columns to scans table
@@ -54,8 +54,9 @@ function runMigrations(database) {
   const authCols = [
     { name: 'is_verified', type: 'INTEGER DEFAULT 0' },
     { name: 'verification_token', type: 'TEXT' },
+    { name: 'verification_token_expires', type: 'TEXT' },
     { name: 'reset_password_token', type: 'TEXT' },
-    { name: 'reset_password_expires', type: 'TEXT' }
+    { name: 'reset_password_expires', type: 'TEXT' },
   ];
   for (const col of authCols) {
     try {
@@ -69,14 +70,14 @@ function runMigrations(database) {
 
   // Add credit_balance column if missing
   try {
-    database.prepare("SELECT credit_balance FROM users LIMIT 1").get();
+    database.prepare('SELECT credit_balance FROM users LIMIT 1').get();
   } catch {
-    database.exec("ALTER TABLE users ADD COLUMN credit_balance INTEGER DEFAULT 1");
+    database.exec('ALTER TABLE users ADD COLUMN credit_balance INTEGER DEFAULT 1');
   }
 
   // Add tier column if missing
   try {
-    database.prepare("SELECT tier FROM users LIMIT 1").get();
+    database.prepare('SELECT tier FROM users LIMIT 1').get();
   } catch {
     database.exec("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'");
   }
@@ -109,27 +110,37 @@ function runMigrations(database) {
   `);
 
   // Create index for credit_transactions
-  database.exec("CREATE INDEX IF NOT EXISTS idx_credit_transactions_user ON credit_transactions(user_id)");
-  database.exec("CREATE INDEX IF NOT EXISTS idx_credit_transactions_stripe ON credit_transactions(stripe_session_id)");
-  database.exec("CREATE INDEX IF NOT EXISTS idx_download_history_user ON download_history(user_id)");
-  database.exec("CREATE INDEX IF NOT EXISTS idx_download_history_idempotency ON download_history(idempotency_key)");
+  database.exec(
+    'CREATE INDEX IF NOT EXISTS idx_credit_transactions_user ON credit_transactions(user_id)'
+  );
+  database.exec(
+    'CREATE INDEX IF NOT EXISTS idx_credit_transactions_stripe ON credit_transactions(stripe_session_id)'
+  );
+  database.exec(
+    'CREATE INDEX IF NOT EXISTS idx_download_history_user ON download_history(user_id)'
+  );
+  database.exec(
+    'CREATE INDEX IF NOT EXISTS idx_download_history_idempotency ON download_history(idempotency_key)'
+  );
 
   // Add cover_letter_text column to scans table
   try {
-    database.prepare("SELECT cover_letter_text FROM scans LIMIT 1").get();
+    database.prepare('SELECT cover_letter_text FROM scans LIMIT 1').get();
   } catch {
-    database.exec("ALTER TABLE scans ADD COLUMN cover_letter_text TEXT");
+    database.exec('ALTER TABLE scans ADD COLUMN cover_letter_text TEXT');
   }
 
   // ── SECURITY: Add access_token to scans for guest IDOR protection ──────────
   try {
-    database.prepare("SELECT access_token FROM scans LIMIT 1").get();
+    database.prepare('SELECT access_token FROM scans LIMIT 1').get();
   } catch {
-    database.exec("ALTER TABLE scans ADD COLUMN access_token TEXT");
+    database.exec('ALTER TABLE scans ADD COLUMN access_token TEXT');
     // Backfill existing guest scans with access tokens
-    const guestScans = database.prepare("SELECT id FROM scans WHERE user_id IS NULL AND access_token IS NULL").all();
+    const guestScans = database
+      .prepare('SELECT id FROM scans WHERE user_id IS NULL AND access_token IS NULL')
+      .all();
     if (guestScans.length > 0) {
-      const stmt = database.prepare("UPDATE scans SET access_token = ? WHERE id = ?");
+      const stmt = database.prepare('UPDATE scans SET access_token = ? WHERE id = ?');
       for (const row of guestScans) {
         stmt.run(uuidv4(), row.id);
       }
@@ -139,12 +150,20 @@ function runMigrations(database) {
 
   // ── INTEGRITY: Prevent negative credit balances ────────────────────────────
   try {
-    const negatives = database.prepare("SELECT id FROM users WHERE credit_balance < 0").all();
+    const negatives = database.prepare('SELECT id FROM users WHERE credit_balance < 0').all();
     if (negatives.length > 0) {
-      database.exec("UPDATE users SET credit_balance = 0 WHERE credit_balance < 0");
+      database.exec('UPDATE users SET credit_balance = 0 WHERE credit_balance < 0');
       log.warn('Repaired negative credit balances', { count: negatives.length });
     }
   } catch {}
+
+  // ── PII: Add email_hash column for encrypted email lookup ──────────────────
+  try {
+    database.prepare('SELECT email_hash FROM users LIMIT 1').get();
+  } catch {
+    database.exec('ALTER TABLE users ADD COLUMN email_hash TEXT UNIQUE');
+    log.info('Added email_hash column to users table');
+  }
 
   // ── Phase 3: Scan Sessions Table (replaces in-memory Map) ──────────────────
   database.exec(`
@@ -163,7 +182,9 @@ function runMigrations(database) {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
-  database.exec("CREATE INDEX IF NOT EXISTS idx_scan_sessions_created ON scan_sessions(created_at)");
+  database.exec(
+    'CREATE INDEX IF NOT EXISTS idx_scan_sessions_created ON scan_sessions(created_at)'
+  );
 
   // ── Phase 6 §8.2: Stripe Events Idempotency Table ──────────────────────────
   database.exec(`
@@ -175,34 +196,52 @@ function runMigrations(database) {
       payload_hash TEXT
     )
   `);
-  database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_stripe_events_id ON stripe_events(event_id)");
+  database.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_stripe_events_id ON stripe_events(event_id)'
+  );
 
   log.info('Database schema applied');
 }
 
 // ── User helpers ──────────────────────────────────────────────────────────────
 
+// §CRIT: Provider → column whitelist. Prevents SQL injection via string interpolation.
+const PROVIDER_COLUMNS = Object.freeze({
+  google: 'google_id',
+  linkedin: 'linkedin_id',
+  github: 'github_id',
+});
+
 function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
   const db = getDb();
-  const column = provider === 'google' ? 'google_id' : provider === 'linkedin' ? 'linkedin_id' : 'github_id';
+  const column = PROVIDER_COLUMNS[provider];
+  if (!column) throw new Error(`Unknown OAuth provider: ${provider}`);
 
   let user = db.prepare(`SELECT * FROM users WHERE ${column} = ?`).get(profileId);
-  if (user) return user;
+  if (user) return decryptUserEmail(user);
 
-  // Check if email already exists (link account)
-  user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  // Check if email already exists (link account) — try hash first, then plaintext
+  const hash = emailHash(email);
+  user = db.prepare('SELECT * FROM users WHERE email_hash = ?').get(hash);
+  if (!user) {
+    user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  }
   if (user) {
     // Auto-link OAuth provider to existing account (including password accounts).
     // Safe because Google/LinkedIn/GitHub all verify email ownership.
-    db.prepare(`UPDATE users SET ${column} = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = datetime('now') WHERE id = ?`)
-      .run(profileId, avatarUrl, user.id);
-    return db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+    db.prepare(
+      `UPDATE users SET ${column} = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = datetime('now') WHERE id = ?`
+    ).run(profileId, avatarUrl, user.id);
+    return decryptUserEmail(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id));
   }
 
   // Create new user with 1 signup bonus credit
-  const result = db.prepare(
-    `INSERT INTO users (${column}, email, name, avatar_url, credit_balance) VALUES (?, ?, ?, ?, 1)`
-  ).run(profileId, email, name, avatarUrl);
+  const encryptedEmail = encryptPii(email.toLowerCase().trim());
+  const result = db
+    .prepare(
+      `INSERT INTO users (${column}, email, email_hash, name, avatar_url, credit_balance, is_verified, verification_token, verification_token_expires) VALUES (?, ?, ?, ?, ?, 1, 1, NULL, NULL)`
+    )
+    .run(profileId, encryptedEmail, hash, name, avatarUrl);
 
   const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 
@@ -211,11 +250,12 @@ function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
     `INSERT INTO credit_transactions (user_id, amount, type, description) VALUES (?, 1, 'signup_bonus', 'Welcome bonus credit')`
   ).run(newUser.id);
 
-  return newUser;
+  return decryptUserEmail(newUser);
 }
 
 function getUserById(id) {
-  return getDb().prepare('SELECT * FROM users WHERE id = ?').get(id);
+  const user = getDb().prepare('SELECT * FROM users WHERE id = ?').get(id);
+  return user ? decryptUserEmail(user) : null;
 }
 
 function getUserByStripeCustomerId(customerId) {
@@ -223,53 +263,86 @@ function getUserByStripeCustomerId(customerId) {
 }
 
 function setStripeCustomerId(userId, customerId) {
-  getDb().prepare("UPDATE users SET stripe_customer_id = ?, updated_at = datetime('now') WHERE id = ?")
+  getDb()
+    .prepare("UPDATE users SET stripe_customer_id = ?, updated_at = datetime('now') WHERE id = ?")
     .run(customerId, userId);
 }
 
 function incrementScanCount(userId) {
-  getDb().prepare(`UPDATE users SET scans_used = scans_used + 1, updated_at = datetime('now') WHERE id = ?`)
+  getDb()
+    .prepare(
+      `UPDATE users SET scans_used = scans_used + 1, updated_at = datetime('now') WHERE id = ?`
+    )
     .run(userId);
 }
 
 function incrementAiCredits(userId) {
-  getDb().prepare(`UPDATE users SET ai_credits_used = ai_credits_used + 1, updated_at = datetime('now') WHERE id = ?`)
+  getDb()
+    .prepare(
+      `UPDATE users SET ai_credits_used = ai_credits_used + 1, updated_at = datetime('now') WHERE id = ?`
+    )
     .run(userId);
 }
 
 function updateUserTier(userId, tier) {
-  getDb().prepare(`UPDATE users SET tier = ?, updated_at = datetime('now') WHERE id = ?`)
+  getDb()
+    .prepare(`UPDATE users SET tier = ?, updated_at = datetime('now') WHERE id = ?`)
     .run(tier, userId);
 }
 
 function getUserTier(userId) {
   const user = getDb().prepare('SELECT tier FROM users WHERE id = ?').get(userId);
-  return user ? (user.tier || 'free') : 'free';
+  return user ? user.tier || 'free' : 'free';
 }
 
 function verifyUser(userId) {
-  getDb().prepare("UPDATE users SET is_verified = 1, verification_token = NULL, updated_at = datetime('now') WHERE id = ?").run(userId);
+  getDb()
+    .prepare(
+      "UPDATE users SET is_verified = 1, verification_token = NULL, verification_token_expires = NULL, updated_at = datetime('now') WHERE id = ?"
+    )
+    .run(userId);
 }
 
 function getUserByVerificationToken(token) {
-  return getDb().prepare("SELECT * FROM users WHERE verification_token = ?").get(token);
+  const user = getDb()
+    .prepare(
+      "SELECT * FROM users WHERE verification_token = ? AND (verification_token_expires IS NULL OR verification_token_expires > datetime('now'))"
+    )
+    .get(token);
+  return user ? decryptUserEmail(user) : null;
 }
 
 function setVerificationToken(userId, token) {
-  getDb().prepare("UPDATE users SET verification_token = ?, updated_at = datetime('now') WHERE id = ?").run(token, userId);
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+  getDb()
+    .prepare(
+      "UPDATE users SET verification_token = ?, verification_token_expires = ?, updated_at = datetime('now') WHERE id = ?"
+    )
+    .run(token, expires, userId);
 }
 
 function getUserByResetToken(token) {
-  return getDb().prepare("SELECT * FROM users WHERE reset_password_token = ? AND reset_password_expires > datetime('now')").get(token);
+  const user = getDb()
+    .prepare(
+      "SELECT * FROM users WHERE reset_password_token = ? AND reset_password_expires > datetime('now')"
+    )
+    .get(token);
+  return user ? decryptUserEmail(user) : null;
 }
 
 function setResetToken(email, token, expires) {
-  getDb().prepare("UPDATE users SET reset_password_token = ?, reset_password_expires = ?, updated_at = datetime('now') WHERE email = ?")
+  getDb()
+    .prepare(
+      "UPDATE users SET reset_password_token = ?, reset_password_expires = ?, updated_at = datetime('now') WHERE email = ?"
+    )
     .run(token, expires, email);
 }
 
 function updatePassword(userId, passwordHash) {
-  getDb().prepare("UPDATE users SET password_hash = ?, reset_password_token = NULL, reset_password_expires = NULL, updated_at = datetime('now') WHERE id = ?")
+  getDb()
+    .prepare(
+      "UPDATE users SET password_hash = ?, reset_password_token = NULL, reset_password_expires = NULL, updated_at = datetime('now') WHERE id = ?"
+    )
     .run(passwordHash, userId);
 }
 
@@ -279,30 +352,48 @@ function updatePassword(userId, passwordHash) {
  */
 function linkOAuthProvider(userId, provider, profileId, avatarUrl) {
   const d = getDb();
-  const column = provider === 'google' ? 'google_id' : provider === 'linkedin' ? 'linkedin_id' : 'github_id';
-  d.prepare(`UPDATE users SET ${column} = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = datetime('now') WHERE id = ?`)
-    .run(profileId, avatarUrl, userId);
-  return d.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  const column = PROVIDER_COLUMNS[provider];
+  if (!column) throw new Error(`Unknown OAuth provider: ${provider}`);
+  d.prepare(
+    `UPDATE users SET ${column} = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = datetime('now') WHERE id = ?`
+  ).run(profileId, avatarUrl, userId);
+  return decryptUserEmail(d.prepare('SELECT * FROM users WHERE id = ?').get(userId));
 }
 
 // §10.8: Auth helpers — match PG adapter interface
 function getUserByEmail(email) {
-  return getDb().prepare('SELECT * FROM users WHERE email = ?').get(email);
+  // Try email_hash lookup first (for encrypted emails), fall back to plaintext
+  const hash = emailHash(email);
+  let user = getDb().prepare('SELECT * FROM users WHERE email_hash = ?').get(hash);
+  if (!user) {
+    // Fallback for plaintext emails during migration period
+    user = getDb().prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  }
+  return user ? decryptUserEmail(user) : null;
 }
 
 function createUser({ email, name, passwordHash, verificationToken }) {
-  const result = getDb().prepare(
-    'INSERT INTO users (email, name, password_hash, verification_token) VALUES (?, ?, ?, ?)'
-  ).run(email, name, passwordHash, verificationToken);
+  const verificationTokenExpires = verificationToken
+    ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    : null;
+  const encryptedEmail = encryptPii(email.toLowerCase().trim());
+  const hash = emailHash(email);
+  const result = getDb()
+    .prepare(
+      'INSERT INTO users (email, email_hash, name, password_hash, verification_token, verification_token_expires) VALUES (?, ?, ?, ?, ?, ?)'
+    )
+    .run(encryptedEmail, hash, name, passwordHash, verificationToken, verificationTokenExpires);
   return result.lastInsertRowid;
 }
 
 function claimGuestScans(userId, accessTokens) {
   if (!accessTokens || accessTokens.length === 0) return 0;
   const placeholders = accessTokens.map(() => '?').join(',');
-  const result = getDb().prepare(
-    `UPDATE scans SET user_id = ? WHERE user_id IS NULL AND access_token IN (${placeholders})`
-  ).run(userId, ...accessTokens);
+  const result = getDb()
+    .prepare(
+      `UPDATE scans SET user_id = ? WHERE user_id IS NULL AND access_token IN (${placeholders})`
+    )
+    .run(userId, ...accessTokens);
   return result.changes;
 }
 
@@ -313,7 +404,7 @@ function claimGuestScans(userId, accessTokens) {
  */
 function getCreditBalance(userId) {
   const user = getDb().prepare('SELECT credit_balance FROM users WHERE id = ?').get(userId);
-  return user ? (user.credit_balance || 0) : 0;
+  return user ? user.credit_balance || 0 : 0;
 }
 
 /**
@@ -324,27 +415,35 @@ function getCreditBalance(userId) {
 function addCredits(userId, amount, type, stripeSessionId = null, description = '') {
   const db = getDb();
 
-  // Idempotency check — if stripe session already processed, skip
-  if (stripeSessionId) {
-    const existing = db.prepare('SELECT id FROM credit_transactions WHERE stripe_session_id = ?').get(stripeSessionId);
-    if (existing) {
-      log.warn('Duplicate stripe session — skipping credit add', { stripeSessionId });
-      return false;
-    }
-  }
-
   const txn = db.transaction(() => {
-    db.prepare('UPDATE users SET credit_balance = credit_balance + ?, updated_at = datetime(\'now\') WHERE id = ?')
-      .run(amount, userId);
+    // §CRIT: Idempotency check INSIDE transaction — prevents TOCTOU race.
+    // Two concurrent Stripe webhooks could both pass the check before either inserts.
+    if (stripeSessionId) {
+      const existing = db
+        .prepare('SELECT id FROM credit_transactions WHERE stripe_session_id = ?')
+        .get(stripeSessionId);
+      if (existing) {
+        log.warn('Duplicate stripe session — skipping credit add', { stripeSessionId });
+        return false;
+      }
+    }
+
+    db.prepare(
+      "UPDATE users SET credit_balance = credit_balance + ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(amount, userId);
 
     db.prepare(
       'INSERT INTO credit_transactions (user_id, stripe_session_id, amount, type, description) VALUES (?, ?, ?, ?, ?)'
     ).run(userId, stripeSessionId, amount, type, description);
+
+    return true;
   });
 
-  txn();
-  log.info('Credits added', { userId, amount, type });
-  return true;
+  const result = txn();
+  if (result !== false) {
+    log.info('Credits added', { userId, amount, type });
+  }
+  return result;
 }
 
 /**
@@ -360,8 +459,9 @@ function deductCredit(userId, type, description = '') {
   }
 
   const txn = db.transaction(() => {
-    db.prepare('UPDATE users SET credit_balance = credit_balance - 1, updated_at = datetime(\'now\') WHERE id = ?')
-      .run(userId);
+    db.prepare(
+      "UPDATE users SET credit_balance = credit_balance - 1, updated_at = datetime('now') WHERE id = ?"
+    ).run(userId);
 
     db.prepare(
       'INSERT INTO credit_transactions (user_id, amount, type, description) VALUES (?, -1, ?, ?)'
@@ -381,7 +481,9 @@ function deductCreditAtomic(userId, type, idempotencyKey, description = '') {
   const db = getDb();
 
   // Idempotency check — if this key was already processed, skip
-  const existing = db.prepare('SELECT id FROM download_history WHERE idempotency_key = ?').get(idempotencyKey);
+  const existing = db
+    .prepare('SELECT id FROM download_history WHERE idempotency_key = ?')
+    .get(idempotencyKey);
   if (existing) {
     log.warn('Duplicate export key — skipping deduction', { idempotencyKey });
     return { success: true, alreadyProcessed: true };
@@ -396,8 +498,9 @@ function deductCreditAtomic(userId, type, idempotencyKey, description = '') {
       return { success: false, alreadyProcessed: false };
     }
 
-    db.prepare('UPDATE users SET credit_balance = credit_balance - 1, updated_at = datetime(\'now\') WHERE id = ?')
-      .run(userId);
+    db.prepare(
+      "UPDATE users SET credit_balance = credit_balance - 1, updated_at = datetime('now') WHERE id = ?"
+    ).run(userId);
 
     db.prepare(
       'INSERT INTO credit_transactions (user_id, amount, type, description) VALUES (?, -1, ?, ?)'
@@ -442,31 +545,37 @@ function recordWatermarkedDownload(userId, scanId, format, type = 'resume') {
  * Get download history for a user.
  */
 function getDownloadHistory(userId, limit = 50) {
-  return getDb().prepare(
-    'SELECT * FROM download_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'
-  ).all(userId, limit);
+  return getDb()
+    .prepare('SELECT * FROM download_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
+    .all(userId, limit);
 }
 
 /**
  * Get credit transaction history for a user.
  */
 function getCreditHistory(userId, limit = 50) {
-  return getDb().prepare(
-    'SELECT * FROM credit_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'
-  ).all(userId, limit);
+  return getDb()
+    .prepare('SELECT * FROM credit_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
+    .all(userId, limit);
 }
 
 // ── Resume helpers ────────────────────────────────────────────────────────────
 
 function saveResume(userId, { name, fileName, fileType, fileSize, rawText, parsedData }) {
-  const result = getDb().prepare(
-    'INSERT INTO resumes (user_id, name, file_name, file_type, file_size, raw_text, parsed_data) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(userId, name, fileName, fileType, fileSize, rawText, JSON.stringify(parsedData));
+  const result = getDb()
+    .prepare(
+      'INSERT INTO resumes (user_id, name, file_name, file_type, file_size, raw_text, parsed_data) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    )
+    .run(userId, name, fileName, fileType, fileSize, rawText, JSON.stringify(parsedData));
   return result.lastInsertRowid;
 }
 
 function getUserResumes(userId) {
-  return getDb().prepare('SELECT id, name, file_name, file_type, file_size, created_at, updated_at FROM resumes WHERE user_id = ? ORDER BY updated_at DESC').all(userId);
+  return getDb()
+    .prepare(
+      'SELECT id, name, file_name, file_type, file_size, created_at, updated_at FROM resumes WHERE user_id = ? ORDER BY updated_at DESC'
+    )
+    .all(userId);
 }
 
 function getResume(id, userId) {
@@ -483,29 +592,56 @@ function saveScan(userId, data) {
   // Generate access_token for guest scans (IDOR protection)
   const accessToken = userId ? null : uuidv4();
 
-  const result = getDb().prepare(
-    `INSERT INTO scans (user_id, resume_id, job_description, job_url, job_title, company_name,
+  const result = getDb()
+    .prepare(
+      `INSERT INTO scans (user_id, resume_id, job_description, job_url, job_title, company_name,
      parse_rate, format_health, match_rate, xray_data, format_issues, keyword_data, section_data, recommendations, ai_suggestions, access_token)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    userId, data.resumeId || null, data.jobDescription || null, data.jobUrl || null,
-    data.jobTitle || null, data.companyName || null,
-    data.parseRate || 0, data.formatHealth || 0, data.matchRate || null,
-    JSON.stringify(data.xrayData || {}), JSON.stringify(data.formatIssues || []),
-    JSON.stringify(data.keywordData || {}), JSON.stringify(data.sectionData || {}),
-    JSON.stringify(data.recommendations || []), JSON.stringify(data.aiSuggestions || {}),
-    accessToken
-  );
+    )
+    .run(
+      userId,
+      data.resumeId || null,
+      data.jobDescription || null,
+      data.jobUrl || null,
+      data.jobTitle || null,
+      data.companyName || null,
+      data.parseRate || 0,
+      data.formatHealth || 0,
+      data.matchRate || null,
+      JSON.stringify(data.xrayData || {}),
+      JSON.stringify(data.formatIssues || []),
+      JSON.stringify(data.keywordData || {}),
+      JSON.stringify(data.sectionData || {}),
+      JSON.stringify(data.recommendations || []),
+      JSON.stringify(data.aiSuggestions || {}),
+      accessToken
+    );
 
   const scanId = result.lastInsertRowid;
   return { scanId, accessToken };
 }
 
 function updateScan(scanId, data) {
-  const ALLOWED_COLS = ['resume_id', 'job_description', 'job_url', 'job_title', 'company_name',
-    'parse_rate', 'format_health', 'match_rate', 'xray_data', 'format_issues',
-    'keyword_data', 'section_data', 'recommendations', 'ai_suggestions',
-    'optimized_bullets', 'keyword_plan', 'optimized_resume_text', 'cover_letter_text'];
+  const ALLOWED_COLS = [
+    'resume_id',
+    'job_description',
+    'job_url',
+    'job_title',
+    'company_name',
+    'parse_rate',
+    'format_health',
+    'match_rate',
+    'xray_data',
+    'format_issues',
+    'keyword_data',
+    'section_data',
+    'recommendations',
+    'ai_suggestions',
+    'optimized_bullets',
+    'keyword_plan',
+    'optimized_resume_text',
+    'cover_letter_text',
+  ];
   const fields = [];
   const values = [];
   for (const [key, val] of Object.entries(data)) {
@@ -518,55 +654,85 @@ function updateScan(scanId, data) {
   }
   if (fields.length === 0) return;
   values.push(scanId);
-  getDb().prepare(`UPDATE scans SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  getDb()
+    .prepare(`UPDATE scans SET ${fields.join(', ')} WHERE id = ?`)
+    .run(...values);
 }
 
 function getUserScans(userId, limit = 20) {
-  return getDb().prepare(`
+  return getDb()
+    .prepare(
+      `
     SELECT id, job_title, company_name, job_url, job_description,
            parse_rate, format_health, match_rate, created_at
     FROM scans
     WHERE user_id = ?
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(userId, limit);
+  `
+    )
+    .all(userId, limit);
 }
 
 function getScan(id, userId, accessToken = null) {
   if (userId !== null && userId !== undefined) {
     // Logged-in user: match by id explicitly
-    return getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id = ?').get(id, Number(userId));
+    return getDb()
+      .prepare('SELECT * FROM scans WHERE id = ? AND user_id = ?')
+      .get(id, Number(userId));
   }
   if (!accessToken) return null;
   // Guest scan: require the access token, not just a NULL user_id.
-  return getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL AND access_token = ?').get(id, accessToken);
+  return getDb()
+    .prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL AND access_token = ?')
+    .get(id, accessToken);
 }
 
-function updateScanWithOptimizations(scanId, { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText }) {
-  getDb().prepare(
-    `UPDATE scans SET optimized_bullets = ?, keyword_plan = ?, optimized_resume_text = ?, cover_letter_text = ? WHERE id = ?`
-  ).run(
-    JSON.stringify(optimizedBullets || []),
-    JSON.stringify(keywordPlan || []),
-    optimizedResumeText || null,
-    coverLetterText || null,
-    scanId
-  );
+function updateScanWithOptimizations(
+  scanId,
+  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText }
+) {
+  getDb()
+    .prepare(
+      `UPDATE scans SET optimized_bullets = ?, keyword_plan = ?, optimized_resume_text = ?, cover_letter_text = ? WHERE id = ?`
+    )
+    .run(
+      JSON.stringify(optimizedBullets || []),
+      JSON.stringify(keywordPlan || []),
+      optimizedResumeText || null,
+      coverLetterText || null,
+      scanId
+    );
 }
 
 function getFullScan(scanId, userId = null, accessToken = null) {
   let scan;
   if (userId !== null && userId !== undefined) {
-    scan = getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id = ?').get(scanId, Number(userId));
+    scan = getDb()
+      .prepare('SELECT * FROM scans WHERE id = ? AND user_id = ?')
+      .get(scanId, Number(userId));
   } else {
     if (!accessToken) return null;
-    scan = getDb().prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL AND access_token = ?').get(scanId, accessToken);
+    scan = getDb()
+      .prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL AND access_token = ?')
+      .get(scanId, accessToken);
   }
   if (!scan) return null;
-  const jsonCols = ['xray_data', 'format_issues', 'keyword_data', 'section_data', 'recommendations', 'ai_suggestions', 'optimized_bullets', 'keyword_plan'];
+  const jsonCols = [
+    'xray_data',
+    'format_issues',
+    'keyword_data',
+    'section_data',
+    'recommendations',
+    'ai_suggestions',
+    'optimized_bullets',
+    'keyword_plan',
+  ];
   for (const col of jsonCols) {
     if (scan[col]) {
-      try { scan[col] = JSON.parse(scan[col]); } catch {}
+      try {
+        scan[col] = JSON.parse(scan[col]);
+      } catch {}
     }
   }
   return scan;
@@ -575,22 +741,49 @@ function getFullScan(scanId, userId = null, accessToken = null) {
 // ── Job tracker helpers ───────────────────────────────────────────────────────
 
 function saveJob(userId, data) {
-  const result = getDb().prepare(
-    `INSERT INTO jobs (user_id, scan_id, company, title, url, status, notes, applied_at, deadline, salary_min, salary_max, location, remote)
+  const result = getDb()
+    .prepare(
+      `INSERT INTO jobs (user_id, scan_id, company, title, url, status, notes, applied_at, deadline, salary_min, salary_max, location, remote)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(userId, data.scanId || null, data.company, data.title, data.url || null,
-    data.status || 'saved', data.notes || null, data.appliedAt || null, data.deadline || null,
-    data.salaryMin || null, data.salaryMax || null, data.location || null, data.remote || null);
+    )
+    .run(
+      userId,
+      data.scanId || null,
+      data.company,
+      data.title,
+      data.url || null,
+      data.status || 'saved',
+      data.notes || null,
+      data.appliedAt || null,
+      data.deadline || null,
+      data.salaryMin || null,
+      data.salaryMax || null,
+      data.location || null,
+      data.remote || null
+    );
   return result.lastInsertRowid;
 }
 
 function getUserJobs(userId) {
-  return getDb().prepare('SELECT * FROM jobs WHERE user_id = ? ORDER BY updated_at DESC').all(userId);
+  return getDb()
+    .prepare('SELECT * FROM jobs WHERE user_id = ? ORDER BY updated_at DESC')
+    .all(userId);
 }
 
 function updateJob(id, userId, data) {
-  const ALLOWED_COLS = ['company', 'title', 'url', 'status', 'notes',
-    'applied_at', 'deadline', 'salary_min', 'salary_max', 'location', 'remote'];
+  const ALLOWED_COLS = [
+    'company',
+    'title',
+    'url',
+    'status',
+    'notes',
+    'applied_at',
+    'deadline',
+    'salary_min',
+    'salary_max',
+    'location',
+    'remote',
+  ];
   const fields = [];
   const values = [];
   for (const [key, val] of Object.entries(data)) {
@@ -602,7 +795,9 @@ function updateJob(id, userId, data) {
   if (fields.length === 0) return;
   fields.push("updated_at = datetime('now')");
   values.push(id, userId);
-  getDb().prepare(`UPDATE jobs SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`).run(...values);
+  getDb()
+    .prepare(`UPDATE jobs SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`)
+    .run(...values);
 }
 
 function deleteJob(id, userId) {
@@ -612,18 +807,24 @@ function deleteJob(id, userId) {
 // ── Cover letter helpers ──────────────────────────────────────────────────────
 
 function saveCoverLetter(userId, { scanId, title, content }) {
-  const result = getDb().prepare(
-    'INSERT INTO cover_letters (user_id, scan_id, title, content) VALUES (?, ?, ?, ?)'
-  ).run(userId, scanId || null, title || 'Untitled', content);
+  const result = getDb()
+    .prepare('INSERT INTO cover_letters (user_id, scan_id, title, content) VALUES (?, ?, ?, ?)')
+    .run(userId, scanId || null, title || 'Untitled', content);
   return result.lastInsertRowid;
 }
 
 function getUserCoverLetters(userId) {
-  return getDb().prepare('SELECT id, title, scan_id, created_at FROM cover_letters WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+  return getDb()
+    .prepare(
+      'SELECT id, title, scan_id, created_at FROM cover_letters WHERE user_id = ? ORDER BY created_at DESC'
+    )
+    .all(userId);
 }
 
 function getCoverLetter(id, userId) {
-  return getDb().prepare('SELECT * FROM cover_letters WHERE id = ? AND user_id = ?').get(id, userId);
+  return getDb()
+    .prepare('SELECT * FROM cover_letters WHERE id = ? AND user_id = ?')
+    .get(id, userId);
 }
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────
@@ -651,9 +852,11 @@ function recordGuestScan(ipAddress) {
 
 function getGuestScanCount(ipAddress) {
   const db = getDb();
-  const result = db.prepare(
-    "SELECT COUNT(*) as count FROM guest_scans WHERE ip_address = ? AND created_at > datetime('now', '-1 day')"
-  ).get(ipAddress);
+  const result = db
+    .prepare(
+      "SELECT COUNT(*) as count FROM guest_scans WHERE ip_address = ? AND created_at > datetime('now', '-1 day')"
+    )
+    .get(ipAddress);
   return result ? result.count : 0;
 }
 
@@ -672,10 +875,12 @@ function closeDb() {
  */
 function createScanSession(sessionId, data) {
   const d = getDb();
-  d.prepare(`
+  d.prepare(
+    `
     INSERT INTO scan_sessions (id, user_id, resume_text, resume_file_path, resume_mimetype, file_name, jd_text, job_url, job_title, company_name, credit_balance)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `
+  ).run(
     sessionId,
     data.userId || null,
     data.resumeText,
@@ -713,10 +918,24 @@ function deleteScanSession(sessionId) {
  */
 function purgeExpiredScanSessions() {
   const d = getDb();
-  const result = d.prepare("DELETE FROM scan_sessions WHERE created_at < datetime('now', '-10 minutes')").run();
+  const result = d
+    .prepare("DELETE FROM scan_sessions WHERE created_at < datetime('now', '-10 minutes')")
+    .run();
   if (result.changes > 0) {
     log.info('Purged expired scan sessions', { count: result.changes });
   }
+}
+
+// ── PII: Email Hash + Decrypt Helpers ────────────────────────────────────────
+
+function emailHash(email) {
+  return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
+}
+
+function decryptUserEmail(user) {
+  if (!user) return user;
+  user.email = decryptPii(user.email);
+  return user;
 }
 
 // ── PII Encryption Helpers (Phase 4: #19) ────────────────────────────────────
@@ -742,7 +961,7 @@ function encryptPii(plaintext) {
   if (!plaintext || typeof plaintext !== 'string') return plaintext;
   const key = getPiiKey();
   if (!key) return plaintext; // Encryption disabled — pass through
-  
+
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv(PII_ALGORITHM, key, iv);
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
@@ -759,10 +978,10 @@ function decryptPii(ciphertext) {
   if (!ciphertext || typeof ciphertext !== 'string') return ciphertext;
   const key = getPiiKey();
   if (!key) return ciphertext; // Encryption disabled — pass through
-  
+
   const parts = ciphertext.split(':');
   if (parts.length !== 3) return ciphertext; // Not encrypted — return as-is
-  
+
   try {
     const [ivHex, authTagHex, encrypted] = parts;
     const iv = Buffer.from(ivHex, 'hex');
@@ -806,23 +1025,63 @@ function recordStripeEvent(eventId, eventType, payloadHash = null) {
 }
 
 module.exports = {
-  getDb, findOrCreateUser, getUserById, getUserByStripeCustomerId, setStripeCustomerId,
-  getUserByEmail, createUser, claimGuestScans, linkOAuthProvider,
-  incrementScanCount, incrementAiCredits,
-  getCreditBalance, addCredits, deductCredit, deductCreditAtomic, getCreditHistory,
-  recordWatermarkedDownload, getDownloadHistory,
-  updateUserTier, getUserTier,
-  saveResume, getUserResumes, getResume, deleteResume,
-  saveScan, updateScan, getUserScans, getScan, updateScanWithOptimizations, getFullScan,
-  saveJob, getUserJobs, updateJob, deleteJob,
-  saveCoverLetter, getUserCoverLetters, getCoverLetter,
-  recordGuestScan, getGuestScanCount,
-  deleteUserAccount, closeDb,
-  verifyUser, getUserByVerificationToken, setVerificationToken, getUserByResetToken, setResetToken, updatePassword,
+  getDb,
+  findOrCreateUser,
+  getUserById,
+  getUserByStripeCustomerId,
+  setStripeCustomerId,
+  getUserByEmail,
+  createUser,
+  claimGuestScans,
+  linkOAuthProvider,
+  incrementScanCount,
+  incrementAiCredits,
+  getCreditBalance,
+  addCredits,
+  deductCredit,
+  deductCreditAtomic,
+  getCreditHistory,
+  recordWatermarkedDownload,
+  getDownloadHistory,
+  updateUserTier,
+  getUserTier,
+  saveResume,
+  getUserResumes,
+  getResume,
+  deleteResume,
+  saveScan,
+  updateScan,
+  getUserScans,
+  getScan,
+  updateScanWithOptimizations,
+  getFullScan,
+  saveJob,
+  getUserJobs,
+  updateJob,
+  deleteJob,
+  saveCoverLetter,
+  getUserCoverLetters,
+  getCoverLetter,
+  recordGuestScan,
+  getGuestScanCount,
+  deleteUserAccount,
+  closeDb,
+  verifyUser,
+  getUserByVerificationToken,
+  setVerificationToken,
+  getUserByResetToken,
+  setResetToken,
+  updatePassword,
   // Phase 3: Scan Sessions
-  createScanSession, getScanSession, deleteScanSession, purgeExpiredScanSessions,
+  createScanSession,
+  getScanSession,
+  deleteScanSession,
+  purgeExpiredScanSessions,
   // Phase 4: PII Encryption
-  encryptPii, decryptPii,
+  encryptPii,
+  decryptPii,
+  emailHash,
   // Phase 6: Stripe Idempotency
-  isStripeEventProcessed, recordStripeEvent
+  isStripeEventProcessed,
+  recordStripeEvent,
 };

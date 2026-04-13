@@ -17,17 +17,19 @@ CREATE TABLE IF NOT EXISTS users (
   github_id TEXT UNIQUE,
   linkedin_id TEXT UNIQUE,
   email TEXT UNIQUE NOT NULL,
+  email_hash TEXT UNIQUE, -- SHA-256 hash for lookup when email is stored encrypted
   name TEXT NOT NULL,
   password_hash TEXT,
   avatar_url TEXT,
   tier TEXT DEFAULT 'free' CHECK(tier IN ('free','starter','pro','hustler')),
-  credit_balance INTEGER DEFAULT 0,        -- Email users get 0 until verified; OAuth users get 1 on creation
+  credit_balance INTEGER DEFAULT 0 CHECK(credit_balance >= 0),        -- Email users get 0 until verified; OAuth users get 1 on creation
   stripe_customer_id TEXT UNIQUE,
   scans_used INTEGER DEFAULT 0,
   ai_credits_used INTEGER DEFAULT 0,
   is_verified BOOLEAN DEFAULT FALSE,
   email_verified_at TIMESTAMPTZ,           -- Timestamp of first verification (never reset)
   verification_token TEXT,
+  verification_token_expires TIMESTAMPTZ,
   reset_password_token TEXT,
   reset_password_expires TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -208,3 +210,18 @@ EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
 -- Ensure credit_balance defaults to 0 (email users get 0 until verified; OAuth gets 1 on creation)
 ALTER TABLE users ALTER COLUMN credit_balance SET DEFAULT 0;
+
+-- Add CHECK constraint on credit_balance if not already present
+DO $$ BEGIN
+  ALTER TABLE users ADD CONSTRAINT credit_balance_nonnegative CHECK(credit_balance >= 0);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Add verification_token_expires column for token expiry
+DO $$ BEGIN
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token_expires TIMESTAMPTZ;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+-- Add email_hash column for PII-encrypted email lookup
+DO $$ BEGIN
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS email_hash TEXT UNIQUE;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;

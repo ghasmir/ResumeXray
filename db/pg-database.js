@@ -28,24 +28,24 @@ const log = require('../lib/logger');
 // With 2 PM2 workers × 6 max = 12, leaving 48 for sessions, webhooks, cron, migrations.
 // Never use max=20 (20 × 2 workers = 40, dangerously close to 60 limit).
 const rawPoolMax = parseInt(process.env.PG_POOL_MAX, 10);
-const PG_POOL_MAX = (!rawPoolMax || rawPoolMax < 2 || rawPoolMax > 20) ? 6 : rawPoolMax;
+const PG_POOL_MAX = !rawPoolMax || rawPoolMax < 2 || rawPoolMax > 20 ? 6 : rawPoolMax;
 if (process.env.PG_POOL_MAX && PG_POOL_MAX !== rawPoolMax) {
-  log.warn('PG_POOL_MAX out of safe range (2-20), defaulting to 6', { provided: process.env.PG_POOL_MAX });
+  log.warn('PG_POOL_MAX out of safe range (2-20), defaulting to 6', {
+    provided: process.env.PG_POOL_MAX,
+  });
 }
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: PG_POOL_MAX,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,  // §3.2: 5s connection timeout
+  connectionTimeoutMillis: 5_000, // §3.2: 5s connection timeout
   // §3.2: 5s statement timeout — prevents runaway queries from holding connections
   statement_timeout: 5_000,
-  ssl: process.env.DATABASE_URL?.includes('supabase')
-    ? { rejectUnauthorized: false }
-    : undefined,
+  ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : undefined,
 });
 
-pool.on('error', (err) => {
+pool.on('error', err => {
   log.error('PostgreSQL pool error', { error: err.message });
 });
 
@@ -60,7 +60,7 @@ pool.on('connect', () => {
     const t0 = Date.now();
     await pool.query('SELECT 1');
     log.info('PostgreSQL connected', { latencyMs: Date.now() - t0 });
-    
+
     // Apply schema
     const schemaPath = path.join(__dirname, 'pg-schema.sql');
     if (fs.existsSync(schemaPath)) {
@@ -118,9 +118,9 @@ function getDb() {
 
 // §CRIT: Provider → column whitelist. Prevents SQL injection via string interpolation.
 const PROVIDER_COLUMNS = Object.freeze({
-  google:   'google_id',
+  google: 'google_id',
   linkedin: 'linkedin_id',
-  github:   'github_id',
+  github: 'github_id',
 });
 
 async function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
@@ -128,9 +128,14 @@ async function findOrCreateUser({ provider, profileId, email, name, avatarUrl })
   if (!column) throw new Error(`Unknown OAuth provider: ${provider}`);
 
   let user = await queryOne(`SELECT * FROM users WHERE ${column} = $1`, [profileId]);
-  if (user) return user;
+  if (user) return decryptUserEmail(user);
 
-  user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
+  // Check if email already exists (link account) — try hash first, then plaintext
+  const hash = emailHash(email);
+  user = await queryOne('SELECT * FROM users WHERE email_hash = $1', [hash]);
+  if (!user) {
+    user = await queryOne('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+  }
   if (user) {
     // Auto-link OAuth provider to existing account (including password accounts).
     // This is safe because Google/LinkedIn/GitHub all verify email ownership before
@@ -139,16 +144,17 @@ async function findOrCreateUser({ provider, profileId, email, name, avatarUrl })
       `UPDATE users SET ${column} = $1, avatar_url = COALESCE(avatar_url, $2), updated_at = NOW() WHERE id = $3`,
       [profileId, avatarUrl, user.id]
     );
-    return queryOne('SELECT * FROM users WHERE id = $1', [user.id]);
+    return decryptUserEmail(await queryOne('SELECT * FROM users WHERE id = $1', [user.id]));
   }
 
   // New user via OAuth: mark as verified immediately (email ownership proven by provider)
   // and grant the welcome credit in the same transaction.
-  const newUser = await withTx(async (client) => {
+  const encryptedEmail = encryptPii(email.toLowerCase().trim());
+  const newUser = await withTx(async client => {
     const result = await client.query(
-      `INSERT INTO users (${column}, email, name, avatar_url, credit_balance, is_verified, email_verified_at)
-       VALUES ($1, $2, $3, $4, 1, TRUE, NOW()) RETURNING *`,
-      [profileId, email, name, avatarUrl]
+      `INSERT INTO users (${column}, email, email_hash, name, avatar_url, credit_balance, is_verified, email_verified_at)
+       VALUES ($1, $2, $3, $4, $5, 1, TRUE, NOW()) RETURNING *`,
+      [profileId, encryptedEmail, hash, name, avatarUrl]
     );
     const u = result.rows[0];
     await client.query(
@@ -159,11 +165,12 @@ async function findOrCreateUser({ provider, profileId, email, name, avatarUrl })
     return u;
   });
 
-  return newUser;
+  return decryptUserEmail(newUser);
 }
 
 async function getUserById(id) {
-  return queryOne('SELECT * FROM users WHERE id = $1', [id]);
+  const user = await queryOne('SELECT * FROM users WHERE id = $1', [id]);
+  return user ? decryptUserEmail(user) : null;
 }
 
 async function getUserByStripeCustomerId(customerId) {
@@ -171,15 +178,24 @@ async function getUserByStripeCustomerId(customerId) {
 }
 
 async function setStripeCustomerId(userId, customerId) {
-  await pool.query('UPDATE users SET stripe_customer_id = $1, updated_at = NOW() WHERE id = $2', [customerId, userId]);
+  await pool.query('UPDATE users SET stripe_customer_id = $1, updated_at = NOW() WHERE id = $2', [
+    customerId,
+    userId,
+  ]);
 }
 
 async function incrementScanCount(userId) {
-  await pool.query('UPDATE users SET scans_used = scans_used + 1, updated_at = NOW() WHERE id = $1', [userId]);
+  await pool.query(
+    'UPDATE users SET scans_used = scans_used + 1, updated_at = NOW() WHERE id = $1',
+    [userId]
+  );
 }
 
 async function incrementAiCredits(userId) {
-  await pool.query('UPDATE users SET ai_credits_used = ai_credits_used + 1, updated_at = NOW() WHERE id = $1', [userId]);
+  await pool.query(
+    'UPDATE users SET ai_credits_used = ai_credits_used + 1, updated_at = NOW() WHERE id = $1',
+    [userId]
+  );
 }
 
 async function updateUserTier(userId, tier) {
@@ -188,14 +204,14 @@ async function updateUserTier(userId, tier) {
 
 async function getUserTier(userId) {
   const user = await queryOne('SELECT tier FROM users WHERE id = $1', [userId]);
-  return user ? (user.tier || 'free') : 'free';
+  return user ? user.tier || 'free' : 'free';
 }
 
 async function verifyUser(userId) {
   // Atomically mark verified + grant the welcome credit in one transaction.
   // Only grants credit if the user hasn't been verified before (email_verified_at IS NULL)
   // to prevent duplicate credit grants if the link is clicked twice.
-  await withTx(async (client) => {
+  await withTx(async client => {
     const { rows } = await client.query(
       'SELECT is_verified, email_verified_at FROM users WHERE id = $1 FOR UPDATE',
       [userId]
@@ -205,7 +221,7 @@ async function verifyUser(userId) {
     const alreadyVerified = rows[0].email_verified_at !== null;
 
     await client.query(
-      'UPDATE users SET is_verified = TRUE, email_verified_at = COALESCE(email_verified_at, NOW()), verification_token = NULL, updated_at = NOW() WHERE id = $1',
+      'UPDATE users SET is_verified = TRUE, email_verified_at = COALESCE(email_verified_at, NOW()), verification_token = NULL, verification_token_expires = NULL, updated_at = NOW() WHERE id = $1',
       [userId]
     );
 
@@ -225,59 +241,92 @@ async function verifyUser(userId) {
 }
 
 async function getUserByVerificationToken(token) {
-  return queryOne('SELECT * FROM users WHERE verification_token = $1', [token]);
+  // Token must exist and not be expired (NULL expiry means never expires, for backward compat)
+  const user = await queryOne(
+    'SELECT * FROM users WHERE verification_token = $1 AND (verification_token_expires IS NULL OR verification_token_expires > NOW())',
+    [token]
+  );
+  return user ? decryptUserEmail(user) : null;
 }
 
 async function setVerificationToken(userId, token) {
-  await pool.query('UPDATE users SET verification_token = $1, updated_at = NOW() WHERE id = $2', [token, userId]);
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+  await pool.query(
+    'UPDATE users SET verification_token = $1, verification_token_expires = $2, updated_at = NOW() WHERE id = $3',
+    [token, expires, userId]
+  );
 }
 
 async function getUserByResetToken(token) {
-  return queryOne('SELECT * FROM users WHERE reset_password_token = $1 AND reset_password_expires > NOW()', [token]);
+  const user = await queryOne(
+    'SELECT * FROM users WHERE reset_password_token = $1 AND reset_password_expires > NOW()',
+    [token]
+  );
+  return user ? decryptUserEmail(user) : null;
 }
 
 async function setResetToken(email, token, expires) {
-  await pool.query('UPDATE users SET reset_password_token = $1, reset_password_expires = $2, updated_at = NOW() WHERE email = $3', [token, expires, email]);
+  await pool.query(
+    'UPDATE users SET reset_password_token = $1, reset_password_expires = $2, updated_at = NOW() WHERE email = $3',
+    [token, expires, email]
+  );
 }
 
 async function updatePassword(userId, passwordHash) {
-  await pool.query('UPDATE users SET password_hash = $1, reset_password_token = NULL, reset_password_expires = NULL, updated_at = NOW() WHERE id = $2', [passwordHash, userId]);
+  await pool.query(
+    'UPDATE users SET password_hash = $1, reset_password_token = NULL, reset_password_expires = NULL, updated_at = NOW() WHERE id = $2',
+    [passwordHash, userId]
+  );
 }
 
 // ── Credit System ─────────────────────────────────────────────────────────────
 
 async function getCreditBalance(userId) {
   const user = await queryOne('SELECT credit_balance FROM users WHERE id = $1', [userId]);
-  return user ? (user.credit_balance || 0) : 0;
+  return user ? user.credit_balance || 0 : 0;
 }
 
 async function addCredits(userId, amount, type, stripeSessionId = null, description = '') {
-  if (stripeSessionId) {
-    const existing = await queryOne('SELECT id FROM credit_transactions WHERE stripe_session_id = $1', [stripeSessionId]);
-    if (existing) {
-      log.warn('Duplicate stripe session — skipping credit add', { stripeSessionId });
-      return false;
+  // §CRIT: Idempotency check INSIDE transaction — prevents TOCTOU race.
+  // Two concurrent Stripe webhooks could both pass the check before either inserts.
+  return withTx(async client => {
+    if (stripeSessionId) {
+      const { rows: existing } = await client.query(
+        'SELECT id FROM credit_transactions WHERE stripe_session_id = $1 FOR UPDATE',
+        [stripeSessionId]
+      );
+      if (existing.length > 0) {
+        log.warn('Duplicate stripe session — skipping credit add', { stripeSessionId });
+        return false;
+      }
     }
-  }
 
-  await withTx(async (client) => {
-    await client.query('UPDATE users SET credit_balance = credit_balance + $1, updated_at = NOW() WHERE id = $2', [amount, userId]);
+    await client.query(
+      'UPDATE users SET credit_balance = credit_balance + $1, updated_at = NOW() WHERE id = $2',
+      [amount, userId]
+    );
     await client.query(
       'INSERT INTO credit_transactions (user_id, stripe_session_id, amount, type, description) VALUES ($1, $2, $3, $4, $5)',
       [userId, stripeSessionId, amount, type, description]
     );
-  });
 
-  log.info('Credits added', { userId, amount, type });
-  return true;
+    log.info('Credits added', { userId, amount, type });
+    return true;
+  });
 }
 
 async function deductCredit(userId, type, description = '') {
-  return withTx(async (client) => {
-    const { rows } = await client.query('SELECT credit_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
+  return withTx(async client => {
+    const { rows } = await client.query(
+      'SELECT credit_balance FROM users WHERE id = $1 FOR UPDATE',
+      [userId]
+    );
     if (!rows[0] || (rows[0].credit_balance ?? 0) < 1) return false;
 
-    await client.query('UPDATE users SET credit_balance = credit_balance - 1, updated_at = NOW() WHERE id = $1', [userId]);
+    await client.query(
+      'UPDATE users SET credit_balance = credit_balance - 1, updated_at = NOW() WHERE id = $1',
+      [userId]
+    );
     await client.query(
       'INSERT INTO credit_transactions (user_id, amount, type, description) VALUES ($1, -1, $2, $3)',
       [userId, type, description]
@@ -287,7 +336,7 @@ async function deductCredit(userId, type, description = '') {
 }
 
 async function deductCreditAtomic(userId, type, idempotencyKey, description = '') {
-  return withTx(async (client) => {
+  return withTx(async client => {
     // §CRIT: Idempotency check INSIDE transaction — prevents TOCTOU race.
     // Two concurrent requests can no longer both pass the check before insert.
     const { rows: existing } = await client.query(
@@ -299,12 +348,18 @@ async function deductCreditAtomic(userId, type, idempotencyKey, description = ''
       return { success: true, alreadyProcessed: true };
     }
 
-    const { rows } = await client.query('SELECT credit_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
+    const { rows } = await client.query(
+      'SELECT credit_balance FROM users WHERE id = $1 FOR UPDATE',
+      [userId]
+    );
     if (!rows[0] || (rows[0].credit_balance ?? 0) < 1) {
       return { success: false, alreadyProcessed: false };
     }
 
-    await client.query('UPDATE users SET credit_balance = credit_balance - 1, updated_at = NOW() WHERE id = $1', [userId]);
+    await client.query(
+      'UPDATE users SET credit_balance = credit_balance - 1, updated_at = NOW() WHERE id = $1',
+      [userId]
+    );
     await client.query(
       'INSERT INTO credit_transactions (user_id, amount, type, description) VALUES ($1, -1, $2, $3)',
       [userId, type, description]
@@ -333,15 +388,23 @@ async function recordWatermarkedDownload(userId, scanId, format, type = 'resume'
       'INSERT INTO download_history (user_id, scan_id, idempotency_key, format, type, watermarked) VALUES ($1, $2, $3, $4, $5, TRUE)',
       [userId, scanId, key, format, type]
     );
-  } catch { /* ignore duplicate */ }
+  } catch {
+    /* ignore duplicate */
+  }
 }
 
 async function getDownloadHistory(userId, limit = 50) {
-  return queryAll('SELECT * FROM download_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2', [userId, limit]);
+  return queryAll(
+    'SELECT * FROM download_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+    [userId, limit]
+  );
 }
 
 async function getCreditHistory(userId, limit = 50) {
-  return queryAll('SELECT * FROM credit_transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2', [userId, limit]);
+  return queryAll(
+    'SELECT * FROM credit_transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+    [userId, limit]
+  );
 }
 
 // ── Resume Helpers ────────────────────────────────────────────────────────────
@@ -355,7 +418,10 @@ async function saveResume(userId, { name, fileName, fileType, fileSize, rawText,
 }
 
 async function getUserResumes(userId) {
-  return queryAll('SELECT id, name, file_name, file_type, file_size, created_at, updated_at FROM resumes WHERE user_id = $1 ORDER BY updated_at DESC', [userId]);
+  return queryAll(
+    'SELECT id, name, file_name, file_type, file_size, created_at, updated_at FROM resumes WHERE user_id = $1 ORDER BY updated_at DESC',
+    [userId]
+  );
 }
 
 async function getResume(id, userId) {
@@ -376,23 +442,48 @@ async function saveScan(userId, data) {
      recommendations, ai_suggestions, access_token)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
     [
-      userId, data.resumeId || null, data.jobDescription || null, data.jobUrl || null,
-      data.jobTitle || null, data.companyName || null,
-      data.parseRate || 0, data.formatHealth || 0, data.matchRate || null,
-      JSON.stringify(data.xrayData || {}), JSON.stringify(data.formatIssues || []),
-      JSON.stringify(data.keywordData || {}), JSON.stringify(data.sectionData || {}),
-      JSON.stringify(data.recommendations || []), JSON.stringify(data.aiSuggestions || {}),
-      accessToken
+      userId,
+      data.resumeId || null,
+      data.jobDescription || null,
+      data.jobUrl || null,
+      data.jobTitle || null,
+      data.companyName || null,
+      data.parseRate || 0,
+      data.formatHealth || 0,
+      data.matchRate || null,
+      JSON.stringify(data.xrayData || {}),
+      JSON.stringify(data.formatIssues || []),
+      JSON.stringify(data.keywordData || {}),
+      JSON.stringify(data.sectionData || {}),
+      JSON.stringify(data.recommendations || []),
+      JSON.stringify(data.aiSuggestions || {}),
+      accessToken,
     ]
   );
   return { scanId: result.rows[0].id, accessToken };
 }
 
 async function updateScan(scanId, data) {
-  const ALLOWED_COLS = ['resume_id', 'job_description', 'job_url', 'job_title', 'company_name',
-    'parse_rate', 'format_health', 'match_rate', 'xray_data', 'format_issues',
-    'keyword_data', 'section_data', 'recommendations', 'ai_suggestions',
-    'optimized_bullets', 'keyword_plan', 'optimized_resume_text', 'cover_letter_text'];
+  const ALLOWED_COLS = [
+    'resume_id',
+    'job_description',
+    'job_url',
+    'job_title',
+    'company_name',
+    'parse_rate',
+    'format_health',
+    'match_rate',
+    'xray_data',
+    'format_issues',
+    'keyword_data',
+    'section_data',
+    'recommendations',
+    'ai_suggestions',
+    'optimized_bullets',
+    'keyword_plan',
+    'optimized_resume_text',
+    'cover_letter_text',
+  ];
   const fields = [];
   const values = [];
   let idx = 1;
@@ -408,11 +499,14 @@ async function updateScan(scanId, data) {
 }
 
 async function getUserScans(userId, limit = 20) {
-  return queryAll(`
+  return queryAll(
+    `
     SELECT id, job_title, company_name, job_url, job_description,
            parse_rate, format_health, match_rate, created_at
     FROM scans WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2
-  `, [userId, limit]);
+  `,
+    [userId, limit]
+  );
 }
 
 async function getScan(id, userId, accessToken = null) {
@@ -420,29 +514,59 @@ async function getScan(id, userId, accessToken = null) {
     return queryOne('SELECT * FROM scans WHERE id = $1 AND user_id = $2', [id, Number(userId)]);
   }
   if (!accessToken) return null;
-  return queryOne('SELECT * FROM scans WHERE id = $1 AND user_id IS NULL AND access_token = $2', [id, accessToken]);
+  return queryOne('SELECT * FROM scans WHERE id = $1 AND user_id IS NULL AND access_token = $2', [
+    id,
+    accessToken,
+  ]);
 }
 
-async function updateScanWithOptimizations(scanId, { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform = null }) {
+async function updateScanWithOptimizations(
+  scanId,
+  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform = null }
+) {
   await pool.query(
     'UPDATE scans SET optimized_bullets = $1, keyword_plan = $2, optimized_resume_text = $3, cover_letter_text = $4, ats_platform = $5 WHERE id = $6',
-    [JSON.stringify(optimizedBullets || []), JSON.stringify(keywordPlan || []), optimizedResumeText || null, coverLetterText || null, atsPlatform, scanId]
+    [
+      JSON.stringify(optimizedBullets || []),
+      JSON.stringify(keywordPlan || []),
+      optimizedResumeText || null,
+      coverLetterText || null,
+      atsPlatform,
+      scanId,
+    ]
   );
 }
 
 async function getFullScan(scanId, userId = null, accessToken = null) {
   let scan;
   if (userId !== null && userId !== undefined) {
-    scan = await queryOne('SELECT * FROM scans WHERE id = $1 AND user_id = $2', [scanId, Number(userId)]);
+    scan = await queryOne('SELECT * FROM scans WHERE id = $1 AND user_id = $2', [
+      scanId,
+      Number(userId),
+    ]);
   } else {
     if (!accessToken) return null;
-    scan = await queryOne('SELECT * FROM scans WHERE id = $1 AND user_id IS NULL AND access_token = $2', [scanId, accessToken]);
+    scan = await queryOne(
+      'SELECT * FROM scans WHERE id = $1 AND user_id IS NULL AND access_token = $2',
+      [scanId, accessToken]
+    );
   }
   if (!scan) return null;
-  const jsonCols = ['xray_data', 'format_issues', 'keyword_data', 'section_data', 'recommendations', 'ai_suggestions', 'optimized_bullets', 'keyword_plan'];
+  const jsonCols = [
+    'xray_data',
+    'format_issues',
+    'keyword_data',
+    'section_data',
+    'recommendations',
+    'ai_suggestions',
+    'optimized_bullets',
+    'keyword_plan',
+  ];
   for (const col of jsonCols) {
     if (scan[col] && typeof scan[col] === 'string') {
-      try { scan[col] = JSON.parse(scan[col]); } catch {}
+      try {
+        scan[col] = JSON.parse(scan[col]);
+      } catch {}
     }
   }
   return scan;
@@ -454,9 +578,21 @@ async function saveJob(userId, data) {
   const result = await pool.query(
     `INSERT INTO jobs (user_id, scan_id, company, title, url, status, notes, applied_at, deadline, salary_min, salary_max, location, remote)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-    [userId, data.scanId || null, data.company, data.title, data.url || null,
-     data.status || 'saved', data.notes || null, data.appliedAt || null, data.deadline || null,
-     data.salaryMin || null, data.salaryMax || null, data.location || null, data.remote || null]
+    [
+      userId,
+      data.scanId || null,
+      data.company,
+      data.title,
+      data.url || null,
+      data.status || 'saved',
+      data.notes || null,
+      data.appliedAt || null,
+      data.deadline || null,
+      data.salaryMin || null,
+      data.salaryMax || null,
+      data.location || null,
+      data.remote || null,
+    ]
   );
   return result.rows[0].id;
 }
@@ -466,8 +602,19 @@ async function getUserJobs(userId) {
 }
 
 async function updateJob(id, userId, data) {
-  const ALLOWED_COLS = ['company', 'title', 'url', 'status', 'notes',
-    'applied_at', 'deadline', 'salary_min', 'salary_max', 'location', 'remote'];
+  const ALLOWED_COLS = [
+    'company',
+    'title',
+    'url',
+    'status',
+    'notes',
+    'applied_at',
+    'deadline',
+    'salary_min',
+    'salary_max',
+    'location',
+    'remote',
+  ];
   const fields = [];
   const values = [];
   let idx = 1;
@@ -480,7 +627,10 @@ async function updateJob(id, userId, data) {
   if (fields.length === 0) return;
   fields.push('updated_at = NOW()');
   values.push(id, userId);
-  await pool.query(`UPDATE jobs SET ${fields.join(', ')} WHERE id = $${idx++} AND user_id = $${idx}`, values);
+  await pool.query(
+    `UPDATE jobs SET ${fields.join(', ')} WHERE id = $${idx++} AND user_id = $${idx}`,
+    values
+  );
 }
 
 async function deleteJob(id, userId) {
@@ -498,7 +648,10 @@ async function saveCoverLetter(userId, { scanId, title, content }) {
 }
 
 async function getUserCoverLetters(userId) {
-  return queryAll('SELECT id, title, scan_id, created_at FROM cover_letters WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+  return queryAll(
+    'SELECT id, title, scan_id, created_at FROM cover_letters WHERE user_id = $1 ORDER BY created_at DESC',
+    [userId]
+  );
 }
 
 async function getCoverLetter(id, userId) {
@@ -522,7 +675,7 @@ async function getGuestScanCount(ipAddress) {
 // ── Account Deletion ──────────────────────────────────────────────────────────
 
 async function deleteUserAccount(userId) {
-  await withTx(async (client) => {
+  await withTx(async client => {
     await client.query('DELETE FROM download_history WHERE user_id = $1', [userId]);
     await client.query('DELETE FROM credit_transactions WHERE user_id = $1', [userId]);
     await client.query('DELETE FROM cover_letters WHERE user_id = $1', [userId]);
@@ -536,22 +689,25 @@ async function deleteUserAccount(userId) {
 // ── Scan Sessions ─────────────────────────────────────────────────────────────
 
 async function createScanSession(sessionId, data) {
-  await pool.query(`
+  await pool.query(
+    `
     INSERT INTO scan_sessions (id, user_id, resume_text, resume_file_path, resume_mimetype, file_name, jd_text, job_url, job_title, company_name, credit_balance)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-  `, [
-    sessionId,
-    data.userId || null,
-    data.resumeText,
-    data.resumeFilePath || null,
-    data.resumeMimetype || null,
-    data.fileName || null,
-    data.jdText || '',
-    data.jobUrl || '',
-    data.jobTitle || '',
-    data.companyName || '',
-    data.creditBalance || 0
-  ]);
+  `,
+    [
+      sessionId,
+      data.userId || null,
+      data.resumeText,
+      data.resumeFilePath || null,
+      data.resumeMimetype || null,
+      data.fileName || null,
+      data.jdText || '',
+      data.jobUrl || '',
+      data.jobTitle || '',
+      data.companyName || '',
+      data.creditBalance || 0,
+    ]
+  );
   return sessionId;
 }
 
@@ -564,10 +720,24 @@ async function deleteScanSession(sessionId) {
 }
 
 async function purgeExpiredScanSessions() {
-  const result = await pool.query("DELETE FROM scan_sessions WHERE created_at < NOW() - INTERVAL '10 minutes'");
+  const result = await pool.query(
+    "DELETE FROM scan_sessions WHERE created_at < NOW() - INTERVAL '10 minutes'"
+  );
   if (result.rowCount > 0) {
     log.info('Purged expired scan sessions', { count: result.rowCount });
   }
+}
+
+// ── PII: Email Hash + Decrypt Helpers ───────────────────────────────────────
+
+function emailHash(email) {
+  return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
+}
+
+function decryptUserEmail(user) {
+  if (!user) return user;
+  user.email = decryptPii(user.email);
+  return user;
 }
 
 // ── PII Encryption (App-Level Fallback) ───────────────────────────────────────
@@ -613,9 +783,7 @@ function decryptPii(ciphertext) {
 // ── Stripe Event Idempotency (§8.2) ──────────────────────────────────────────
 
 async function isStripeEventProcessed(eventId) {
-  const result = await queryOne(
-    'SELECT 1 FROM stripe_events WHERE event_id = $1', [eventId]
-  );
+  const result = await queryOne('SELECT 1 FROM stripe_events WHERE event_id = $1', [eventId]);
   return !!result;
 }
 
@@ -633,14 +801,25 @@ async function recordStripeEvent(eventId, eventType, payloadHash = null) {
 // ── Auth Helpers (§10.8 — PG-compatible replacements for raw SQLite) ─────────
 
 async function getUserByEmail(email) {
-  return queryOne('SELECT * FROM users WHERE email = $1', [email]);
+  // Try email_hash lookup first (for encrypted emails), fall back to plaintext
+  const hash = emailHash(email);
+  let user = await queryOne('SELECT * FROM users WHERE email_hash = $1', [hash]);
+  if (!user) {
+    user = await queryOne('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+  }
+  return user ? decryptUserEmail(user) : null;
 }
 
 async function createUser({ email, name, passwordHash, verificationToken }) {
+  const verificationTokenExpires = verificationToken
+    ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    : null;
+  const encryptedEmail = encryptPii(email.toLowerCase().trim());
+  const hash = emailHash(email);
   const result = await pool.query(
-    `INSERT INTO users (email, name, password_hash, verification_token)
-     VALUES ($1, $2, $3, $4) RETURNING id`,
-    [email, name, passwordHash, verificationToken]
+    `INSERT INTO users (email, email_hash, name, password_hash, verification_token, verification_token_expires)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [encryptedEmail, hash, name, passwordHash, verificationToken, verificationTokenExpires]
   );
   return result.rows[0]?.id;
 }
@@ -678,20 +857,60 @@ async function closeDb() {
 // ── Exports ───────────────────────────────────────────────────────────────────
 
 module.exports = {
-  getDb, findOrCreateUser, getUserById, getUserByStripeCustomerId, setStripeCustomerId,
-  getUserByEmail, createUser, claimGuestScans, linkOAuthProvider,
-  incrementScanCount, incrementAiCredits,
-  getCreditBalance, addCredits, deductCredit, deductCreditAtomic, getCreditHistory,
-  recordWatermarkedDownload, getDownloadHistory,
-  updateUserTier, getUserTier,
-  saveResume, getUserResumes, getResume, deleteResume,
-  saveScan, updateScan, getUserScans, getScan, updateScanWithOptimizations, getFullScan,
-  saveJob, getUserJobs, updateJob, deleteJob,
-  saveCoverLetter, getUserCoverLetters, getCoverLetter,
-  recordGuestScan, getGuestScanCount,
-  deleteUserAccount, closeDb,
-  verifyUser, getUserByVerificationToken, setVerificationToken, getUserByResetToken, setResetToken, updatePassword,
-  createScanSession, getScanSession, deleteScanSession, purgeExpiredScanSessions,
-  encryptPii, decryptPii,
-  isStripeEventProcessed, recordStripeEvent,
+  getDb,
+  findOrCreateUser,
+  getUserById,
+  getUserByStripeCustomerId,
+  setStripeCustomerId,
+  getUserByEmail,
+  createUser,
+  claimGuestScans,
+  linkOAuthProvider,
+  incrementScanCount,
+  incrementAiCredits,
+  getCreditBalance,
+  addCredits,
+  deductCredit,
+  deductCreditAtomic,
+  getCreditHistory,
+  recordWatermarkedDownload,
+  getDownloadHistory,
+  updateUserTier,
+  getUserTier,
+  saveResume,
+  getUserResumes,
+  getResume,
+  deleteResume,
+  saveScan,
+  updateScan,
+  getUserScans,
+  getScan,
+  updateScanWithOptimizations,
+  getFullScan,
+  saveJob,
+  getUserJobs,
+  updateJob,
+  deleteJob,
+  saveCoverLetter,
+  getUserCoverLetters,
+  getCoverLetter,
+  recordGuestScan,
+  getGuestScanCount,
+  deleteUserAccount,
+  closeDb,
+  verifyUser,
+  getUserByVerificationToken,
+  setVerificationToken,
+  getUserByResetToken,
+  setResetToken,
+  updatePassword,
+  createScanSession,
+  getScanSession,
+  deleteScanSession,
+  purgeExpiredScanSessions,
+  encryptPii,
+  decryptPii,
+  emailHash,
+  isStripeEventProcessed,
+  recordStripeEvent,
 };

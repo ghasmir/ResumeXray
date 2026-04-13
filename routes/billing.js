@@ -50,88 +50,83 @@ router.post('/checkout', apiLimiter, isAuthenticated, async (req, res) => {
 
 /**
  * ── POST /billing/webhook — Stripe Webhook (idempotent credit delivery) ───
- * 
+ *
  * Handles: checkout.session.completed
  * Idempotency: Uses stripe session ID as unique key in credit_transactions.
  * If the same event fires twice, addCredits() silently skips the duplicate.
  */
-router.post(
-  '/webhook',
-  bodyParser.raw({ type: 'application/json' }),
-  async (req, res) => {
-    const stripe = getStripe();
-    if (!stripe) return res.status(500).send('Stripe not configured');
+router.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
+  const stripe = getStripe();
+  if (!stripe) return res.status(500).send('Stripe not configured');
 
-    const sig = req.headers['stripe-signature'];
-    let event;
+  const sig = req.headers['stripe-signature'];
+  let event;
 
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    } catch (err) {
-      log.error('Webhook signature verification failed', { error: err.message });
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    log.error('Webhook signature verification failed', { error: err.message });
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 
-    // Phase 6 §8.2: Event-level idempotency — skip already-processed events
-    if (await db.isStripeEventProcessed(event.id)) {
-      log.info('Duplicate Stripe event skipped', { eventId: event.id });
-      return res.status(200).send('Already processed');
-    }
+  // Phase 6 §8.2: Event-level idempotency — skip already-processed events
+  if (await db.isStripeEventProcessed(event.id)) {
+    log.info('Duplicate Stripe event skipped', { eventId: event.id });
+    return res.status(200).send('Already processed');
+  }
 
-    // Phase 6 §8.3: Replay window — reject events older than 5 minutes
-    // Stripe's `created` is Unix timestamp (seconds). Guards against replay attacks.
-    const eventAgeSec = Math.floor(Date.now() / 1000) - event.created;
-    if (eventAgeSec > 300) {
-      log.warn('Stale Stripe event rejected', { eventId: event.id, ageSec: eventAgeSec });
-      return res.status(200).send('Stale event');
-    }
+  // Phase 6 §8.3: Replay window — reject events older than 5 minutes
+  // Stripe's `created` is Unix timestamp (seconds). Guards against replay attacks.
+  const eventAgeSec = Math.floor(Date.now() / 1000) - event.created;
+  if (eventAgeSec > 300) {
+    log.warn('Stale Stripe event rejected', { eventId: event.id, ageSec: eventAgeSec });
+    return res.status(200).send('Stale event');
+  }
 
-    try {
-      switch (event.type) {
-        case 'checkout.session.completed': {
-          const session = event.data.object;
-          const userId = parseInt(session.metadata.userId);
-          const packId = session.metadata.packId;
-          const credits = parseInt(session.metadata.credits);
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const userId = parseInt(session.metadata.userId);
+        const packId = session.metadata.packId;
+        const credits = parseInt(session.metadata.credits);
 
-          if (userId && credits > 0) {
-            const pack = CREDIT_PACKS[packId];
-            // §8.4: await async DB calls (pg-database functions are async)
-            const added = await db.addCredits(
-              userId,
-              credits,
-              'purchase',
-              session.id, // stripe_session_id for idempotency
-              `Purchased ${pack ? pack.name : packId} (${credits} credits)`
-            );
+        if (userId && credits > 0) {
+          const pack = CREDIT_PACKS[packId];
+          // §8.4: await async DB calls (pg-database functions are async)
+          const added = await db.addCredits(
+            userId,
+            credits,
+            'purchase',
+            session.id, // stripe_session_id for idempotency
+            `Purchased ${pack ? pack.name : packId} (${credits} credits)`
+          );
 
-            if (added) {
-              // Update stripe_customer_id if not set
-              const user = await db.getUserById(userId);
-              if (user && !user.stripe_customer_id && session.customer) {
-                await db.setStripeCustomerId(userId, session.customer);
-              }
-              log.info('Credit purchase completed', { userId, credits, packId });
+          if (added) {
+            // Update stripe_customer_id if not set
+            const user = await db.getUserById(userId);
+            if (user && !user.stripe_customer_id && session.customer) {
+              await db.setStripeCustomerId(userId, session.customer);
             }
+            log.info('Credit purchase completed', { userId, credits, packId });
           }
-          break;
         }
-
-        // No subscription events needed — credit system is one-time only
+        break;
       }
 
-      // Phase 6 §8.2: Record event as processed — prevents reprocessing on retry
-      await db.recordStripeEvent(event.id, event.type);
-
-      res.status(200).send('Event received');
-    } catch (err) {
-      log.error('Webhook handler error', { error: err.message, eventId: event.id });
-      // §8.4: Return 200 even on handler errors — Stripe retries on non-2xx,
-      // and we've already verified the signature. Failing silently is better
-      // than causing infinite retries for a bad DB state.
-      res.status(200).send('Accepted with error');
+      // No subscription events needed — credit system is one-time only
     }
+
+    // Phase 6 §8.2: Record event as processed — prevents reprocessing on retry
+    await db.recordStripeEvent(event.id, event.type);
+
+    res.status(200).send('Event received');
+  } catch (err) {
+    log.error('Webhook handler error', { error: err.message, eventId: event.id });
+    // §8.4: Return 500 on DB errors so Stripe retries — a failed credit delivery
+    // should be reprocessed. Only return 200 for verified-but-already-handled events.
+    res.status(500).send('Webhook handler error — Stripe should retry');
   }
-);
+});
 
 module.exports = router;

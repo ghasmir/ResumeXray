@@ -15,7 +15,7 @@ const router = express.Router();
 // Dual counters: IP-scoped AND email-scoped (prevents distributed + targeted attacks)
 const loginAttempts = new Map(); // key → { count, firstAttempt, lockedUntil }
 const LOCKOUT_THRESHOLD = 10;
-const LOCKOUT_WINDOW = 15 * 60 * 1000;  // 15 min
+const LOCKOUT_WINDOW = 15 * 60 * 1000; // 15 min
 const LOCKOUT_DURATION = 30 * 60 * 1000; // 30 min
 
 function checkLockout(key) {
@@ -93,7 +93,11 @@ async function recordFailedLoginState(key) {
     if (attempts >= LOCKOUT_THRESHOLD) {
       await redis.set(lockKey, '1', 'PX', LOCKOUT_DURATION);
       await redis.del(counterKey);
-      log.warn('Account locked due to failed login attempts', { key, count: attempts, backend: 'redis' });
+      log.warn('Account locked due to failed login attempts', {
+        key,
+        count: attempts,
+        backend: 'redis',
+      });
     }
   } catch (err) {
     log.warn('Redis lockout write failed — falling back to local state', { error: err.message });
@@ -121,13 +125,16 @@ async function clearLoginAttemptsState(key) {
 }
 
 // Clean up stale entries every 10 min
-const loginAttemptCleanup = setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of loginAttempts) {
-    if (entry.lockedUntil && now >= entry.lockedUntil) loginAttempts.delete(key);
-    else if (now - entry.firstAttempt > LOCKOUT_WINDOW) loginAttempts.delete(key);
-  }
-}, 10 * 60 * 1000);
+const loginAttemptCleanup = setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, entry] of loginAttempts) {
+      if (entry.lockedUntil && now >= entry.lockedUntil) loginAttempts.delete(key);
+      else if (now - entry.firstAttempt > LOCKOUT_WINDOW) loginAttempts.delete(key);
+    }
+  },
+  10 * 60 * 1000
+);
 loginAttemptCleanup.unref?.();
 
 // ── Email/Password Signup ──────────────────────────────────────
@@ -157,23 +164,34 @@ router.post('/signup', authLimiter, async (req, res) => {
     if (existing) {
       // If the account is SSO-only, tell the user which provider they used
       if (!existing.password_hash) {
-        const provider = existing.google_id ? 'Google' : existing.linkedin_id ? 'LinkedIn' : existing.github_id ? 'GitHub' : null;
+        const provider = existing.google_id
+          ? 'Google'
+          : existing.linkedin_id
+            ? 'LinkedIn'
+            : existing.github_id
+              ? 'GitHub'
+              : null;
         if (provider) {
           return res.status(409).json({
             error: `This email is linked to a ${provider} account. Please use "Continue with ${provider}" on the login page.`,
-            ssoProvider: provider.toLowerCase()
+            ssoProvider: provider.toLowerCase(),
           });
         }
       }
-      return res.status(409).json({ error: 'An account with this email already exists. Please log in.' });
+      return res
+        .status(409)
+        .json({ error: 'An account with this email already exists. Please log in.' });
     }
 
     // Hash password and create user
     const hashed = await bcrypt.hash(password, 12);
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    
+
     const newUserId = await db.createUser({
-      email, name, passwordHash: hashed, verificationToken
+      email,
+      name,
+      passwordHash: hashed,
+      verificationToken,
     });
 
     const user = await db.getUserById(newUserId);
@@ -188,9 +206,9 @@ router.post('/signup', authLimiter, async (req, res) => {
     const savedGuestSessionIds = req.session.guestSessionIds || [];
 
     // Auto-login after signup with session regeneration
-    req.session.regenerate(async (err) => {
+    req.session.regenerate(async err => {
       if (err) return res.status(500).json({ error: 'Account created but login failed.' });
-      req.login(user, async (err) => {
+      req.login(user, async err => {
         if (err) return res.status(500).json({ error: 'Account created but login failed.' });
         req.session._createdAt = Date.now(); // Set absolute timeout anchor
 
@@ -200,18 +218,21 @@ router.post('/signup', authLimiter, async (req, res) => {
           if (savedGuestTokens.length > 0) {
             const claimResult = await db.claimGuestScans(user.id, savedGuestTokens);
             if (claimResult > 0) {
-              log.info('Claimed guest scans for new user', { userId: user.id, claimed: claimResult });
+              log.info('Claimed guest scans for new user', {
+                userId: user.id,
+                claimed: claimResult,
+              });
             }
           }
         } catch (claimErr) {
           log.warn('Failed to claim guest scans', { error: claimErr.message });
         }
 
-        res.json({ 
-          success: true, 
+        res.json({
+          success: true,
           user: { id: user.id, name: user.name, email: user.email, plan: user.plan },
           needsVerification: true,
-          message: 'Account created! Check your email to verify and unlock your welcome credit.'
+          message: 'Account created! Check your email to verify and unlock your welcome credit.',
         });
       });
     });
@@ -232,9 +253,10 @@ router.post('/login', authLimiter, async (req, res) => {
     // §10.12: Check lockout (IP + email dual counters)
     const ipKey = `ip:${req.ip}`;
     const emailKey = `email:${email.toLowerCase()}`;
-    if (await checkLockoutState(ipKey) || await checkLockoutState(emailKey)) {
+    if ((await checkLockoutState(ipKey)) || (await checkLockoutState(emailKey))) {
       return res.status(429).json({
-        error: 'Account temporarily locked due to too many failed attempts. Please try again in 30 minutes.'
+        error:
+          'Account temporarily locked due to too many failed attempts. Please try again in 30 minutes.',
       });
     }
 
@@ -257,16 +279,19 @@ router.post('/login', authLimiter, async (req, res) => {
     await clearLoginAttemptsState(emailKey);
 
     // Session fixation prevention: regenerate session ID on login
-    req.session.regenerate((err) => {
+    req.session.regenerate(err => {
       if (err) {
         log.error('Session regeneration error', { error: err.message });
         return res.status(500).json({ error: 'Login failed.' });
       }
 
-      req.login(user, (err) => {
+      req.login(user, err => {
         if (err) return res.status(500).json({ error: 'Login failed.' });
         req.session._createdAt = Date.now(); // Set absolute timeout anchor
-        res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, plan: user.plan } });
+        res.json({
+          success: true,
+          user: { id: user.id, name: user.name, email: user.email, plan: user.plan },
+        });
       });
     });
   } catch (err) {
@@ -285,7 +310,7 @@ function oauthCallbackHandler(req, res) {
       provider: req.user.pendingProvider,
       profileId: req.user.pendingProfileId,
       avatarUrl: req.user.pendingAvatarUrl,
-      email: req.user.email
+      email: req.user.email,
     };
     // Logout the partially-authenticated user — they need to verify password first
     req.logout(() => {
@@ -298,12 +323,12 @@ function oauthCallbackHandler(req, res) {
   const user = req.user;
   const guestTokens = req.session?.guestScanTokens || [];
   const guestSessionIds = req.session?.guestSessionIds || [];
-  req.session.regenerate((err) => {
+  req.session.regenerate(err => {
     if (err) {
       log.error('OAuth session regeneration failed', { error: err.message });
       return res.redirect('/dashboard');
     }
-    req.login(user, async (loginErr) => {
+    req.login(user, async loginErr => {
       if (loginErr) {
         log.error('OAuth re-login after regeneration failed', { error: loginErr.message });
         return res.redirect('/?authError=true');
@@ -314,7 +339,8 @@ function oauthCallbackHandler(req, res) {
       if (guestTokens.length > 0) {
         try {
           const claimed = await db.claimGuestScans(user.id, guestTokens);
-          if (claimed > 0) log.info('Claimed guest scans for OAuth user', { userId: user.id, claimed });
+          if (claimed > 0)
+            log.info('Claimed guest scans for OAuth user', { userId: user.id, claimed });
         } catch (e) {
           log.warn('Failed to claim guest scans on OAuth login', { error: e.message });
         }
@@ -327,21 +353,24 @@ function oauthCallbackHandler(req, res) {
 
 // ── Google OAuth ───────────────────────────────────────────────
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-router.get('/google/callback',
+router.get(
+  '/google/callback',
   passport.authenticate('google', { failureRedirect: '/?authError=true' }),
   oauthCallbackHandler
 );
 
 // ── GitHub OAuth ───────────────────────────────────────────────
 router.get('/github', passport.authenticate('github', { scope: ['user:email'] }));
-router.get('/github/callback',
+router.get(
+  '/github/callback',
   passport.authenticate('github', { failureRedirect: '/?authError=true' }),
   oauthCallbackHandler
 );
 
 // ── LinkedIn OAuth ─────────────────────────────────────────────
 router.get('/linkedin', passport.authenticate('linkedin', { state: true }));
-router.get('/linkedin/callback',
+router.get(
+  '/linkedin/callback',
   passport.authenticate('linkedin', { failureRedirect: '/?authError=true' }),
   oauthCallbackHandler
 );
@@ -358,13 +387,13 @@ router.post('/logout', (req, res, next) => {
     sameSite: 'lax',
     secure: isProd,
   };
-  req.logout((err) => {
+  req.logout(err => {
     if (err) return next(err);
     // Use regenerate() instead of destroy() — regenerate is guaranteed to
     // invalidate the OLD session ID immediately (new empty session is issued).
     // destroy() on Supabase session store can fail silently, leaving the old
     // session valid and causing ghost re-authentication on next page load.
-    req.session.regenerate((regenErr) => {
+    req.session.regenerate(regenErr => {
       if (regenErr) log.error('Session regenerate error on logout', { error: regenErr.message });
       // Clear session data on the new (empty) session
       req.session._csrfToken = undefined;
@@ -390,7 +419,8 @@ router.get('/verify/:token', async (req, res) => {
     res.json({
       success: true,
       creditGranted: true,
-      message: 'Email verified! Your welcome credit has been unlocked. You can now run your first scan.'
+      message:
+        'Email verified! Your welcome credit has been unlocked. You can now run your first scan.',
     });
   } catch (err) {
     res.status(500).json({ error: 'Verification failed.' });
@@ -398,7 +428,7 @@ router.get('/verify/:token', async (req, res) => {
 });
 
 // POST /auth/resend-verification — Resend verification email for logged-in unverified users
-router.post('/resend-verification', async (req, res) => {
+router.post('/resend-verification', authLimiter, async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Not authenticated.' });
@@ -408,19 +438,12 @@ router.post('/resend-verification', async (req, res) => {
     if (user.is_verified) {
       return res.json({ success: true, message: 'Your email is already verified.' });
     }
-    if (!user.verification_token) {
-      // Re-generate token if it was cleared
-      const crypto = require('crypto');
-      const newToken = crypto.randomBytes(32).toString('hex');
-      await db.setVerificationToken(user.id, newToken);
-      mailer.sendVerificationEmail(user.email, newToken).catch(err => {
-        log.error('Failed to resend verification email', { error: err.message });
-      });
-    } else {
-      mailer.sendVerificationEmail(user.email, user.verification_token).catch(err => {
-        log.error('Failed to resend verification email', { error: err.message });
-      });
-    }
+    // Always generate a fresh token with a new 24h expiry
+    const newToken = crypto.randomBytes(32).toString('hex');
+    await db.setVerificationToken(user.id, newToken);
+    mailer.sendVerificationEmail(user.email, newToken).catch(err => {
+      log.error('Failed to resend verification email', { error: err.message });
+    });
     res.json({ success: true, message: 'Verification email resent.' });
   } catch (err) {
     log.error('Resend verification error', { error: err.message });
@@ -428,30 +451,43 @@ router.post('/resend-verification', async (req, res) => {
   }
 });
 
-
-
 router.post('/forgot-password', authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     // §10.14: Early validation — same pattern as signup
     if (!validateEmail(email).valid) {
-      return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+      return res.json({
+        success: true,
+        message: 'If an account exists, a reset link has been sent.',
+      });
     }
     const user = await db.getUserByEmail(email);
 
     // Always return success to prevent email enumeration
     if (!user) {
-      return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+      return res.json({
+        success: true,
+        message: 'If an account exists, a reset link has been sent.',
+      });
     }
 
     // SSO-only users don't have a password — send a reminder email instead of a reset link
     if (!user.password_hash) {
-      const provider = user.google_id ? 'Google' : user.linkedin_id ? 'LinkedIn' : user.github_id ? 'GitHub' : null;
+      const provider = user.google_id
+        ? 'Google'
+        : user.linkedin_id
+          ? 'LinkedIn'
+          : user.github_id
+            ? 'GitHub'
+            : null;
       if (provider) {
         mailer.sendSSOLoginReminderEmail(email, provider).catch(err => {
           log.error('Failed to send SSO login reminder email', { error: err.message });
         });
-        return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+        return res.json({
+          success: true,
+          message: 'If an account exists, a reset link has been sent.',
+        });
       }
     }
 
@@ -477,36 +513,44 @@ router.post('/reset-password', authLimiter, async (req, res) => {
 
     const user = await db.getUserByResetToken(token);
     if (!user) {
-      return res.status(400).json({ error: 'Invalid or expired reset token. Please request a new reset link.' });
+      return res
+        .status(400)
+        .json({ error: 'Invalid or expired reset token. Please request a new reset link.' });
     }
 
     // Prevent reusing the same password
     if (user.password_hash) {
       const isSame = await bcrypt.compare(password, user.password_hash);
       if (isSame) {
-        return res.status(400).json({ error: 'New password cannot be the same as your previous password.' });
+        return res
+          .status(400)
+          .json({ error: 'New password cannot be the same as your previous password.' });
       }
     }
 
     const hashed = await bcrypt.hash(password, 12);
     await db.updatePassword(user.id, hashed);
-    
+
     res.json({ success: true, message: 'Password updated. You can now log in.' });
   } catch (err) {
     log.error('Password reset failed', { error: err.message, stack: err.stack });
-    res.status(500).json({ error: 'Failed to reset password. Please try again or request a new link.' });
+    res
+      .status(500)
+      .json({ error: 'Failed to reset password. Please try again or request a new link.' });
   }
 });
 
 // ── Phase 6 §7.7: Account Linking — Verify password before linking OAuth ────
 
-router.post('/link-account', async (req, res) => {
+router.post('/link-account', authLimiter, async (req, res) => {
   try {
     const { password } = req.body;
     const pendingLink = req.session?.pendingLink;
 
     if (!pendingLink) {
-      return res.status(400).json({ error: 'No pending account link. Please try signing in again.' });
+      return res
+        .status(400)
+        .json({ error: 'No pending account link. Please try signing in again.' });
     }
 
     if (!password) {
@@ -536,19 +580,19 @@ router.post('/link-account', async (req, res) => {
     // Clean up and log in
     delete req.session.pendingLink;
 
-    req.login(linkedUser, (err) => {
+    req.login(linkedUser, err => {
       if (err) {
         log.error('Login after account link failed', { error: err.message });
         return res.status(500).json({ error: 'Account linked but login failed. Please sign in.' });
       }
       log.info('OAuth account linked successfully', {
         userId: pendingLink.userId,
-        provider: pendingLink.provider
+        provider: pendingLink.provider,
       });
       res.json({
         success: true,
         user: { id: linkedUser.id, name: linkedUser.name, email: linkedUser.email },
-        message: `${pendingLink.provider} account linked successfully!`
+        message: `${pendingLink.provider} account linked successfully!`,
       });
     });
   } catch (err) {
