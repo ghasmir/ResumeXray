@@ -177,6 +177,8 @@ function updatePageTitle(view, params) {
  * Register navigation link handlers
  */
 export function setupRouter() {
+  console.log('Router: Setting up...');
+
   // Handle click on data-link elements
   document.addEventListener('click', e => {
     const link = e.target.closest('[data-link]');
@@ -186,18 +188,19 @@ export function setupRouter() {
     if (!href || href.startsWith('http')) return;
 
     e.preventDefault();
+    console.log('Router: Navigating to', href);
     navigateTo(href);
   });
 
   // Handle browser back/forward
   window.addEventListener('popstate', e => {
     const path = e.state?.path || window.location.pathname;
+    console.log('Router: Popstate to', path);
     navigateTo(path, false);
   });
 
-  // Handle initial route
-  const initialPath = window.location.pathname;
-  navigateTo(initialPath, false);
+  // Handle initial route - but don't call it here, let init() do it
+  console.log('Router: Setup complete');
 }
 
 /**

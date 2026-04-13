@@ -2762,6 +2762,7 @@
 
     <!-- Phase 6 §4.10: Self-hosted DOMPurify for innerHTML XSS defense -->
     <script src="/js/purify.min.js"></script>
-    <script src="/src/main.mjs" type="module"></script>
+    <!-- Main application (legacy SPA) — src/ modules are for future migration only -->
+    <script src="/js/app.js?v=3.7" defer></script>
   </body>
 </html>
