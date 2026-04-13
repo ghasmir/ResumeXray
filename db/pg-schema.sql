@@ -195,6 +195,11 @@ CREATE INDEX IF NOT EXISTS idx_credit_transactions_stripe ON credit_transactions
 CREATE INDEX IF NOT EXISTS idx_scan_sessions_created ON scan_sessions(created_at);
 CREATE INDEX IF NOT EXISTS idx_download_history_user ON download_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_stripe_events_event_id ON stripe_events(event_id);
+CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
+CREATE INDEX IF NOT EXISTS idx_users_reset_password_token ON users(reset_password_token);
+CREATE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash);
+CREATE INDEX IF NOT EXISTS idx_scans_user_created ON scans(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_created ON credit_transactions(user_id, created_at);
 
 -- ── Safe Migrations (idempotent ALTER TABLE for existing deployments) ──────
 -- Add new columns to existing tables without dropping/recreating them.

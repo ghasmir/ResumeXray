@@ -104,8 +104,14 @@ CREATE TABLE IF NOT EXISTS guest_scans (
 CREATE INDEX IF NOT EXISTS idx_resumes_user ON resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_scans_user ON scans(user_id);
 CREATE INDEX IF NOT EXISTS idx_scans_resume ON scans(resume_id);
+CREATE INDEX IF NOT EXISTS idx_scans_access_token ON scans(access_token);
 CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_cover_letters_user ON cover_letters(user_id);
 CREATE INDEX IF NOT EXISTS idx_guest_scans_ip ON guest_scans(ip_address);
 CREATE INDEX IF NOT EXISTS idx_credit_transactions_user ON credit_transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_credit_transactions_stripe ON credit_transactions(stripe_session_id);
+CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
+CREATE INDEX IF NOT EXISTS idx_users_reset_password_token ON users(reset_password_token);
+CREATE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash);
+CREATE INDEX IF NOT EXISTS idx_scans_user_created ON scans(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_created ON credit_transactions(user_id, created_at);

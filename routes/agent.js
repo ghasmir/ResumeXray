@@ -3,7 +3,7 @@
  * POST /agent/start   → Upload resume + JD, returns sessionId
  * GET  /agent/stream/:sessionId → SSE stream of analysis + fixes
  * GET  /agent/download/:scanId  → Download optimized resume (DOCX/PDF)
- * 
+ *
  * Value Wall Implementation:
  * - Scans are FREE (shows ATS score + knockout risks)
  * - AI bullet rewrites: 1 free teaser, rest require credits
@@ -22,7 +22,12 @@ const parser = require('../lib/parser');
 const { processJobDescription } = require('../lib/jd-processor');
 const { validateResumeContent } = require('../lib/resume-validator');
 const { runAgentPipeline } = require('../lib/agent-pipeline');
-const { generateDOCX, generatePDF, validatePDF, renderHtmlToPdf } = require('../lib/resume-builder');
+const {
+  generateDOCX,
+  generatePDF,
+  validatePDF,
+  renderHtmlToPdf,
+} = require('../lib/resume-builder');
 const { parseCoverLetter } = require('../lib/cover-letter-parser');
 const { renderTemplate } = require('../lib/template-renderer');
 const db = require('../db/database');
@@ -49,25 +54,30 @@ const UPLOAD_TMP = path.join(__dirname, '..', 'tmp_uploads');
 if (!fs.existsSync(UPLOAD_TMP)) fs.mkdirSync(UPLOAD_TMP, { recursive: true });
 
 // Periodic cleanup: purge expired sessions + stale temp files (every 2 min)
-setInterval(async () => {
-  try {
-    await db.purgeExpiredScanSessions();
-  } catch (err) {
-    log.warn('Session purge failed', { error: err.message });
-  }
-  // Clean up orphaned temp files older than 15 minutes
-  try {
-    const files = fs.readdirSync(UPLOAD_TMP);
-    const cutoff = Date.now() - 15 * 60 * 1000;
-    for (const f of files) {
-      const fPath = path.join(UPLOAD_TMP, f);
-      const stat = fs.statSync(fPath);
-      if (stat.mtimeMs < cutoff) {
-        fs.unlinkSync(fPath);
-      }
+setInterval(
+  async () => {
+    try {
+      await db.purgeExpiredScanSessions();
+    } catch (err) {
+      log.warn('Session purge failed', { error: err.message });
     }
-  } catch { /* ignore cleanup errors */ }
-}, 2 * 60 * 1000);
+    // Clean up orphaned temp files older than 15 minutes
+    try {
+      const files = fs.readdirSync(UPLOAD_TMP);
+      const cutoff = Date.now() - 15 * 60 * 1000;
+      for (const f of files) {
+        const fPath = path.join(UPLOAD_TMP, f);
+        const stat = fs.statSync(fPath);
+        if (stat.mtimeMs < cutoff) {
+          fs.unlinkSync(fPath);
+        }
+      }
+    } catch {
+      /* ignore cleanup errors */
+    }
+  },
+  2 * 60 * 1000
+);
 
 // ── POST /agent/start — Upload + parse, return sessionId ──────────────────────
 
@@ -79,20 +89,27 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
 
     // Security: Validate file magic bytes (prevents MIME spoofing)
     if (!validateMagicBytes(req.file.buffer, req.file.mimetype)) {
-      return res.status(400).json({ 
-        error: 'File integrity check failed. The file appears corrupted or is not a valid PDF/DOCX.' 
+      return res.status(400).json({
+        error:
+          'File integrity check failed. The file appears corrupted or is not a valid PDF/DOCX.',
       });
     }
 
     const rawText = await parser.parseResume(req.file.buffer, req.file.mimetype);
     if (!rawText || rawText.trim() === '') {
-      return res.status(400).json({ error: 'Could not extract text. Ensure it is not an image-based PDF.' });
+      return res
+        .status(400)
+        .json({ error: 'Could not extract text. Ensure it is not an image-based PDF.' });
     }
 
     // Content validation: reject non-resume files
     const validation = validateResumeContent(rawText);
     if (!validation.isResume) {
-      return res.status(400).json({ error: `This doesn't appear to be a resume. Please upload your resume file (PDF or DOCX) containing your work experience, education, and skills.` });
+      return res
+        .status(400)
+        .json({
+          error: `This doesn't appear to be a resume. Please upload your resume file (PDF or DOCX) containing your work experience, education, and skills.`,
+        });
     }
 
     // §10.11: Input length validation — prevent oversized payloads before LLM processing
@@ -106,7 +123,9 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
       return res.status(400).json({ error: 'Job URL is too long (max 2048 characters).' });
     }
     if (jdInput.length > 50000) {
-      return res.status(400).json({ error: 'Job description is too long (max 50,000 characters).' });
+      return res
+        .status(400)
+        .json({ error: 'Job description is too long (max 50,000 characters).' });
     }
 
     if (jdInput.trim()) {
@@ -121,13 +140,16 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
       }
     }
 
-
     // Guest scan limit (2 free scans per IP per day)
     if (!req.user) {
-      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+      // M-9: Use req.ip only — trust proxy=1 ensures Express resolves the correct
+      // client IP from Cloudflare/Caddy. Falling back to x-forwarded-for is spoofable.
+      const ip = req.ip || 'unknown';
       const guestCount = await db.getGuestScanCount(ip);
       if (guestCount >= 2) {
-        return res.status(429).json({ error: 'Free scan limit reached. Sign up to continue.', signup: true });
+        return res
+          .status(429)
+          .json({ error: 'Free scan limit reached. Sign up to continue.', signup: true });
       }
     }
 
@@ -173,7 +195,6 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     }
 
     res.json({ success: true, sessionId, creditBalance });
-
   } catch (err) {
     log.error('Agent start error', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Failed to start analysis.' });
@@ -204,7 +225,7 @@ router.get('/stream/:sessionId', async (req, res) => {
     const guestSessionIds = req.session?.guestSessionIds || [];
     if (!guestSessionIds.includes(req.params.sessionId)) {
       log.warn('SSE auth rejected: guest sessionId not in browser session', {
-        sessionId: req.params.sessionId
+        sessionId: req.params.sessionId,
       });
       return res.status(403).json({ error: 'Unauthorized stream access.' });
     }
@@ -231,8 +252,8 @@ router.get('/stream/:sessionId', async (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no'
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
   });
 
   // §9.5: Enforce max 2 concurrent SSE streams per user
@@ -241,7 +262,9 @@ router.get('/stream/:sessionId', async (req, res) => {
   const userStreams = activeStreams.get(streamKey);
   if (userStreams.size >= 2) {
     log.warn('SSE concurrent limit exceeded', { streamKey, active: userStreams.size });
-    res.write(`event: error\ndata: ${JSON.stringify({ message: 'Too many active scans. Close other tabs and retry.' })}\n\n`);
+    res.write(
+      `event: error\ndata: ${JSON.stringify({ message: 'Too many active scans. Close other tabs and retry.' })}\n\n`
+    );
     return res.end();
   }
   userStreams.add(res);
@@ -252,13 +275,18 @@ router.get('/stream/:sessionId', async (req, res) => {
   }, 15_000);
 
   // §9.7: Max SSE lifetime — force-close after 5 minutes
-  const maxLifetime = setTimeout(() => {
-    if (!res.writableEnded) {
-      log.warn('SSE max lifetime exceeded, force-closing', { streamKey });
-      res.write(`event: error\ndata: ${JSON.stringify({ message: 'Stream timeout. Please retry.' })}\n\n`);
-      res.end();
-    }
-  }, 5 * 60 * 1000);
+  const maxLifetime = setTimeout(
+    () => {
+      if (!res.writableEnded) {
+        log.warn('SSE max lifetime exceeded, force-closing', { streamKey });
+        res.write(
+          `event: error\ndata: ${JSON.stringify({ message: 'Stream timeout. Please retry.' })}\n\n`
+        );
+        res.end();
+      }
+    },
+    5 * 60 * 1000
+  );
 
   res.write(':\n\n');
 
@@ -318,7 +346,7 @@ router.get('/stream/:sessionId', async (req, res) => {
         isWatermarked: !canDownloadClean,
         resumeText: session.resumeText,
         hasCoverLetter: true,
-        accessToken: accessToken || null  // For guest scan preview URLs (IDOR protection)
+        accessToken: accessToken || null, // For guest scan preview URLs (IDOR protection)
       });
     },
     emitError(message, step) {
@@ -333,11 +361,13 @@ router.get('/stream/:sessionId', async (req, res) => {
         displayName: atsProfile.displayName,
         template: atsProfile.template,
       });
-    }
+    },
   };
 
   let aborted = false;
-  req.on('close', () => { aborted = true; });
+  req.on('close', () => {
+    aborted = true;
+  });
 
   // H-2 Fix: Single idempotent cleanup function called from BOTH res.on('close')
   // and the finally block. Using a flag prevents double-execution of clearInterval/
@@ -352,7 +382,10 @@ router.get('/stream/:sessionId', async (req, res) => {
     if (userStreams.size === 0) activeStreams.delete(streamKey);
   }
   // Fire cleanup immediately if the client disconnects before pipeline finishes
-  res.on('close', () => { aborted = true; sseCleanup(); });
+  res.on('close', () => {
+    aborted = true;
+    sseCleanup();
+  });
 
   // ── EARLY PERSISTENCE ──
   // Save a placeholder scan immediately so we have a persistent ID
@@ -364,7 +397,7 @@ router.get('/stream/:sessionId', async (req, res) => {
       fileType: session.resumeMimetype === 'application/pdf' ? 'pdf' : 'docx',
       fileSize: session.resumeFilePath ? fs.statSync(session.resumeFilePath).size : 0,
       rawText: session.resumeText,
-      parsedData: {} 
+      parsedData: {},
     });
   }
 
@@ -382,7 +415,7 @@ router.get('/stream/:sessionId', async (req, res) => {
     keywordData: {},
     sectionData: {},
     recommendations: [],
-    aiSuggestions: null
+    aiSuggestions: null,
   });
 
   const scanId = scanResult.scanId;
@@ -395,8 +428,8 @@ router.get('/stream/:sessionId', async (req, res) => {
     req.session.guestScanTokens.push(accessToken);
     // H-4 Fix: await session.save() properly — fire-and-forget silently drops
     // the token if the async store (Supabase/Redis) hasn't flushed before SSE ends.
-    await new Promise((resolve) => {
-      req.session.save((err) => {
+    await new Promise(resolve => {
+      req.session.save(err => {
         if (err) log.warn('Guest scan token session save failed', { error: err.message });
         resolve();
       });
@@ -409,18 +442,17 @@ router.get('/stream/:sessionId', async (req, res) => {
   emitter.emitInit(scanId);
 
   try {
-    const results = await runAgentPipeline(
-      session.resumeText,
-      session.jdText,
-      emitter,
-      { maxBulletRewrites, limitKeywords: 5, atsProfile: session.atsProfile }
-    );
+    const results = await runAgentPipeline(session.resumeText, session.jdText, emitter, {
+      maxBulletRewrites,
+      limitKeywords: 5,
+      atsProfile: session.atsProfile,
+    });
 
     if (aborted) return;
 
     // Update database with final results
     if (session.userId && resumeId) {
-       // Optional: update parsedData in resume record if needed
+      // Optional: update parsedData in resume record if needed
     }
 
     await db.updateScan(scanId, {
@@ -434,8 +466,8 @@ router.get('/stream/:sessionId', async (req, res) => {
       recommendations: results.recommendations,
       aiSuggestions: {
         biasShield: results.biasShield,
-        aiShieldData: results.aiShieldData
-      }
+        aiShieldData: results.aiShieldData,
+      },
     });
 
     await db.updateScanWithOptimizations(scanId, {
@@ -443,7 +475,7 @@ router.get('/stream/:sessionId', async (req, res) => {
       keywordPlan: results.keywordPlan,
       optimizedResumeText: results.optimizedResumeText,
       coverLetterText: results.coverLetter || null,
-      atsPlatform: results.atsProfile?.name || null
+      atsPlatform: results.atsProfile?.name || null,
     });
 
     // v3: No credit deduction for AI rewrites — they're free (sandbox mode)
@@ -459,7 +491,6 @@ router.get('/stream/:sessionId', async (req, res) => {
     }
 
     await emitter.emitComplete(scanId);
-
   } catch (err) {
     log.error('Agent stream error', { error: err.message, scanId });
     emitter.emitError('Analysis failed: ' + err.message);
@@ -467,7 +498,11 @@ router.get('/stream/:sessionId', async (req, res) => {
     // Phase 3: Clean up DB session + temp file
     await db.deleteScanSession(req.params.sessionId);
     if (session.resumeFilePath) {
-      try { fs.unlinkSync(session.resumeFilePath); } catch { /* already cleaned */ }
+      try {
+        fs.unlinkSync(session.resumeFilePath);
+      } catch {
+        /* already cleaned */
+      }
     }
     // H-2 Fix: Use the idempotent sseCleanup() — safe to call even if res.on('close')
     // already fired it. Then end the response.
@@ -524,7 +559,7 @@ router.get('/preview/:scanId', async (req, res) => {
       watermark: true,
       density,
       template,
-      jobUrl: scan.job_url || ''
+      jobUrl: scan.job_url || '',
     });
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -533,7 +568,7 @@ router.get('/preview/:scanId', async (req, res) => {
     res.send(buffer);
   } catch (err) {
     log.error('Preview error', { error: err.message, stack: err.stack, scanId: req.params.scanId });
-    
+
     // Fallback: serve an in-iframe HTML error page (NOT the resume HTML — that breaks the iframe)
     // The previous approach sent text/html resume HTML to an iframe expecting application/pdf,
     // causing the browser to show a broken file icon.
@@ -598,7 +633,7 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
     // Build context for cover letter — try multiple sources for name/contact
     let clName = scan.section_data?.name || '';
     let clContact = scan.section_data?.contact || '';
-    
+
     // Fallback: try xray extracted fields if section_data is missing them
     if (!clName && scan.xray_data?.extractedFields?.Name) {
       clName = scan.xray_data.extractedFields.Name;
@@ -613,7 +648,7 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
       name: clName,
       contact: clContact,
       jobTitle: scan.job_title,
-      companyName: scan.company_name
+      companyName: scan.company_name,
     };
 
     const parsed = parseCoverLetter(scan.cover_letter_text || '', ctx);
@@ -623,7 +658,7 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
     // Logged-in users: light watermark only (good preview experience)
     // Guests: full blur + watermark + anti-copy (prevents free usage)
     const isLoggedIn = !!userId;
-    
+
     let protectionCss = '';
     let protectionJs = '';
 
@@ -704,10 +739,13 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
       protectionJs = `<script>document.addEventListener('contextmenu', function(e) { e.preventDefault(); });</script>`;
     }
 
-    const protectedHtml = html.replace('</head>', `
+    const protectedHtml = html.replace(
+      '</head>',
+      `
       <style>${protectionCss}</style>
       ${protectionJs}
-    </head>`);
+    </head>`
+    );
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(protectedHtml);
@@ -738,7 +776,12 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
     // Atomic credit deduction with idempotency key (prevents double-deduction)
     if (req.user) {
       const idempotencyKey = `export-${req.params.scanId}-${format}-${exportType}`;
-      const result = await db.deductCreditAtomic(req.user.id, 'export', idempotencyKey, `Exported ${format.toUpperCase()} ${exportType}`);
+      const result = await db.deductCreditAtomic(
+        req.user.id,
+        'export',
+        idempotencyKey,
+        `Exported ${format.toUpperCase()} ${exportType}`
+      );
 
       if (!result.success && !result.alreadyProcessed) {
         // Insufficient credits — block download entirely (don't serve watermarked file)
@@ -778,19 +821,31 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
           name: clName,
           contact: clContact,
           jobTitle: scan.job_title,
-          companyName: scan.company_name
+          companyName: scan.company_name,
         };
         const parsed = parseCoverLetter(coverLetterText, ctx);
-        const html = renderTemplate('cover-letter', parsed, { watermark: req.isWatermarked, density: 'standard' });
+        const html = renderTemplate('cover-letter', parsed, {
+          watermark: req.isWatermarked,
+          density: 'standard',
+        });
         const buffer = await renderHtmlToPdf(html);
-        
+
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="cover-letter${req.isWatermarked ? '-preview' : ''}.pdf"`);
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="cover-letter${req.isWatermarked ? '-preview' : ''}.pdf"`
+        );
         res.send(buffer);
       } else {
         const buffer = await generateDOCX(coverLetterText, {}, [], [], { isCoverLetter: true });
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename="cover-letter${req.isWatermarked ? '-preview' : ''}.docx"`);
+        res.setHeader(
+          'Content-Type',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        );
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="cover-letter${req.isWatermarked ? '-preview' : ''}.docx"`
+        );
         res.send(buffer);
       }
 
@@ -807,7 +862,7 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
         watermark: req.isWatermarked,
         density,
         template,
-        jobUrl: scan.job_url || ''
+        jobUrl: scan.job_url || '',
       });
 
       // Self-test: validate the generated PDF has a readable text layer
@@ -819,16 +874,25 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
       }
 
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="optimized-resume${req.isWatermarked ? '-preview' : ''}.pdf"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="optimized-resume${req.isWatermarked ? '-preview' : ''}.pdf"`
+      );
       res.send(buffer);
     } else {
       const buffer = await generateDOCX(resumeText, sectionData, optimizedBullets, keywordPlan);
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      res.setHeader('Content-Disposition', `attachment; filename="optimized-resume${req.isWatermarked ? '-preview' : ''}.docx"`);
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="optimized-resume${req.isWatermarked ? '-preview' : ''}.docx"`
+      );
       res.send(buffer);
     }
 
-    // Record watermarked download for audit 
+    // Record watermarked download for audit
     if (req.isWatermarked && req.user) {
       await db.recordWatermarkedDownload(req.user.id, scanId, format, 'resume');
     }

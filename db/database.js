@@ -28,9 +28,16 @@ function getDb() {
 
     // H-8: WAL checkpoint every 5 minutes — prevents unbounded WAL growth and
     // reduces data-loss window on crash. TRUNCATE resets the WAL file to zero.
-    setInterval(() => {
-      try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch { /* non-fatal */ }
-    }, 5 * 60 * 1000).unref();
+    setInterval(
+      () => {
+        try {
+          db.pragma('wal_checkpoint(TRUNCATE)');
+        } catch {
+          /* non-fatal */
+        }
+      },
+      5 * 60 * 1000
+    ).unref();
   }
   return db;
 }
@@ -39,54 +46,91 @@ function runMigrations(database) {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
   database.exec(schema);
 
-  // Add password_hash column if missing (migration for existing DBs)
-  try {
-    database.prepare('SELECT password_hash FROM users LIMIT 1').get();
-  } catch {
-    database.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+  // ── Schema Migrations ──────────────────────────────────────────────────────
+  // Track applied migrations so we can skip already-run ALTER TABLE operations.
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version TEXT PRIMARY KEY,
+      applied_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  const applied = new Set(
+    database
+      .prepare('SELECT version FROM schema_migrations')
+      .all()
+      .map(r => r.version)
+  );
+
+  function migrate(version, sql) {
+    if (applied.has(version)) return;
+    database.exec(sql);
+    database.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(version);
+    log.info(`Migration applied: ${version}`);
   }
+  // Add password_hash column if missing (migration for existing DBs)
+  migrate('v1_password_hash', 'ALTER TABLE users ADD COLUMN password_hash TEXT');
 
   // Add agent optimization columns to scans table
-  const agentCols = ['optimized_bullets', 'keyword_plan', 'optimized_resume_text'];
-  for (const col of agentCols) {
-    try {
-      database.prepare(`SELECT ${col} FROM scans LIMIT 1`).get();
-    } catch {
-      database.exec(`ALTER TABLE scans ADD COLUMN ${col} TEXT`);
-    }
+  for (const col of ['optimized_bullets', 'keyword_plan', 'optimized_resume_text']) {
+    migrate(`v1_scans_${col}`, `ALTER TABLE scans ADD COLUMN ${col} TEXT`);
   }
 
   // Add Verification and Reset columns to users table
   const authCols = [
     { name: 'is_verified', type: 'INTEGER DEFAULT 0' },
     { name: 'verification_token', type: 'TEXT' },
-    { name: 'verification_token_expires', type: 'TEXT' },
     { name: 'reset_password_token', type: 'TEXT' },
     { name: 'reset_password_expires', type: 'TEXT' },
   ];
   for (const col of authCols) {
-    try {
-      database.prepare(`SELECT ${col.name} FROM users LIMIT 1`).get();
-    } catch {
-      database.exec(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`);
-    }
+    migrate(`v1_users_${col.name}`, `ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`);
   }
 
-  // ── Credit System Migrations ──────────────────────────────────────────────
+  // Add verification_token_expires column (24h token expiry)
+  migrate(
+    'v2_verification_token_expires',
+    'ALTER TABLE users ADD COLUMN verification_token_expires TEXT'
+  );
 
   // Add credit_balance column if missing
-  try {
-    database.prepare('SELECT credit_balance FROM users LIMIT 1').get();
-  } catch {
-    database.exec('ALTER TABLE users ADD COLUMN credit_balance INTEGER DEFAULT 1');
-  }
+  migrate('v1_credit_balance', 'ALTER TABLE users ADD COLUMN credit_balance INTEGER DEFAULT 1');
 
   // Add tier column if missing
+  migrate('v1_tier', "ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'");
+
+  // Add email_verified_at column
+  migrate('v2_email_verified_at', 'ALTER TABLE users ADD COLUMN email_verified_at TEXT');
+
+  // Add stripe_customer_id column
+  migrate('v1_stripe_customer_id', 'ALTER TABLE users ADD COLUMN stripe_customer_id TEXT UNIQUE');
+
+  // Add scans_used column
+  migrate('v1_scans_used', 'ALTER TABLE users ADD COLUMN scans_used INTEGER DEFAULT 0');
+
+  // Add ai_credits_used column
+  migrate('v1_ai_credits_used', 'ALTER TABLE users ADD COLUMN ai_credits_used INTEGER DEFAULT 0');
+
+  // Add cover_letter_text column to scans table
+  migrate('v1_cover_letter_text', 'ALTER TABLE scans ADD COLUMN cover_letter_text TEXT');
+
+  // Add access_token to scans for guest IDOR protection
+  migrate('v1_access_token', 'ALTER TABLE scans ADD COLUMN access_token TEXT');
+
+  // Add ats_platform column to scans
+  migrate('v2_ats_platform', 'ALTER TABLE scans ADD COLUMN ats_platform TEXT');
+
+  // Add email_hash column for PII-encrypted email lookup
+  migrate('v2_email_hash', 'ALTER TABLE users ADD COLUMN email_hash TEXT UNIQUE');
+
+  // ── INTEGRITY: Prevent negative credit balances ────────────────────────────
   try {
-    database.prepare('SELECT tier FROM users LIMIT 1').get();
-  } catch {
-    database.exec("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'");
-  }
+    const negatives = database.prepare('SELECT id FROM users WHERE credit_balance < 0').all();
+    if (negatives.length > 0) {
+      database.exec('UPDATE users SET credit_balance = 0 WHERE credit_balance < 0');
+      log.warn('Repaired negative credit balances', { count: negatives.length });
+    }
+  } catch {}
 
   // Create credit_transactions table if missing
   database.exec(`
@@ -129,19 +173,15 @@ function runMigrations(database) {
     'CREATE INDEX IF NOT EXISTS idx_download_history_idempotency ON download_history(idempotency_key)'
   );
 
-  // Add cover_letter_text column to scans table
+  // Backfill access tokens for existing guest scans (idempotent — only runs once)
+  migrate(
+    'v1_access_token_backfill',
+    `
+    UPDATE scans SET access_token = '${uuidv4()}' WHERE user_id IS NULL AND access_token IS NULL AND id = -1
+  `
+  );
+  // Actual backfill requires row-by-row UUID generation
   try {
-    database.prepare('SELECT cover_letter_text FROM scans LIMIT 1').get();
-  } catch {
-    database.exec('ALTER TABLE scans ADD COLUMN cover_letter_text TEXT');
-  }
-
-  // ── SECURITY: Add access_token to scans for guest IDOR protection ──────────
-  try {
-    database.prepare('SELECT access_token FROM scans LIMIT 1').get();
-  } catch {
-    database.exec('ALTER TABLE scans ADD COLUMN access_token TEXT');
-    // Backfill existing guest scans with access tokens
     const guestScans = database
       .prepare('SELECT id FROM scans WHERE user_id IS NULL AND access_token IS NULL')
       .all();
@@ -152,7 +192,7 @@ function runMigrations(database) {
       }
       log.info('Backfilled access tokens for guest scans', { count: guestScans.length });
     }
-  }
+  } catch {}
 
   // ── INTEGRITY: Prevent negative credit balances ────────────────────────────
   try {
@@ -162,14 +202,6 @@ function runMigrations(database) {
       log.warn('Repaired negative credit balances', { count: negatives.length });
     }
   } catch {}
-
-  // ── PII: Add email_hash column for encrypted email lookup ──────────────────
-  try {
-    database.prepare('SELECT email_hash FROM users LIMIT 1').get();
-  } catch {
-    database.exec('ALTER TABLE users ADD COLUMN email_hash TEXT UNIQUE');
-    log.info('Added email_hash column to users table');
-  }
 
   // ── Phase 3: Scan Sessions Table (replaces in-memory Map) ──────────────────
   database.exec(`
@@ -211,13 +243,6 @@ function runMigrations(database) {
     database.prepare('SELECT ats_platform FROM scans LIMIT 1').get();
   } catch {
     database.exec('ALTER TABLE scans ADD COLUMN ats_platform TEXT');
-  }
-
-  // ── A-6: Add email_verified_at column to users ────────────────────────────
-  try {
-    database.prepare('SELECT email_verified_at FROM users LIMIT 1').get();
-  } catch {
-    database.exec('ALTER TABLE users ADD COLUMN email_verified_at TEXT');
   }
 
   log.info('Database schema applied');
@@ -794,10 +819,10 @@ function saveJob(userId, data) {
   return result.lastInsertRowid;
 }
 
-function getUserJobs(userId) {
+function getUserJobs(userId, limit = 100) {
   return getDb()
-    .prepare('SELECT * FROM jobs WHERE user_id = ? ORDER BY updated_at DESC')
-    .all(userId);
+    .prepare('SELECT * FROM jobs WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?')
+    .all(userId, limit);
 }
 
 function updateJob(id, userId, data) {

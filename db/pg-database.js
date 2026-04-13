@@ -600,8 +600,11 @@ async function saveJob(userId, data) {
   return result.rows[0].id;
 }
 
-async function getUserJobs(userId) {
-  return queryAll('SELECT * FROM jobs WHERE user_id = $1 ORDER BY updated_at DESC', [userId]);
+async function getUserJobs(userId, limit = 100) {
+  return queryAll('SELECT * FROM jobs WHERE user_id = $1 ORDER BY updated_at DESC LIMIT $2', [
+    userId,
+    limit,
+  ]);
 }
 
 async function updateJob(id, userId, data) {
@@ -678,10 +681,10 @@ async function getGuestScanCount(ipAddress) {
 // ── Account Deletion ──────────────────────────────────────────────────────────
 
 async function updateAvatarUrl(userId, avatarUrl) {
-  await getDb().query(
-    'UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2',
-    [avatarUrl, userId]
-  );
+  await getDb().query('UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2', [
+    avatarUrl,
+    userId,
+  ]);
 }
 
 async function deleteUserAccount(userId) {
