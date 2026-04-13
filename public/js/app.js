@@ -1124,71 +1124,113 @@ function startAgentAnalysis(sessionId) {
     s.classList.remove('complete', 'running', 'error');
   });
 
-  // fetch + ReadableStream replaces EventSource.
-  // fetch() sends session cookies automatically (same-origin), enabling server-side auth.
-  // EventSource cannot send custom headers and had no authentication — anyone could stream.
-  const abortController = new AbortController();
-  agentSource = abortController; // Store so we can abort on error/complete
+  // SSE Reconnection State
+  let sseRetryCount = 0;
+  const SSE_MAX_RETRIES = 3;
+  const SSE_BASE_DELAY = 1000; // 1s, 2s, 4s (exponential backoff)
 
-  fetch(`/api/agent/stream/${sessionId}`, {
-    credentials: 'same-origin',
-    signal: abortController.signal,
-    headers: { Accept: 'text/event-stream' },
-  })
-    .then(response => {
-      if (!response.ok) {
-        showToast('Stream authentication failed. Please try again.', 'error');
-        agentSource = null;
-        return;
-      }
+  // Unified SSE connection function with reconnection
+  function connectSSE(sessionId) {
+    const abortController = new AbortController();
+    agentSource = abortController;
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      function processSSE() {
-        reader
-          .read()
-          .then(({ done, value }) => {
-            if (done) return;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); // Keep incomplete line in buffer
-
-            let currentEvent = '';
-            let currentData = '';
-
-            for (const line of lines) {
-              if (line.startsWith('event: ')) {
-                currentEvent = line.slice(7).trim();
-              } else if (line.startsWith('data: ')) {
-                currentData = line.slice(6);
-              } else if (line === '' && currentEvent && currentData) {
-                handleSSEEvent(currentEvent, currentData);
-                currentEvent = '';
-                currentData = '';
-              }
-            }
-
-            processSSE(); // Continue reading
-          })
-          .catch(err => {
-            if (err.name !== 'AbortError') {
-              showToast('Stream connection lost. Please try again.', 'error');
-            }
-            agentSource = null;
-          });
-      }
-
-      processSSE();
+    fetch(`/api/agent/stream/${sessionId}`, {
+      credentials: 'same-origin',
+      signal: abortController.signal,
+      headers: { Accept: 'text/event-stream' },
     })
-    .catch(err => {
-      if (err.name !== 'AbortError') {
-        showToast('Failed to connect to analysis stream.', 'error');
+      .then(response => {
+        if (!response.ok) {
+          // Non-2xx response — treat as connection failure
+          throw new Error(`Stream error: ${response.status}`);
+        }
+
+        // Success — reset retry counter
+        sseRetryCount = 0;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        function processSSE() {
+          reader
+            .read()
+            .then(({ done, value }) => {
+              if (done) {
+                // Stream ended — attempt reconnect if we haven't retried too many times
+                if (sseRetryCount < SSE_MAX_RETRIES) {
+                  scheduleReconnect(sessionId);
+                } else {
+                  showToast('Analysis stream ended. Please start a new scan.', 'info');
+                  agentSource = null;
+                }
+                return;
+              }
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop();
+
+              let currentEvent = '';
+              let currentData = '';
+
+              for (const line of lines) {
+                if (line.startsWith('event: ')) {
+                  currentEvent = line.slice(7).trim();
+                } else if (line.startsWith('data: ')) {
+                  currentData = line.slice(6);
+                } else if (line === '' && currentEvent && currentData) {
+                  handleSSEEvent(currentEvent, currentData);
+                  currentEvent = '';
+                  currentData = '';
+                }
+              }
+
+              processSSE();
+            })
+            .catch(err => {
+              if (err.name !== 'AbortError') {
+                handleSSEError(sessionId, err);
+              }
+            });
+        }
+
+        processSSE();
+      })
+      .catch(err => {
+        if (err.name !== 'AbortError') {
+          handleSSEError(sessionId, err);
+        }
+      });
+  }
+
+  function handleSSEError(sessionId, err) {
+    agentSource = null;
+    if (sseRetryCount < SSE_MAX_RETRIES) {
+      scheduleReconnect(sessionId);
+    } else {
+      showToast(
+        'Analysis stream disconnected after multiple attempts. Please start a new scan.',
+        'error'
+      );
+    }
+  }
+
+  function scheduleReconnect(sessionId) {
+    sseRetryCount++;
+    const delay = SSE_BASE_DELAY * Math.pow(2, sseRetryCount - 1);
+    console.log(`SSE reconnect attempt ${sseRetryCount}/${SSE_MAX_RETRIES} in ${delay}ms`);
+
+    setTimeout(() => {
+      // Check if user hasn't started a new scan
+      if (agentSource === null || agentSource === undefined) {
+        connectSSE(sessionId);
       }
-      agentSource = null;
-    });
+    }, delay);
+  }
+
+  // Start SSE connection with reconnection support
+  connectSSE(sessionId);
 
   // SSE event dispatcher — same logic as the old EventSource listeners
   function handleSSEEvent(eventType, dataStr) {
@@ -1223,7 +1265,6 @@ function startAgentAnalysis(sessionId) {
             announceToScreenReader(`Completed step ${data.step}: ${data.name}`);
           }
           if (data.status === 'error') {
-            abortController.abort();
             agentSource = null;
             finalizeAgentUI(data);
           }
@@ -1283,7 +1324,6 @@ function startAgentAnalysis(sessionId) {
         break;
 
       case 'complete':
-        abortController.abort();
         agentSource = null;
         if (data.resumeText) agentResumeText = data.resumeText;
         persistCurrentScanToken(data.accessToken || '');
@@ -1304,7 +1344,6 @@ function startAgentAnalysis(sessionId) {
         break;
 
       case 'error':
-        abortController.abort();
         agentSource = null;
         // Hide loading state and restore the upload form so the user can retry
         const loadingEl = el('scan-loading');
