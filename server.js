@@ -19,7 +19,7 @@ if (isPg) {
 }
 const { getDb, closeDb } = require('./db/database');
 const { configurePassport } = require('./config/passport');
-const { configureHelmet, generalLimiter, cspNonceMiddleware, permissionsPolicyMiddleware, authLimiter } = require('./config/security');
+const { configureHelmet, generalLimiter, cspNonceMiddleware, permissionsPolicyMiddleware, clickjackingProtection, authLimiter } = require('./config/security');
 const { AppError } = require('./lib/errors');
 const log = require('./lib/logger');
 const { initSentry, flushSentry } = require('./lib/error-tracker');
@@ -178,6 +178,7 @@ app.use(cspNonceMiddleware);
 // Configure Security
 app.use(configureHelmet());
 app.use(permissionsPolicyMiddleware);
+app.use(clickjackingProtection);
 app.use(generalLimiter);
 
 // Compression — gzip/brotli for all responses (3-5x smaller payloads)

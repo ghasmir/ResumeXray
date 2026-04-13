@@ -7,6 +7,35 @@ let currentUser = null;
 let currentScan = null;
 let lastJobInput = '';
 let loadResultsToken = 0; // Cancellation token for loadResults retries
+let userFetchPromise = null; // Request deduplication for fetchUser
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITY FUNCTIONS (Performance & Accessibility)
+// ═══════════════════════════════════════════════════════════════
+
+// Debounce function for performance optimization
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
+// Screen reader announcement helper for accessibility
+function announceToScreenReader(message, priority = 'polite') {
+  const announcer = el('sr-announcer');
+  if (!announcer) return;
+  
+  // Clear previous announcement to ensure new one is read
+  announcer.textContent = '';
+  
+  // Use setTimeout to ensure the clear has taken effect
+  setTimeout(() => {
+    announcer.setAttribute('aria-live', priority);
+    announcer.textContent = message;
+  }, 100);
+}
 
 // Client-side error telemetry — sends to /api/client-error
 (function initErrorReporting() {
@@ -126,6 +155,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── Auth State ─────────────────────────────────────────────────
 async function fetchUser() {
+  // Request deduplication: return existing promise if already fetching
+  if (userFetchPromise) return userFetchPromise;
+  
   // Guard: if we just logged out, skip fetching to prevent stale session re-auth
   if (sessionStorage.getItem('rx_logged_out')) {
     sessionStorage.removeItem('rx_logged_out');
@@ -138,59 +170,68 @@ async function fetchUser() {
     if (el('sheet-link-dashboard')) el('sheet-link-dashboard').style.display = 'none';
     return;
   }
-  try {
-    const res = await fetch('/user/me');
-    if (res.ok) {
-      currentUser = await res.json();
-      const user = currentUser.user || currentUser;
-      
-      // Update UI elements
-      const initials = (user.name || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      if (el('nav-avatar-initials')) el('nav-avatar-initials').textContent = initials;
-      const avatarUrl = user.avatarUrl || user.avatar || null; // handle both field names
-      if (avatarUrl && el('nav-avatar')) {
-        // Safe avatar rendering — validate URL protocol before injection
-        const safeUrl = (avatarUrl.startsWith('https://') || avatarUrl.startsWith('/')) ? avatarUrl : '';
-        if (safeUrl) {
-          const img = document.createElement('img');
-          img.src = safeUrl;
-          img.alt = user.name || 'User';
-          el('nav-avatar').textContent = '';
-          el('nav-avatar').appendChild(img);
+  
+  userFetchPromise = (async () => {
+    try {
+      const res = await fetch('/user/me');
+      if (res.ok) {
+        currentUser = await res.json();
+        const user = currentUser.user || currentUser;
+        
+        // Update UI elements
+        const initials = (user.name || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+        if (el('nav-avatar-initials')) el('nav-avatar-initials').textContent = initials;
+        const avatarUrl = user.avatarUrl || user.avatar || null; // handle both field names
+        if (avatarUrl && el('nav-avatar')) {
+          // Safe avatar rendering — validate URL protocol before injection
+          const safeUrl = (avatarUrl.startsWith('https://') || avatarUrl.startsWith('/')) ? avatarUrl : '';
+          if (safeUrl) {
+            const img = document.createElement('img');
+            img.src = safeUrl;
+            img.alt = user.name || 'User';
+            el('nav-avatar').textContent = '';
+            el('nav-avatar').appendChild(img);
+          }
         }
-      }
-      if (el('nav-credits-count')) el('nav-credits-count').textContent = user.creditBalance || 0;
-      
-      // Show/Hide areas — authenticated
-      if (el('nav-user-area')) el('nav-user-area').style.display = 'flex';
-      if (el('nav-guest-area')) el('nav-guest-area').style.display = 'none';
-      if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'inline-flex';
-      // Bottom sheet: show auth items, hide guest items
-      if (el('sheet-auth-area')) el('sheet-auth-area').style.display = 'block';
-      if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'none';
-      if (el('sheet-link-dashboard')) el('sheet-link-dashboard').style.display = 'flex';
+        if (el('nav-credits-count')) el('nav-credits-count').textContent = user.creditBalance || 0;
+        
+        // Show/Hide areas — authenticated
+        if (el('nav-user-area')) el('nav-user-area').style.display = 'flex';
+        if (el('nav-guest-area')) el('nav-guest-area').style.display = 'none';
+        if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'inline-flex';
+        // Bottom sheet: show auth items, hide guest items
+        if (el('sheet-auth-area')) el('sheet-auth-area').style.display = 'block';
+        if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'none';
+        if (el('sheet-link-dashboard')) el('sheet-link-dashboard').style.display = 'flex';
 
-      // Update credit balance in navbar
-      updateNavCredits(user.creditBalance || 0);
-    } else {
+        // Update credit balance in navbar
+        updateNavCredits(user.creditBalance || 0);
+      } else {
+        currentUser = null;
+        if (el('nav-user-area')) el('nav-user-area').style.display = 'none';
+        if (el('nav-guest-area')) el('nav-guest-area').style.display = 'flex';
+        if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'none';
+        if (el('sheet-auth-area')) el('sheet-auth-area').style.display = 'none';
+        if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'block';
+        if (el('sheet-link-dashboard')) el('sheet-link-dashboard').style.display = 'none';
+      }
+    } catch (e) {
       currentUser = null;
       if (el('nav-user-area')) el('nav-user-area').style.display = 'none';
       if (el('nav-guest-area')) el('nav-guest-area').style.display = 'flex';
-      if (el('nav-link-dashboard')) el('nav-link-dashboard').style.display = 'none';
       if (el('sheet-auth-area')) el('sheet-auth-area').style.display = 'none';
       if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'block';
-      if (el('sheet-link-dashboard')) el('sheet-link-dashboard').style.display = 'none';
     }
-  } catch (e) {
-    currentUser = null;
-    if (el('nav-user-area')) el('nav-user-area').style.display = 'none';
-    if (el('nav-guest-area')) el('nav-guest-area').style.display = 'flex';
-    if (el('sheet-auth-area')) el('sheet-auth-area').style.display = 'none';
-    if (el('sheet-guest-area')) el('sheet-guest-area').style.display = 'block';
+    // Fetch CSRF token AFTER /user/me has completed and session has been saved.
+    // This guarantees our token is the last write — no overwrite from rolling session save.
+    await fetchCsrfToken();
+  })();
+  
+  try {
+    return await userFetchPromise;
+  } finally {
+    userFetchPromise = null; // Reset for next call
   }
-  // Fetch CSRF token AFTER /user/me has completed and session has been saved.
-  // This guarantees our token is the last write — no overwrite from rolling session save.
-  await fetchCsrfToken();
 }
 
 function updateNavCredits(balance) {
@@ -391,9 +432,10 @@ function _setupPasswordStrength(inputId, prefix) {
     return checks;
   }
 
-  // Listen to all possible input events (type, paste, autofill)
+  // Listen to all possible input events (type, paste, autofill) — debounced for performance
+  const debouncedCheck = debounce(checkPassword, 100);
   ['input', 'keyup', 'change', 'paste'].forEach(evt => {
-    input.addEventListener(evt, checkPassword);
+    input.addEventListener(evt, debouncedCheck);
   });
 
   input.addEventListener('focus', () => {
@@ -1091,10 +1133,16 @@ function startAgentAnalysis(sessionId) {
           // Show context header on first step — pre-populate with URL company if available
 
           addAgentStepCard(data.step, data.name, data.label);
+          // Announce step start to screen readers
+          announceToScreenReader(`Starting analysis step ${data.step}: ${data.name}`);
         } else if (data.status === 'complete' || data.status === 'locked' || data.status === 'error') {
           if (initBlock) initBlock.style.display = 'none';
           if (dashboard) dashboard.style.display = 'block';
           updateAgentStepCard(data.step, data.status, data.label, data.data);
+          // Announce step completion to screen readers
+          if (data.status === 'complete') {
+            announceToScreenReader(`Completed step ${data.step}: ${data.name}`);
+          }
           if (data.status === 'error') {
             abortController.abort();
             agentSource = null;
@@ -1134,6 +1182,8 @@ function startAgentAnalysis(sessionId) {
 
       case 'scores':
         updateAgentScores(data);
+        // Announce scores to screen readers
+        announceToScreenReader(`Analysis scores updated: Parse rate ${data.parseRate}%, Format health ${data.formatHealth}%, Job match ${data.matchRate}%`);
         break;
 
       case 'coverLetter':
@@ -1161,6 +1211,9 @@ function startAgentAnalysis(sessionId) {
           localStorage.setItem('resumeXray_currentScanId', String(data.scanId));
         }
         // Update context header with real job title + company from scan result
+
+        // Announce completion to screen readers
+        announceToScreenReader('Resume analysis complete. Your optimized resume is ready for download.', 'assertive');
 
         if (currentUser) fetchUser().then(() => finalizeAgentUI(data));
         else finalizeAgentUI(data);
@@ -2756,12 +2809,25 @@ function setupMobileMenu() {
   if (menuBtn._bound) return; // Prevent double-binding
   menuBtn._bound = true;
 
+  // Store last focused element for focus restoration
+  let lastFocusedElement = null;
+  let focusTrapHandler = null;
+
   function openSheet() {
+    lastFocusedElement = document.activeElement;
     sheet.classList.add('open');
     backdrop.classList.add('open');
     menuBtn.classList.add('open');
     menuBtn.setAttribute('aria-label', 'Close menu');
     document.body.style.overflow = 'hidden';
+    sheet.setAttribute('aria-hidden', 'false');
+    
+    // Activate focus trap
+    setupFocusTrap(sheet);
+    
+    // Focus first focusable element
+    const firstFocusable = getFocusableElements(sheet)[0];
+    if (firstFocusable) firstFocusable.focus();
   }
   function closeSheet() {
     sheet.classList.remove('open');
@@ -2769,9 +2835,51 @@ function setupMobileMenu() {
     menuBtn.classList.remove('open');
     menuBtn.setAttribute('aria-label', 'Open menu');
     document.body.style.overflow = '';
+    sheet.setAttribute('aria-hidden', 'true');
     // Reset any swipe transform
     sheet.style.transform = '';
     sheet.style.transition = '';
+    
+    // Remove focus trap
+    if (focusTrapHandler) {
+      sheet.removeEventListener('keydown', focusTrapHandler);
+      focusTrapHandler = null;
+    }
+    
+    // Restore focus
+    if (lastFocusedElement) {
+      lastFocusedElement.focus();
+      lastFocusedElement = null;
+    }
+  }
+  
+  // Focus trap implementation for accessibility
+  function getFocusableElements(container) {
+    return Array.from(container.querySelectorAll(
+      'a[href], button, textarea, input[type="text"], input[type="radio"], input[type="checkbox"], select, [tabindex]:not([tabindex="-1"])'
+    )).filter(el => !el.disabled && el.offsetParent !== null);
+  }
+  
+  function setupFocusTrap(container) {
+    focusTrapHandler = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = getFocusableElements(container);
+      if (focusableElements.length === 0) return;
+      
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    };
+    
+    container.addEventListener('keydown', focusTrapHandler);
   }
 
   // Menu button opens/closes bottom sheet

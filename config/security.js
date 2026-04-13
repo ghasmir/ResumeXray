@@ -90,6 +90,14 @@ function configureHelmet() {
   });
 }
 
+// ── Clickjacking Protection ───────────────────────────────────────────────────
+// Additional layer beyond CSP frame-ancestors for older browsers
+function clickjackingProtection(req, res, next) {
+  res.setHeader('X-Frame-Options', 'DENY');
+  // CSP frame-ancestors already set in configureHelmet, but belt-and-suspenders
+  next();
+}
+
 // ── Permissions-Policy ────────────────────────────────────────────────────────
 // Denies every powerful feature we don't use. Big reduction in XSS blast radius.
 function permissionsPolicyMiddleware(req, res, next) {
@@ -260,6 +268,7 @@ module.exports = {
   configureHelmet,
   cspNonceMiddleware,
   permissionsPolicyMiddleware,
+  clickjackingProtection,
   generalLimiter,
   apiLimiter,
   authLimiter,
