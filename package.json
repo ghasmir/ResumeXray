@@ -7,9 +7,14 @@
     "node": ">=22.0.0",
     "npm": ">=10.0.0"
   },
+  "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node --watch server.js",
+    "dev:client": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "prod": "pm2 start ecosystem.config.js --env production",
     "reload": "pm2 reload ecosystem.config.js",
     "logs": "pm2 logs resumexray --lines 100",
@@ -19,7 +24,11 @@
     "test:ci": "node --test --test-reporter spec tests/smoke.test.js",
     "seed": "node db/seed.js",
     "db:reset": "rm -f db/resumexray.db db/resumexray.db-shm db/resumexray.db-wal && node db/seed.js",
-    "postinstall": "npx playwright install chromium"
+    "postinstall": "npx playwright install chromium",
+    "lint": "eslint src/ --ext .js",
+    "lint:fix": "eslint src/ --ext .js --fix",
+    "format": "prettier --write \"src/**/*.{js,css,html}\"",
+    "format:check": "prettier --check \"src/**/*.{js,css,html}\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -59,5 +68,18 @@
     "sharp": "^0.34.5",
     "stripe": "^17.4.0",
     "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11",
+    "vite-plugin-pwa": "^0.20.5",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.3.3",
+    "concurrently": "^9.0.1",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "cypress": "^13.15.0",
+    "workbox-window": "^7.1.0"
   }
 }
