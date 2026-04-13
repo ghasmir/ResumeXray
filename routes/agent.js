@@ -105,11 +105,9 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     // Content validation: reject non-resume files
     const validation = validateResumeContent(rawText);
     if (!validation.isResume) {
-      return res
-        .status(400)
-        .json({
-          error: `This doesn't appear to be a resume. Please upload your resume file (PDF or DOCX) containing your work experience, education, and skills.`,
-        });
+      return res.status(400).json({
+        error: `This doesn't appear to be a resume. Please upload your resume file (PDF or DOCX) containing your work experience, education, and skills.`,
+      });
     }
 
     // §10.11: Input length validation — prevent oversized payloads before LLM processing
@@ -203,7 +201,7 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
 
 // ── GET /agent/stream/:sessionId — SSE streaming pipeline ─────────────────────
 
-router.get('/stream/:sessionId', async (req, res) => {
+router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
   const dbSession = await db.getScanSession(req.params.sessionId);
   if (!dbSession) {
     return res.status(404).json({ error: 'Session expired or not found.' });
@@ -299,46 +297,44 @@ router.get('/stream/:sessionId', async (req, res) => {
   // §9.4: Event IDs for Last-Event-ID reconnection
   let eventId = 0;
   function sseWrite(event, data) {
-    if (res.writableEnded) return;
+    if (res.writableEnded) return Promise.resolve();
     eventId++;
     const msg = `id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     const ok = res.write(msg);
-    // If the kernel buffer is full, Node returns false — we should pause upstream
-    // The LLM streaming will naturally pause when the event loop is blocked
     if (!ok && !res.writableEnded) {
-      // Wait for drain before continuing (backpressure signal)
       return new Promise(resolve => res.once('drain', resolve));
     }
+    return Promise.resolve();
   }
 
   const emitter = {
-    emitStep(step, name, status, label, data = null) {
+    async emitStep(step, name, status, label, data = null) {
       const payload = { step, name, status, label };
       if (data) payload.data = data;
-      sseWrite('step', payload);
+      await sseWrite('step', payload);
     },
-    emitToken(step, name, chunk, bulletIndex) {
+    async emitToken(step, name, chunk, bulletIndex) {
       const payload = { step, name, chunk };
       if (bulletIndex !== undefined) payload.bulletIndex = bulletIndex;
-      sseWrite('token', payload);
+      await sseWrite('token', payload);
     },
-    emitBullet(step, index, status, original, rewritten, method, targetKeyword) {
+    async emitBullet(step, index, status, original, rewritten, method, targetKeyword) {
       const payload = { step, index, status, original };
       if (rewritten) payload.rewritten = rewritten;
       if (method) payload.method = method;
       if (targetKeyword) payload.targetKeyword = targetKeyword;
-      sseWrite('bullet', payload);
+      await sseWrite('bullet', payload);
     },
-    emitScores(scores) {
-      sseWrite('scores', scores);
+    async emitScores(scores) {
+      await sseWrite('scores', scores);
     },
-    emitInit(scanId) {
-      sseWrite('init', { scanId });
+    async emitInit(scanId) {
+      await sseWrite('init', { scanId });
     },
     async emitComplete(scanId) {
       const creditBalance = session.userId ? await db.getCreditBalance(session.userId) : 0;
       const canDownloadClean = creditBalance >= 1;
-      sseWrite('complete', {
+      await sseWrite('complete', {
         scanId,
         canDownloadClean,
         downloadUrl: `/api/agent/download/${scanId}`,
@@ -349,14 +345,14 @@ router.get('/stream/:sessionId', async (req, res) => {
         accessToken: accessToken || null, // For guest scan preview URLs (IDOR protection)
       });
     },
-    emitError(message, step) {
-      sseWrite('error', { message, step });
+    async emitError(message, step) {
+      await sseWrite('error', { message, step });
     },
-    emitCoverLetter(text) {
-      sseWrite('coverLetter', { text });
+    async emitCoverLetter(text) {
+      await sseWrite('coverLetter', { text });
     },
-    emitAtsProfile(atsProfile) {
-      sseWrite('atsProfile', {
+    async emitAtsProfile(atsProfile) {
+      await sseWrite('atsProfile', {
         name: atsProfile.name,
         displayName: atsProfile.displayName,
         template: atsProfile.template,

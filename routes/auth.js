@@ -428,7 +428,7 @@ router.post('/logout', (req, res, next) => {
 
 // ── Verification & Recovery ────────────────────────────────────
 
-router.get('/verify/:token', async (req, res) => {
+router.get('/verify/:token', authLimiter, async (req, res) => {
   try {
     const user = await db.getUserByVerificationToken(req.params.token);
     if (!user) {

@@ -1,14 +1,14 @@
 /**
  * CSRF Protection Middleware — Synchronizer Token Pattern
- * 
+ *
  * Phase 4 #20: Implements CSRF protection without the deprecated `csurf` package.
  * Uses the Synchronizer Token Pattern (OWASP recommended):
- * 
+ *
  * 1. Server generates a crypto-random token, stored in the session
  * 2. Frontend fetches it via GET /api/csrf-token
  * 3. Frontend sends it in the X-CSRF-Token header on state-changing requests
  * 4. Server validates the header matches the session token
- * 
+ *
  * Safe methods (GET, HEAD, OPTIONS) are exempt.
  * Webhooks and SSE streams are also exempt (they use different auth).
  */
@@ -16,23 +16,23 @@
 const crypto = require('crypto');
 const log = require('../lib/logger');
 
-const CSRF_TOKEN_LENGTH = 32;  // 256-bit token
+const CSRF_TOKEN_LENGTH = 32; // 256-bit token
 const CSRF_HEADER = 'x-csrf-token';
 
 // Routes exempt from CSRF (webhooks, SSE streams, public reads)
 const CSRF_EXEMPT_PATHS = [
-  '/billing/webhook',         // Stripe webhook (validated by signature)
-  '/api/agent/stream/',       // SSE stream (read-only after initial POST)
-  '/auth/google',             // OAuth redirects (validated by OAuth state parameter)
+  '/billing/webhook', // Stripe webhook (validated by signature)
+  '/api/agent/stream/', // SSE stream (read-only after initial POST)
+  '/auth/google', // OAuth redirects (validated by OAuth state parameter)
   '/auth/google/callback',
   '/auth/github',
   '/auth/github/callback',
   '/auth/linkedin',
   '/auth/linkedin/callback',
-  '/auth/reset-password',     // Protected by one-time reset token (user arrives from email, no session)
-  '/auth/forgot-password',    // No sensitive action (only sends email, anti-enumeration)
-  '/api/csp-report',          // Phase 6 Wave 4: Browser CSP reports (no CSRF possible)
-  '/api/client-error',        // Phase 6 Wave 4: sendBeacon telemetry (no custom headers)
+  '/auth/reset-password', // Protected by one-time reset token (user arrives from email, no session)
+  '/auth/forgot-password', // No sensitive action (only sends email, anti-enumeration)
+  '/api/csp-report', // Phase 6 Wave 4: Browser CSP reports (no CSRF possible)
+  '/api/client-error', // Phase 6 Wave 4: sendBeacon telemetry (no custom headers)
 ];
 
 /**
@@ -69,9 +69,9 @@ function csrfProtection(req, res, next) {
     return next();
   }
 
-  // Check exempt paths
+  // Check exempt paths — exact match or prefix match for parameterized routes
   for (const exemptPath of CSRF_EXEMPT_PATHS) {
-    if (req.path.startsWith(exemptPath)) {
+    if (req.path === exemptPath || (exemptPath.endsWith('/') && req.path.startsWith(exemptPath))) {
       return next();
     }
   }
@@ -97,8 +97,8 @@ function csrfProtection(req, res, next) {
   // Must check byte length first — timingSafeEqual throws if lengths differ.
   const sessionBuf = Buffer.from(sessionToken);
   const headerBuf = Buffer.from(headerToken);
-  const valid = sessionBuf.length === headerBuf.length &&
-    crypto.timingSafeEqual(sessionBuf, headerBuf);
+  const valid =
+    sessionBuf.length === headerBuf.length && crypto.timingSafeEqual(sessionBuf, headerBuf);
   if (!valid) {
     log.warn('CSRF token mismatch', { path: req.path, method: req.method });
     return res.status(403).json({

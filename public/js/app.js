@@ -262,6 +262,29 @@ function el(id) {
   return document.getElementById(id);
 }
 
+// Null-safe element wrapper — silently no-ops when element doesn't exist.
+// Use $(id) instead of el(id) when the element might not be in the DOM.
+function $(id) {
+  const element = document.getElementById(id);
+  if (element) return element;
+  const noop = () => {};
+  const noopEl = Object.create(null);
+  noopEl.style = new Proxy({}, { set: () => true });
+  noopEl.classList = { add: noop, remove: noop, toggle: noop, contains: () => false };
+  noopEl.dataset = {};
+  noopEl.children = [];
+  noopEl.parentNode = null;
+  return new Proxy(noopEl, {
+    get(target, prop) {
+      if (prop in target) return target[prop];
+      return noop;
+    },
+    set() {
+      return true;
+    },
+  });
+}
+
 // ── Auth Navigation Helper (used by guest unlock overlays) ──
 function showAuth(mode) {
   navigateTo(mode === 'login' ? '/login' : '/signup');

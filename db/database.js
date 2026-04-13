@@ -272,40 +272,41 @@ function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
   const column = PROVIDER_COLUMNS[provider];
   if (!column) throw new Error(`Unknown OAuth provider: ${provider}`);
 
-  let user = db.prepare(`SELECT * FROM users WHERE ${column} = ?`).get(profileId);
-  if (user) return decryptUserEmail(user);
+  // Use a transaction to prevent race conditions between SELECT and INSERT
+  return db.transaction(() => {
+    let user = db.prepare(`SELECT * FROM users WHERE ${column} = ?`).get(profileId);
+    if (user) return decryptUserEmail(user);
 
-  // Check if email already exists (link account) — try hash first, then plaintext
-  const hash = emailHash(email);
-  user = db.prepare('SELECT * FROM users WHERE email_hash = ?').get(hash);
-  if (!user) {
-    user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
-  }
-  if (user) {
-    // Auto-link OAuth provider to existing account (including password accounts).
-    // Safe because Google/LinkedIn/GitHub all verify email ownership.
+    // Check if email already exists (link account) — try hash first, then plaintext
+    const hash = emailHash(email);
+    user = db.prepare('SELECT * FROM users WHERE email_hash = ?').get(hash);
+    if (!user) {
+      user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    }
+    if (user) {
+      db.prepare(
+        `UPDATE users SET ${column} = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = datetime('now') WHERE id = ?`
+      ).run(profileId, avatarUrl, user.id);
+      return decryptUserEmail(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id));
+    }
+
+    // Create new user with 1 signup bonus credit
+    const encryptedEmail = encryptPii(email.toLowerCase().trim());
+    const result = db
+      .prepare(
+        `INSERT INTO users (${column}, email, email_hash, name, avatar_url, credit_balance, is_verified, verification_token, verification_token_expires) VALUES (?, ?, ?, ?, ?, 1, 1, NULL, NULL)`
+      )
+      .run(profileId, encryptedEmail, hash, name, avatarUrl);
+
+    const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+
+    // Record the signup bonus transaction
     db.prepare(
-      `UPDATE users SET ${column} = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = datetime('now') WHERE id = ?`
-    ).run(profileId, avatarUrl, user.id);
-    return decryptUserEmail(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id));
-  }
+      `INSERT INTO credit_transactions (user_id, amount, type, description) VALUES (?, 1, 'signup_bonus', 'Welcome bonus credit')`
+    ).run(newUser.id);
 
-  // Create new user with 1 signup bonus credit
-  const encryptedEmail = encryptPii(email.toLowerCase().trim());
-  const result = db
-    .prepare(
-      `INSERT INTO users (${column}, email, email_hash, name, avatar_url, credit_balance, is_verified, verification_token, verification_token_expires) VALUES (?, ?, ?, ?, ?, 1, 1, NULL, NULL)`
-    )
-    .run(profileId, encryptedEmail, hash, name, avatarUrl);
-
-  const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-
-  // Record the signup bonus transaction
-  db.prepare(
-    `INSERT INTO credit_transactions (user_id, amount, type, description) VALUES (?, 1, 'signup_bonus', 'Welcome bonus credit')`
-  ).run(newUser.id);
-
-  return decryptUserEmail(newUser);
+    return decryptUserEmail(newUser);
+  })();
 }
 
 function getUserById(id) {
