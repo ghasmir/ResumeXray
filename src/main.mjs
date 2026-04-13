@@ -7,27 +7,27 @@
 // CORE IMPORTS
 // ═══════════════════════════════════════════════════════════════
 
-import { setupRouter, navigateTo } from './core/router.js';
-import { appStore } from './core/state.js';
-import { setupSkipLink, setupReducedMotion } from './core/accessibility.js';
-import { fetchUser } from './services/index.js';
-import { el, debounce, getInitials } from './core/utils.js';
+import { setupRouter, navigateTo } from './core/router.mjs';
+import { appStore } from './core/state.mjs';
+import { setupSkipLink, setupReducedMotion } from './core/accessibility.mjs';
+import { fetchUser } from './services/index.mjs';
+import { el, debounce, getInitials } from './core/utils.mjs';
 
 // ═══════════════════════════════════════════════════════════════
 // FEATURE IMPORTS
 // ═══════════════════════════════════════════════════════════════
 
-import { setupAuthForms, setupPasswordToggles } from './features/auth/index.js';
-import { setupScanForm } from './features/scan/index.js';
-import { setupDashboard } from './features/dashboard/index.js';
-import { setupProfile } from './features/profile/index.js';
+import { setupAuthForms, setupPasswordToggles } from './features/auth/index.mjs';
+import { setupScanForm } from './features/scan/index.mjs';
+import { setupDashboard } from './features/dashboard/index.mjs';
+import { setupProfile } from './features/profile/index.mjs';
 
 // ═══════════════════════════════════════════════════════════════
 // COMPONENT IMPORTS
 // ═══════════════════════════════════════════════════════════════
 
-import { setupToastContainer, showToast } from './components/toast.js';
-import { setupModal } from './components/modal.js';
+import { setupToastContainer, showToast } from './components/toast.mjs';
+import { setupModal } from './components/modal.mjs';
 
 // ═══════════════════════════════════════════════════════════════
 // GLOBAL STATE (for backward compatibility during migration)

@@ -3,8 +3,8 @@
  * Business logic for user, scan, and credit management
  */
 
-import { get, post, patch, del } from '../core/api.js';
-import { appStore } from '../core/state.js';
+import { get, post, patch, del } from '../core/api.mjs';
+import { appStore } from '../core/state.mjs';
 
 // Request deduplication cache
 const requestCache = new Map();

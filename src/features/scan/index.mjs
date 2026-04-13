@@ -3,11 +3,11 @@
  * Resume upload and analysis functionality
  */
 
-import { el, formatFileSize } from '../core/utils.js';
-import { navigateTo } from '../core/router.js';
-import { upload, get } from '../core/api.js';
-import { showToast } from '../../components/toast.js';
-import { announceToScreenReader } from '../../core/accessibility.js';
+import { el, formatFileSize } from '../core/utils.mjs';
+import { navigateTo } from '../core/router.mjs';
+import { upload, get } from '../core/api.mjs';
+import { showToast } from '../../components/toast.mjs';
+import { announceToScreenReader } from '../../core/accessibility.mjs';
 
 // Constants
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB

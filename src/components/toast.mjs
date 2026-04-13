@@ -3,7 +3,7 @@
  * Accessible toast notifications with auto-dismiss
  */
 
-import { el } from '../core/utils.js';
+import { el } from '../core/utils.mjs';
 
 const icons = {
   success:

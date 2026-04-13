@@ -3,7 +3,7 @@
  * Screen reader announcements, focus management, and ARIA helpers
  */
 
-import { el } from './utils.js';
+import { el } from './utils.mjs';
 
 /**
  * Announce message to screen readers

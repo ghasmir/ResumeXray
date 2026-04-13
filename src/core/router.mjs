@@ -3,8 +3,8 @@
  * SPA routing with history API and view management
  */
 
-import { appStore } from './state.js';
-import { el } from './utils.js';
+import { appStore } from './state.mjs';
+import { el } from './utils.mjs';
 
 // Route definitions
 const routes = {

@@ -3,7 +3,7 @@
  * Centralized HTTP client with CSRF protection and error handling
  */
 
-import { appStore } from './state.js';
+import { appStore } from './state.mjs';
 
 const API_BASE_URL = '';
 let csrfToken = null;

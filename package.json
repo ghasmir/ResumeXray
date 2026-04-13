@@ -7,7 +7,6 @@
     "node": ">=22.0.0",
     "npm": ">=10.0.0"
   },
-  "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
@@ -25,10 +24,10 @@
     "seed": "node db/seed.js",
     "db:reset": "rm -f db/resumexray.db db/resumexray.db-shm db/resumexray.db-wal && node db/seed.js",
     "postinstall": "npx playwright install chromium",
-    "lint": "eslint src/ --ext .js",
-    "lint:fix": "eslint src/ --ext .js --fix",
-    "format": "prettier --write \"src/**/*.{js,css,html}\"",
-    "format:check": "prettier --check \"src/**/*.{js,css,html}\""
+    "lint": "eslint src/ --ext .js,.mjs",
+    "lint:fix": "eslint src/ --ext .js,.mjs --fix",
+    "format": "prettier --write \"src/**/*.{js,mjs,css,html}\"",
+    "format:check": "prettier --check \"src/**/*.{js,mjs,css,html}\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

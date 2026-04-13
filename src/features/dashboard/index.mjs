@@ -3,11 +3,11 @@
  * User dashboard and scan history
  */
 
-import { el, timeAgo, formatNumber } from '../core/utils.js';
-import { navigateTo } from '../core/router.js';
-import { getScanHistory, deleteScan, downloadResume } from '../../services/index.js';
-import { showToast } from '../../components/toast.js';
-import { confirmDialog } from '../../components/modal.js';
+import { el, timeAgo, formatNumber } from '../core/utils.mjs';
+import { navigateTo } from '../core/router.mjs';
+import { getScanHistory, deleteScan, downloadResume } from '../../services/index.mjs';
+import { showToast } from '../../components/toast.mjs';
+import { confirmDialog } from '../../components/modal.mjs';
 
 let currentPage = 1;
 const ITEMS_PER_PAGE = 10;

@@ -3,11 +3,11 @@
  * Login, signup, password reset functionality
  */
 
-import { el, debounce, getInitials } from '../core/utils.js';
-import { navigateTo } from '../core/router.js';
-import { post } from '../core/api.js';
-import { fetchUser } from '../services/index.js';
-import { showToast } from '../components/toast.js';
+import { el, debounce, getInitials } from '../core/utils.mjs';
+import { navigateTo } from '../core/router.mjs';
+import { post } from '../core/api.mjs';
+import { fetchUser } from '../services/index.mjs';
+import { showToast } from '../components/toast.mjs';
 
 /**
  * Setup all auth forms

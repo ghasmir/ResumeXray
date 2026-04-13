@@ -3,7 +3,7 @@
  * Centralized application state with event-driven updates
  */
 
-import { deepClone } from './utils.js';
+import { deepClone } from './utils.mjs';
 
 /**
  * Create a reactive state store

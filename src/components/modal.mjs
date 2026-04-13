@@ -3,8 +3,8 @@
  * Accessible modal dialogs with focus management
  */
 
-import { trapFocus } from '../core/accessibility.js';
-import { esc } from '../core/utils.js';
+import { trapFocus } from '../core/accessibility.mjs';
+import { esc } from '../core/utils.mjs';
 
 let activeModal = null;
 

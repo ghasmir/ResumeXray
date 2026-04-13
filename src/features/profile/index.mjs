@@ -3,17 +3,17 @@
  * User profile management
  */
 
-import { el, getInitials } from '../core/utils.js';
-import { appStore } from '../../core/state.js';
+import { el, getInitials } from '../core/utils.mjs';
+import { appStore } from '../../core/state.mjs';
 import {
   updateUser,
   updateAvatar,
   changePassword,
   deleteAccount,
   logout,
-} from '../../services/index.js';
-import { showToast } from '../../components/toast.js';
-import { confirmDialog } from '../../components/modal.js';
+} from '../../services/index.mjs';
+import { showToast } from '../../components/toast.mjs';
+import { confirmDialog } from '../../components/modal.mjs';
 
 /**
  * Setup profile page functionality
