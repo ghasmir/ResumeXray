@@ -24,10 +24,10 @@
     "seed": "node db/seed.js",
     "db:reset": "rm -f db/resumexray.db db/resumexray.db-shm db/resumexray.db-wal && node db/seed.js",
     "postinstall": "npx playwright install chromium",
-    "lint": "eslint src/ --ext .js,.mjs",
-    "lint:fix": "eslint src/ --ext .js,.mjs --fix",
-    "format": "prettier --write \"src/**/*.{js,mjs,css,html}\"",
-    "format:check": "prettier --check \"src/**/*.{js,mjs,css,html}\""
+    "lint": "eslint . --ext .js,.mjs --ignore-pattern 'node_modules/**' --ignore-pattern 'dist/**' --ignore-pattern 'public/js/app.js' --ignore-pattern 'public/js/purify.min.js'",
+    "lint:fix": "eslint . --ext .js,.mjs --fix --ignore-pattern 'node_modules/**' --ignore-pattern 'dist/**' --ignore-pattern 'public/js/app.js' --ignore-pattern 'public/js/purify.min.js'",
+    "format": "prettier --write \"{src,routes,lib,db,middleware,config}/**/*.{js,mjs,css,html}\" \"server.js\" \"*.js\"",
+    "format:check": "prettier --check \"{src,routes,lib,db,middleware,config}/**/*.{js,mjs,css,html}\" \"server.js\" \"*.js\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

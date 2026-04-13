@@ -128,8 +128,9 @@ function permissionsPolicyMiddleware(req, res, next) {
       'xr-spatial-tracking=()',
     ].join(', '),
   );
-  // Belt-and-braces clickjacking defense alongside CSP frame-ancestors
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  // Note: X-Frame-Options is intentionally NOT set here.
+  // clickjackingProtection middleware (registered after this) sets DENY,
+  // and Helmet's CSP frame-ancestors is the modern, authoritative control.
   next();
 }
 

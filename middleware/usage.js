@@ -16,7 +16,10 @@ const { getCreditBalance, deductCredit, getGuestScanCount } = require('../db/dat
  */
 async function checkScanLimit(req, res, next) {
   if (!req.user) {
-    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    // M-2 Fix: Use req.ip only — trust proxy=1 in server.js ensures Express
+    // resolves the correct client IP from Cloudflare/Caddy. Falling back to
+    // the raw x-forwarded-for header is unsafe and can be spoofed.
+    const ip = req.ip || 'unknown';
     const count = await getGuestScanCount(ip);
     
     if (count >= 2) {

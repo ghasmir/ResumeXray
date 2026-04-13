@@ -25,6 +25,12 @@ function getDb() {
     db.pragma('foreign_keys = ON');
     db.pragma('busy_timeout = 5000'); // Retry for 5s instead of SQLITE_BUSY crash
     runMigrations(db);
+
+    // H-8: WAL checkpoint every 5 minutes — prevents unbounded WAL growth and
+    // reduces data-loss window on crash. TRUNCATE resets the WAL file to zero.
+    setInterval(() => {
+      try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch { /* non-fatal */ }
+    }, 5 * 60 * 1000).unref();
   }
   return db;
 }
@@ -200,6 +206,20 @@ function runMigrations(database) {
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_stripe_events_id ON stripe_events(event_id)'
   );
 
+  // ── H-9: Add ats_platform column to scans ────────────────────────────────
+  try {
+    database.prepare('SELECT ats_platform FROM scans LIMIT 1').get();
+  } catch {
+    database.exec('ALTER TABLE scans ADD COLUMN ats_platform TEXT');
+  }
+
+  // ── A-6: Add email_verified_at column to users ────────────────────────────
+  try {
+    database.prepare('SELECT email_verified_at FROM users LIMIT 1').get();
+  } catch {
+    database.exec('ALTER TABLE users ADD COLUMN email_verified_at TEXT');
+  }
+
   log.info('Database schema applied');
 }
 
@@ -331,11 +351,14 @@ function getUserByResetToken(token) {
 }
 
 function setResetToken(email, token, expires) {
+  // C-3 Fix: use email_hash for the WHERE clause so the encrypted email column
+  // is used, not the plaintext email. This is consistent with getUserByEmail.
+  const hash = emailHash(email);
   getDb()
     .prepare(
-      "UPDATE users SET reset_password_token = ?, reset_password_expires = ?, updated_at = datetime('now') WHERE email = ?"
+      "UPDATE users SET reset_password_token = ?, reset_password_expires = ?, updated_at = datetime('now') WHERE email_hash = ?"
     )
-    .run(token, expires, email);
+    .run(token, expires, hash);
 }
 
 function updatePassword(userId, passwordHash) {
@@ -447,6 +470,10 @@ function addCredits(userId, amount, type, stripeSessionId = null, description = 
 }
 
 /**
+ * @deprecated Use deductCreditAtomic() instead — this function has a TOCTOU
+ * race condition (reads balance then deducts in two operations). It is kept
+ * only for backward compatibility and must NOT be used in new code.
+ *
  * Deduct a credit from a user's account.
  * Returns true if successfully deducted, false if insufficient balance.
  */
@@ -690,17 +717,20 @@ function getScan(id, userId, accessToken = null) {
 
 function updateScanWithOptimizations(
   scanId,
-  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText }
+  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform }
 ) {
+  // H-9 Fix: atsPlatform is now persisted so the frontend can show
+  // "Optimised for Greenhouse / Workday / etc."
   getDb()
     .prepare(
-      `UPDATE scans SET optimized_bullets = ?, keyword_plan = ?, optimized_resume_text = ?, cover_letter_text = ? WHERE id = ?`
+      `UPDATE scans SET optimized_bullets = ?, keyword_plan = ?, optimized_resume_text = ?, cover_letter_text = ?, ats_platform = ? WHERE id = ?`
     )
     .run(
       JSON.stringify(optimizedBullets || []),
       JSON.stringify(keywordPlan || []),
       optimizedResumeText || null,
       coverLetterText || null,
+      atsPlatform || null,
       scanId
     );
 }

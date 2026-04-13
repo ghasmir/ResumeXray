@@ -266,9 +266,12 @@ async function getUserByResetToken(token) {
 }
 
 async function setResetToken(email, token, expires) {
+  // C-3 Fix: use email_hash for the WHERE clause — consistent with getUserByEmail.
+  // Prevents plaintext email bypass of the PII-encrypted email layer.
+  const hash = emailHash(email);
   await pool.query(
-    'UPDATE users SET reset_password_token = $1, reset_password_expires = $2, updated_at = NOW() WHERE email = $3',
-    [token, expires, email]
+    'UPDATE users SET reset_password_token = $1, reset_password_expires = $2, updated_at = NOW() WHERE email_hash = $3',
+    [token, expires, hash]
   );
 }
 

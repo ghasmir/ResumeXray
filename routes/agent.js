@@ -338,15 +338,21 @@ router.get('/stream/:sessionId', async (req, res) => {
 
   let aborted = false;
   req.on('close', () => { aborted = true; });
-  // §HIGH: Clean up SSE tracking if client disconnects (crash, network drop, tab close).
-  // Without this, activeStreams leaks entries when the finally block hasn't run yet.
-  res.on('close', () => {
-    aborted = true;
+
+  // H-2 Fix: Single idempotent cleanup function called from BOTH res.on('close')
+  // and the finally block. Using a flag prevents double-execution of clearInterval/
+  // clearTimeout and Set.delete which would otherwise race.
+  let cleanupDone = false;
+  function sseCleanup() {
+    if (cleanupDone) return;
+    cleanupDone = true;
     clearInterval(heartbeat);
     clearTimeout(maxLifetime);
     userStreams.delete(res);
     if (userStreams.size === 0) activeStreams.delete(streamKey);
-  });
+  }
+  // Fire cleanup immediately if the client disconnects before pipeline finishes
+  res.on('close', () => { aborted = true; sseCleanup(); });
 
   // ── EARLY PERSISTENCE ──
   // Save a placeholder scan immediately so we have a persistent ID
@@ -387,7 +393,14 @@ router.get('/stream/:sessionId', async (req, res) => {
   if (!session.userId && accessToken && req.session) {
     if (!req.session.guestScanTokens) req.session.guestScanTokens = [];
     req.session.guestScanTokens.push(accessToken);
-    req.session.save(); // Persist immediately — SSE is long-lived
+    // H-4 Fix: await session.save() properly — fire-and-forget silently drops
+    // the token if the async store (Supabase/Redis) hasn't flushed before SSE ends.
+    await new Promise((resolve) => {
+      req.session.save((err) => {
+        if (err) log.warn('Guest scan token session save failed', { error: err.message });
+        resolve();
+      });
+    });
   }
 
   log.info('Scan created', { scanId, userId: session.userId });
@@ -439,7 +452,9 @@ router.get('/stream/:sessionId', async (req, res) => {
     if (session.userId) {
       await db.incrementScanCount(session.userId);
     } else {
-      const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+      // M-2 Fix: Use req.ip only — trust proxy=1 ensures correct IP from Cloudflare.
+      // Falling back to x-forwarded-for directly is unsafe and can be spoofed.
+      const ip = req.ip || 'unknown';
       await db.recordGuestScan(ip);
     }
 
@@ -454,11 +469,9 @@ router.get('/stream/:sessionId', async (req, res) => {
     if (session.resumeFilePath) {
       try { fs.unlinkSync(session.resumeFilePath); } catch { /* already cleaned */ }
     }
-    // §9: Clean up SSE tracking
-    clearInterval(heartbeat);
-    clearTimeout(maxLifetime);
-    userStreams.delete(res);
-    if (userStreams.size === 0) activeStreams.delete(streamKey);
+    // H-2 Fix: Use the idempotent sseCleanup() — safe to call even if res.on('close')
+    // already fired it. Then end the response.
+    sseCleanup();
     res.end();
   }
 });

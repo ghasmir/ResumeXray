@@ -24,6 +24,8 @@ tests/fixtures/*.docx
 .idea/
 
 # OS
+.DS_Store
+**/.DS_Store
 Thumbs.db
 
 # PM2

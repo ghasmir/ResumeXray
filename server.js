@@ -185,7 +185,9 @@ app.use(generalLimiter);
 const compression = require('compression');
 app.use(compression());
 
-// Stripe Webhook needs raw body — must be registered BEFORE express.json()
+// Stripe Webhook needs raw body — must be registered BEFORE express.json().
+// NOTE: billing.js also registers bodyParser.raw per-route — server.js registration
+// is the belt-and-suspenders guard for the path prefix only.
 const billingRoutes = require('./routes/billing');
 app.use('/billing/webhook', require('body-parser').raw({ type: 'application/json' }));
 
@@ -423,8 +425,15 @@ app.get('/readyz', async (req, res) => {
   res.status(ready ? 200 : 503).json({ ready, checks });
 });
 
-// Full diagnostic — dashboards, manual inspection
+// Full diagnostic — dashboards, manual inspection.
+// H-1 Fix: Restricted to localhost only — prevents fingerprinting (pid, heap,
+// node version) from being exposed to the public internet.
 app.get('/health', (req, res) => {
+  const ip = req.ip || req.socket.remoteAddress || '';
+  const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  if (!isLocal) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   const mem = process.memoryUsage();
   const cpu = process.cpuUsage();
   res.json({
