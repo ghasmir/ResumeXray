@@ -149,6 +149,11 @@
   --sp-16: 4rem; /* 64px */
   --sp-20: 5rem; /* 80px */
   --sp-24: 6rem; /* 96px */
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Georgia', 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
 
 /* ── Reset & Base ──────────────────────────────────────────── */
@@ -1762,7 +1767,6 @@ a:hover {
   padding: var(--sp-4) var(--sp-5);
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   vertical-align: top;
-  max-width: 0; /* Enable text-overflow to work properly */
 }
 
 /* Column width constraints */
@@ -3920,6 +3924,53 @@ body.modal-open {
   padding: var(--sp-6);
 }
 
+/* ── Pane Header / Title ─────────────────────────────────── */
+.pane-header {
+  margin-bottom: var(--sp-6);
+}
+
+.pane-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.pane-title + .body-sm {
+  margin-top: var(--sp-1);
+}
+
+/* ── Preview empty / skeleton states ─────────────────────── */
+.preview-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.preview-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+}
+
+.cover-letter-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  background: var(--bg-card);
+}
+
+/* ── PDF Error Message ──────────────────────────────────── */
+.pdf-error-message {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
 .results-tab-pane.active {
   display: block;
 }
@@ -5614,17 +5665,14 @@ a svg {
 
 @media (prefers-reduced-motion: reduce) {
   #view-landing::before,
-  #view-landing::after {
+  #view-landing::after,
+  .hero::before,
+  .hero::after {
     animation: none !important;
   }
   .hero-title .gradient-text {
     animation: none !important;
     background-size: 100% 100% !important;
-  }
-}
-  .hero::before,
-  .hero::after {
-    animation: none !important;
   }
 }
 

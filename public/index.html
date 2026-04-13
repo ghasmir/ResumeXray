@@ -258,12 +258,12 @@
     </script>
 
     <!-- Critical resource hints (LCP optimization) -->
-    <link rel="preload" href="/css/styles.css?v=3.5" as="style" />
+    <link rel="preload" href="/css/styles.css?v=3.6" as="style" />
     <!-- §4.8: Self-hosted fonts loaded via CSS @font-face — no external CDN -->
     <!-- §1.5: Preconnect to Stripe API only (the only allowed third-party) -->
     <link rel="dns-prefetch" href="https://api.stripe.com" />
 
-    <link rel="stylesheet" href="/css/styles.css?v=3.5" />
+    <link rel="stylesheet" href="/css/styles.css?v=3.6" />
     <link
       rel="icon"
       type="image/svg+xml"
@@ -1925,7 +1925,7 @@
                 </p>
               </div>
               <!-- Shown during scan -->
-              <div id="pdf-scanning-overlay" class="pdf-scanning-overlay">
+              <div id="pdf-scanning-overlay" class="pdf-scanning-overlay" style="display: none">
                 <div class="loader" style="margin-bottom: var(--sp-4)"></div>
                 <h3 class="headline">Building FAANG Template...</h3>
                 <p class="body-sm text-muted" style="margin-top: var(--sp-2)">

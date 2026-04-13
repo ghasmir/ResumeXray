@@ -812,13 +812,14 @@ function switchTab(tabId) {
         bar.dataset.scanId = scanId;
       }
 
-      // Render cover letter if container is empty or has no iframe
-      const hasContent =
-        clContainer?.querySelector('.preview-iframe') ||
-        clContainer?.querySelector('.preview-frame') ||
-        (clContainer?.textContent && clContainer.textContent.trim().length > 50);
+      // Only render if there's no visible content at all
+      // (don't destroy stream container by re-rendering)
+      const streamContainer = el('cover-letter-stream');
+      const hasStreamContent = streamContainer && streamContainer.textContent.trim().length > 50;
+      const hasIframe = clContainer?.querySelector('.preview-iframe');
+      const hasIframeWrapper = clContainer?.querySelector('.cover-letter-iframe-wrapper');
 
-      if (!hasContent) {
+      if (!hasStreamContent && !hasIframe && !hasIframeWrapper) {
         renderCoverLetter('');
       }
 
@@ -2348,9 +2349,11 @@ function setupAgentHistoricalView(data) {
   );
   const previewFrame = el('pdf-preview-frame');
 
-  if (isAgentScan && previewFrame && scanId) {
-    previewFrame.src = `/api/agent/preview/${scanId}?t=${Date.now()}${currentScanTokenQuery()}`;
+  if (isAgentScan && scanId) {
+    // Use reloadPdfPreview for proper loading skeleton, error handling, and sizing
+    reloadPdfPreview(scanId);
     if (viewOverlay) viewOverlay.style.display = 'flex';
+    if (scanOverlay) scanOverlay.style.display = 'none';
   } else if (scanOverlay) {
     // Basic Scan or Error — Show upgrade message in PDF tab
     scanOverlay.style.display = 'flex';
@@ -2360,6 +2363,7 @@ function setupAgentHistoricalView(data) {
       <p class="body-sm text-muted" style="margin-top:1rem; max-width:320px; text-align:center">Your ATS Diagnosis is complete. Upgrade to <strong>Pro Agent</strong> to unlock our one-page "Humanized" template and auto-bullet rewriting.</p>
       <button class="btn btn-primary" style="margin-top:2rem" data-action="navigate" data-path="/pricing">View Pro Plans</button>
     `);
+    if (viewOverlay) viewOverlay.style.display = 'none';
   }
 
   // ── 8b. Guest Content Protection Overlays ────────────────────────────
@@ -3594,43 +3598,78 @@ let currentCoverLetterText = '';
 
 function renderCoverLetter(text) {
   currentCoverLetterText = text;
-  const container = el('cover-letter-content');
-  const actions = el('cover-letter-actions');
+  const clContainer = el('cover-letter-content');
   const streamContainer = el('cover-letter-stream');
-  if (!container) return;
+  const actions = el('cover-letter-actions');
+  if (!clContainer) return;
 
   // Get scanId from multiple possible sources
   const bar = el('agent-download-bar');
   const scanId = bar?.dataset?.scanId || currentScan?.id || currentScan?.scanId;
 
   if (!scanId) {
-    container.innerHTML = safeHtml(
-      '<div class="preview-empty" style="padding:2rem;text-align:center;color:var(--text-muted);">No cover letter yet.</div>'
-    );
+    // Preserve the stream container if it exists
+    if (streamContainer) {
+      streamContainer.innerHTML = safeHtml(
+        '<div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem">Your personalized cover letter will appear here once the AI analysis completes.</p></div>'
+      );
+    } else {
+      clContainer.innerHTML = safeHtml(
+        '<div class="cover-letter-container"><div id="cover-letter-stream" class="agent-stream-text" style="min-height:300px;white-space:pre-wrap;font-family:var(--font-serif);line-height:1.6;font-size:1.05rem;padding:var(--sp-8)"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem">Your personalized cover letter will appear here once the AI analysis completes.</p></div></div></div>'
+      );
+    }
     if (actions) actions.style.display = 'none';
     return;
   }
 
-  // If we have streaming text content, display it directly
-  if (text && text.trim().length > 0 && streamContainer) {
-    streamContainer.innerHTML = esc(text);
+  // If we have streaming text content, display it in the stream container
+  if (text && text.trim().length > 0) {
+    // Ensure the stream container exists
+    let targetStream = el('cover-letter-stream');
+    if (!targetStream) {
+      // Re-create the full cover letter structure with stream container
+      clContainer.innerHTML = safeHtml(
+        '<div id="cover-letter-stream" class="agent-stream-text" style="min-height:300px;white-space:pre-wrap;font-family:var(--font-serif);line-height:1.6;font-size:1.05rem;padding:var(--sp-8)"></div>'
+      );
+      targetStream = el('cover-letter-stream');
+    }
+    if (targetStream) {
+      targetStream.innerHTML = esc(text);
+    }
     if (actions) actions.style.display = 'flex';
     return;
   }
 
-  // Otherwise, try to load via iframe preview
-  container.innerHTML = safeHtml(`
-    <div class="preview-frame" style="position:relative;min-height:400px;">
-      <div class="cover-letter-skeleton" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg-card);">
+  // Otherwise, load via iframe preview — but preserve the stream container
+  // by using a separate wrapper div for the iframe
+  const existingIframe = clContainer.querySelector('.cover-letter-iframe-wrapper');
+  if (existingIframe) {
+    // Iframe already loaded, just refresh
+    const iframe = existingIframe.querySelector('.preview-iframe');
+    if (iframe) {
+      iframe.src = `/api/agent/cover-letter-preview/${esc(scanId)}?t=${Date.now()}${currentScanTokenQuery()}`;
+    }
+    if (actions) actions.style.display = 'flex';
+    return;
+  }
+
+  // Create iframe wrapper without destroying the stream container
+  clContainer.insertAdjacentHTML(
+    'beforeend',
+    safeHtml(`
+    <div class="cover-letter-iframe-wrapper" style="position:relative;min-height:400px;">
+      <div class="cover-letter-skeleton" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg-card);z-index:1;">
         <div class="loader"></div>
         <p class="body-sm text-muted" style="margin-top:var(--sp-3)">Loading cover letter...</p>
       </div>
-      <iframe class="preview-iframe" src="/api/agent/cover-letter-preview/${esc(scanId)}?t=${Date.now()}${currentScanTokenQuery()}" title="Cover letter preview" style="width:100%;min-height:400px;border:none;"></iframe>
-    </div>`);
+      <iframe class="preview-iframe" src="/api/agent/cover-letter-preview/${esc(scanId)}?t=${Date.now()}${currentScanTokenQuery()}" title="Cover letter preview" style="width:100%;min-height:400px;border:none;opacity:0;transition:opacity 0.3s ease;"></iframe>
+    </div>`)
+  );
 
   // Handle iframe load
-  const iframe = container.querySelector('.preview-iframe');
-  const skeleton = container.querySelector('.cover-letter-skeleton');
+  const wrapper = clContainer.querySelector('.cover-letter-iframe-wrapper');
+  const iframe = wrapper?.querySelector('.preview-iframe');
+  const skeleton = wrapper?.querySelector('.cover-letter-skeleton');
 
   if (iframe) {
     iframe.addEventListener('load', () => {
@@ -3658,22 +3697,23 @@ function renderCoverLetter(text) {
 
     iframe.addEventListener('error', () => {
       if (skeleton) skeleton.style.display = 'none';
-      // Show fallback message
-      container.innerHTML = safeHtml(`
-        <div style="padding:3rem;text-align:center;color:var(--text-muted);">
-          <div style="font-size:3rem;margin-bottom:1rem;opacity:0.5">✉️</div>
-          <h4 style="color:var(--text-main);margin-bottom:0.5rem">Cover letter preview unavailable</h4>
-          <p class="body-sm">The cover letter may still be generating or there was an error loading the preview.</p>
-          <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="renderCoverLetter('')">Retry</button>
-        </div>
-      `);
+      if (wrapper) {
+        wrapper.innerHTML = safeHtml(`
+          <div style="padding:3rem;text-align:center;color:var(--text-muted);">
+            <div style="font-size:3rem;margin-bottom:1rem;opacity:0.5">&#9993;&#65039;</div>
+            <h4 style="color:var(--text-main);margin-bottom:0.5rem">Cover letter preview unavailable</h4>
+            <p class="body-sm">The cover letter may still be generating or there was an error loading the preview.</p>
+            <p class="body-xs" style="margin-top:0.5rem;opacity:0.6">Try switching tabs and coming back.</p>
+          </div>
+        `);
+      }
     });
   }
 
   if (actions) actions.style.display = 'flex';
 
   // ── Copy Protection ─────────────────────────────────────────────
-  const protectedEl = container;
+  const protectedEl = clContainer;
   if (protectedEl && !protectedEl._copyProtected) {
     protectedEl._copyProtected = true;
     protectedEl.addEventListener('selectstart', e => e.preventDefault(), { passive: false });
