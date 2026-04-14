@@ -6560,6 +6560,38 @@ a svg {
   align-self: stretch;
 }
 
+/* Progressive disclosure — job details revealed after resume upload */
+.scan-col-job-details {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: grayscale(0.5);
+  transition:
+    opacity var(--duration-normal) var(--ease-out),
+    filter var(--duration-normal) var(--ease-out);
+}
+
+.scan-col-job-details.is-active {
+  opacity: 1;
+  pointer-events: auto;
+  filter: grayscale(0);
+}
+
+/* Upload completion indicator */
+.upload-complete-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--green-subtle);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--green);
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  margin-top: var(--sp-3);
+  animation: slideInUp 0.3s var(--ease-out);
+}
+
 /* Shrink upload zone padding in the grid */
 .scan-form-card .upload-zone {
   padding: var(--sp-8) var(--sp-4);

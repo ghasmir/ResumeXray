@@ -1005,6 +1005,19 @@ function setupFileUpload() {
     const submitBtn = el('scan-submit-btn');
     if (submitBtn) submitBtn.disabled = false;
 
+    // Progressive disclosure: reveal job details section
+    const jobDetailsSection = el('job-details-section');
+    if (jobDetailsSection) {
+      jobDetailsSection.classList.add('is-active');
+    }
+
+    // Scroll job details into view on mobile
+    if (window.innerWidth < 768) {
+      setTimeout(() => {
+        jobDetailsSection?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+    }
+
     const icons = { '.pdf': '📕', '.docx': '📘', '.doc': '📘', '.txt': '📄' };
     const iconEl = el('file-preview').querySelector('.file-preview-icon');
     if (iconEl) iconEl.textContent = icons[ext] || '📄';
@@ -1017,6 +1030,12 @@ function setupFileUpload() {
     // Disable scan submit button
     const submitBtn = el('scan-submit-btn');
     if (submitBtn) submitBtn.disabled = true;
+
+    // Progressive disclosure: hide job details section
+    const jobDetailsSection = el('job-details-section');
+    if (jobDetailsSection) {
+      jobDetailsSection.classList.remove('is-active');
+    }
   }
 
   area.addEventListener('click', () => fileInput.click());
