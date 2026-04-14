@@ -1892,7 +1892,7 @@ async function finalizeAgentUI(data) {
             const clContainer = el('cover-letter-content');
             if (clContainer)
               clContainer.innerHTML = safeHtml(
-                '<div class="preview-empty" style="padding:2rem;text-align:center;color:var(--text-muted);">No cover letter for this scan</div>'
+                '<div class="preview-empty" style="padding:2rem;text-align:center;color:var(--text-muted);"><div style="font-size:3rem;margin-bottom:1rem;opacity:0.3">&#9993;&#65039;</div><h4 style="margin-bottom:0.5rem">No cover letter for this scan</h4><p class="body-sm" style="margin-bottom:1rem">This scan was run without a job description. Cover letters require job details to personalize the content.</p><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Create New Scan with JD</button></div>'
               );
             const clActions = el('cover-letter-actions');
             if (clActions) clActions.style.display = 'none';
@@ -3741,11 +3741,11 @@ function renderCoverLetter(text) {
     // Preserve the stream container if it exists
     if (streamContainer) {
       streamContainer.innerHTML = safeHtml(
-        '<div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem">Your personalized cover letter will appear here once the AI analysis completes.</p></div>'
+        '<div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Job Description</button><button class="btn btn-ghost btn-sm" style="color:var(--text-muted)" data-action="navigate" data-path="/help/cover-letters">Learn More</button></div></div>'
       );
     } else {
       clContainer.innerHTML = safeHtml(
-        '<div class="cover-letter-container"><div id="cover-letter-stream" class="agent-stream-text" style="min-height:300px;white-space:pre-wrap;font-family:var(--font-serif);line-height:1.6;font-size:1.05rem;padding:var(--sp-8)"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem">Your personalized cover letter will appear here once the AI analysis completes.</p></div></div></div>'
+        '<div class="cover-letter-container"><div id="cover-letter-stream" class="agent-stream-text" style="min-height:300px;white-space:pre-wrap;font-family:var(--font-serif);line-height:1.6;font-size:1.05rem;padding:var(--sp-8)"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Job Description</button><button class="btn btn-ghost btn-sm" style="color:var(--text-muted)" data-action="navigate" data-path="/help/cover-letters">Learn More</button></div></div></div></div>'
       );
     }
     if (actions) actions.style.display = 'none';

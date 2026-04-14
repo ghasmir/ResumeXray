@@ -4028,9 +4028,33 @@ body.modal-open {
 
 /* ── Preview empty / skeleton states ─────────────────────── */
 .preview-empty {
-  padding: 2rem;
+  padding: 3rem 2rem;
   text-align: center;
   color: var(--text-muted);
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.preview-empty h4 {
+  color: var(--text-primary);
+  font-size: var(--text-title);
+  font-weight: 600;
+  margin: 0;
+}
+
+.preview-empty p {
+  max-width: 320px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.preview-empty .btn {
+  margin-top: var(--sp-2);
 }
 
 .preview-skeleton {
