@@ -128,13 +128,24 @@
   --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.3);
   --shadow-glow: 0 0 20px rgba(99, 91, 255, 0.15);
 
-  /* Motion — fast, deliberate */
+  /* Motion — Material Design 3 Standards */
+  /* Standard easing for general transitions */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Decelerate for entering elements */
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  /* Accelerate for exiting elements */
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  /* Emphasized for important transitions */
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  /* Spring for playful interactions */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Duration scale */
   --duration-fast: 150ms;
   --duration-normal: 200ms;
   --duration-slow: 300ms;
+  --duration-emphasis: 400ms;
 
   /* Spacing — 4px base, 8px grid */
   --sp-1: 0.25rem; /* 4px */
@@ -154,6 +165,18 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-serif: 'Georgia', 'Times New Roman', serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Typography Scale — Golden Ratio (1.618) */
+  --text-display: 3.5rem; /* 56px - Hero/Display */
+  --text-display-sm: 2.5rem; /* 40px - Large headlines */
+  --text-headline: 2rem; /* 32px - Headlines */
+  --text-title-lg: 1.5rem; /* 24px - Large titles */
+  --text-title: 1.25rem; /* 20px - Titles */
+  --text-body-lg: 1.125rem; /* 18px - Large body */
+  --text-body: 1rem; /* 16px - Body (base) */
+  --text-body-sm: 0.875rem; /* 14px - Small body */
+  --text-caption: 0.75rem; /* 12px - Captions */
+  --text-overline: 0.6875rem; /* 11px - Overlines */
 }
 
 /* ── Reset & Base ──────────────────────────────────────────── */
@@ -809,10 +832,16 @@ a:hover {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: var(--sp-6);
-  transition: border-color var(--duration-fast) var(--ease);
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+  will-change: transform, box-shadow;
 }
 .card:hover {
   border-color: var(--border-default);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .card-elevated {
@@ -820,6 +849,29 @@ a:hover {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xl);
   padding: var(--sp-8);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 4px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    box-shadow var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
+  will-change: transform, box-shadow;
+}
+
+.card-elevated:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    0 8px 16px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: translateY(-2px);
+}
+
+/* Card active/pressed state for tactile feedback */
+.card:active,
+.card-elevated:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ── Badges ────────────────────────────────────────────────── */
@@ -869,21 +921,22 @@ a:hover {
   background: var(--accent-subtle);
   border: 1px solid rgba(99, 91, 255, 0.15);
   border-radius: var(--radius-full);
-  font-size: 0.6875rem;
+  font-size: var(--text-overline);
   font-weight: 600;
   letter-spacing: 0.08em;
   color: #818cf8;
   margin-bottom: var(--sp-8);
+  text-transform: uppercase;
 }
 .hero-title {
-  font-size: clamp(2.5rem, 7vw, 3.75rem);
+  font-size: clamp(2.5rem, 7vw, var(--text-display));
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: -0.03em;
   margin-bottom: var(--sp-6);
 }
 .hero-sub {
-  font-size: 1.125rem;
+  font-size: var(--text-body-lg);
   color: var(--text-secondary);
   line-height: 1.7;
   margin-bottom: var(--sp-10);
@@ -3503,7 +3556,8 @@ select:focus:not(:focus-visible) {
 }
 .results-tab-btn {
   flex: 1;
-  padding: 10px 16px;
+  padding: 12px 16px;
+  min-height: 48px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -3515,6 +3569,9 @@ select:focus:not(:focus-visible) {
   font-family: inherit;
   text-align: center;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .results-tab-btn:hover {
   color: var(--text-primary);
@@ -4428,7 +4485,8 @@ a svg {
   }
   .results-tab-btn {
     font-size: 0.78rem;
-    padding: 7px 4px;
+    padding: 12px 8px;
+    min-height: 48px;
     white-space: normal;
     text-align: center;
     line-height: 1.2;
@@ -6725,8 +6783,25 @@ a svg {
   }
 }
 
-/* ── Focus Visible Improvements (Accessibility) ─────────────── */
-[tabindex='-1']:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+/* ── Touch Target Standards (Material Design) ───────────────── */
+/* Minimum 48dp (48px) touch targets for all interactive elements */
+@media (pointer: coarse) {
+  .btn,
+  .nav-links a,
+  .results-tab-btn,
+  .bottom-sheet-item,
+  .scan-history-card,
+  .agent-step-header {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  /* Ensure adequate spacing between touch targets */
+  .nav-links {
+    gap: var(--sp-2);
+  }
+
+  .results-tab-nav {
+    gap: 4px;
+  }
 }
