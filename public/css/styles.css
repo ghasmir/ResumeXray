@@ -1804,6 +1804,19 @@ a:hover {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
+  display: table;
+}
+
+.recruiter-table thead {
+  display: table-header-group;
+}
+
+.recruiter-table tbody {
+  display: table-row-group;
+}
+
+.recruiter-table tr {
+  display: table-row;
 }
 .recruiter-table th {
   text-align: left;
@@ -1822,22 +1835,30 @@ a:hover {
   vertical-align: top;
 }
 
-/* Column width constraints */
+/* Column width constraints - enforce table layout */
+.recruiter-table {
+  table-layout: fixed;
+}
+
 .recruiter-table th:first-child,
 .recruiter-table td:first-child {
-  width: 15%;
-  min-width: 100px;
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
 }
 
 .recruiter-table th:nth-child(2),
 .recruiter-table td:nth-child(2) {
-  width: 70%;
+  width: auto;
+  max-width: none;
+  overflow: hidden;
 }
 
 .recruiter-table th:nth-child(3),
 .recruiter-table td:nth-child(3) {
-  width: 15%;
-  min-width: 100px;
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
   text-align: center;
 }
 .recruiter-table tr:last-child td {
@@ -1862,12 +1883,18 @@ a:hover {
   color: var(--text-secondary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
-  max-width: 500px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: nowrap;
   line-height: 1.5;
+  display: block;
+  max-width: 100%;
+}
+
+/* Allow text wrapping only on hover for long content */
+.recruiter-table tr:hover .field-found {
+  white-space: normal;
+  word-break: break-word;
 }
 .field-missing {
   color: var(--red);
@@ -4540,38 +4567,54 @@ a svg {
     gap: var(--sp-1);
   }
 
-  /* Recruiter table — card-style stacking */
+  /* Recruiter table — card-style stacking on mobile only */
+  .recruiter-table {
+    display: block;
+  }
+
   .recruiter-table thead {
     display: none;
   }
-  .recruiter-table,
+
   .recruiter-table tbody {
     display: block;
   }
+
   .recruiter-table tr {
     display: flex;
     flex-direction: column;
-    padding: var(--sp-3) 0;
+    padding: var(--sp-3) var(--sp-4);
     border-bottom: 1px solid var(--border-subtle);
-    gap: var(--sp-1);
+    gap: var(--sp-2);
+    width: 100%;
   }
+
   .recruiter-table tr:last-child {
     border-bottom: none;
   }
+
   .recruiter-table td {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: var(--sp-1) var(--sp-2);
+    display: block;
+    width: 100% !important;
+    min-width: auto !important;
+    max-width: none !important;
+    padding: var(--sp-1) 0;
     border-bottom: none;
-    word-break: break-word;
   }
+
   .recruiter-table td.field-name {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-faint);
-    margin-bottom: calc(-1 * var(--sp-1));
+    margin-bottom: 0;
+    width: 100% !important;
+  }
+
+  .recruiter-table .field-found {
+    white-space: normal;
+    word-break: break-word;
+    width: 100%;
   }
 
   /* PDF toolbar — simplified (template/density removed) */

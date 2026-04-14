@@ -1239,13 +1239,36 @@ function startAgentAnalysis(sessionId) {
             .read()
             .then(({ done, value }) => {
               if (done) {
-                // Stream ended — attempt reconnect if we haven't retried too many times
-                if (sseRetryCount < SSE_MAX_RETRIES) {
+                // Stream ended — check if we have partial results to show
+                const timeline = el('agent-timeline');
+                const hasResults = timeline && timeline.children.length > 0;
+
+                if (hasResults) {
+                  // We have partial results, show them with a warning
+                  showToast('Analysis completed with partial results.', 'warning', {
+                    duration: 6000,
+                  });
+                  finalizeAgentUI({ scanId: sessionId });
+                } else if (sseRetryCount < SSE_MAX_RETRIES) {
+                  // No results yet, try to reconnect
                   scheduleReconnect(sessionId);
                 } else {
-                  showToast('Analysis stream ended. Please start a new scan.', 'info');
-                  agentSource = null;
+                  // No results and out of retries - show error state
+                  const initBlock = el('results-initializing');
+                  const errorBlock = el('results-error');
+                  const dashboard = el('results-dashboard');
+
+                  if (initBlock) initBlock.style.display = 'none';
+                  if (errorBlock) errorBlock.style.display = 'block';
+                  if (dashboard) dashboard.style.display = 'none';
+
+                  showToast(
+                    'Analysis stream ended unexpectedly. Please start a new scan.',
+                    'error',
+                    { duration: 8000 }
+                  );
                 }
+                agentSource = null;
                 return;
               }
 
@@ -1291,9 +1314,19 @@ function startAgentAnalysis(sessionId) {
     if (sseRetryCount < SSE_MAX_RETRIES) {
       scheduleReconnect(sessionId);
     } else {
+      // Show error state UI instead of just toast
+      const initBlock = el('results-initializing');
+      const errorBlock = el('results-error');
+      const dashboard = el('results-dashboard');
+
+      if (initBlock) initBlock.style.display = 'none';
+      if (errorBlock) errorBlock.style.display = 'block';
+      if (dashboard) dashboard.style.display = 'none';
+
       showToast(
         'Analysis stream disconnected after multiple attempts. Please start a new scan.',
-        'error'
+        'error',
+        { duration: 8000 }
       );
     }
   }

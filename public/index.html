@@ -1556,6 +1556,46 @@
             </p>
           </div>
 
+          <!-- Error State (Shown when stream fails) -->
+          <div id="results-error" style="display: none; text-align: center; padding: 10vh 0">
+            <div style="font-size: 4rem; margin-bottom: var(--sp-4); opacity: 0.5">
+              &#9888;&#65039;
+            </div>
+            <h2 class="headline">Connection Lost</h2>
+            <p
+              class="body-sm text-muted"
+              style="margin: var(--sp-2) auto var(--sp-6); max-width: 400px"
+            >
+              We couldn't establish a stable connection to the analysis server. This might be due to
+              network issues.
+            </p>
+            <div style="display: flex; gap: var(--sp-3); justify-content: center; flex-wrap: wrap">
+              <button
+                class="btn btn-primary"
+                id="results-retry-btn"
+                data-action="navigate"
+                data-path="/scan"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  style="vertical-align: -2px; margin-right: 6px"
+                >
+                  <path d="M23 4v6h-6M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                </svg>
+                Try Again
+              </button>
+              <button class="btn btn-ghost" data-action="navigate" data-path="/dashboard">
+                Go to Dashboard
+              </button>
+            </div>
+          </div>
+
           <!-- Dashboard Layout -->
           <div id="results-dashboard" class="results-tabs-container" style="display: none">
             <!-- Tab Navigation -->
