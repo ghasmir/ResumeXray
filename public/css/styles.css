@@ -3314,14 +3314,43 @@ a:hover {
 }
 
 /* ── Focus Visible (Accessibility) ─────────────────────────── */
+/* Global focus indicator for all interactive elements */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Skip programmatic focus indicators for non-interactive elements */
+[tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Ensure all interactive elements have visible focus */
+a:focus-visible,
+button:focus-visible,
+[role='button']:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
-select:focus-visible {
-  outline: none;
+select:focus-visible,
+[tabindex='0']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Remove dangerous outline: none from interactive elements */
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible) {
+  /* Allow browser default or component-specific styles */
+}
+
+/* Ensure focus is visible on all cards and interactive containers */
+.card:focus-visible,
+.scan-history-card:focus-visible,
+.agent-step-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--accent-subtle);
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────── */
@@ -4006,26 +4035,47 @@ body.modal-open {
   display: flex;
 }
 
-/* Copy Protection — prevent text selection + clipboard extraction from generated content */
-.cover-letter-container,
-#tab-cover-letter .cover-letter-container {
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-}
-
-/* Invisible pointer-event overlay on cover letter text prevents drag-to-select */
-.cover-letter-container > #cover-letter-stream {
+/* Visual watermark for cover letter — accessible but deterrent */
+.cover-letter-container {
   position: relative;
 }
-.cover-letter-container > #cover-letter-stream::after {
-  content: '';
+
+/* Watermark overlay — visible but doesn't block interaction */
+.cover-letter-container::before {
+  content: 'PREVIEW';
   position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: auto; /* captures mousedown/drag to prevent selection */
-  background: transparent;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  font-size: 4rem;
+  font-weight: 700;
+  color: var(--text-faint);
+  opacity: 0.08;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* Secondary watermark for content area */
+.cover-letter-document::after,
+#cover-letter-stream::after {
+  content: 'ResumeXray';
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  opacity: 0.25;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+
+/* Ensure content remains accessible */
+.cover-letter-container > #cover-letter-stream {
+  position: relative;
 }
 
 .preview-frame,
@@ -4047,46 +4097,68 @@ body.modal-open {
 }
 
 /* ── Mobile PDF scaling ─────────────────────────────────────────
-   Resume HTML is ~794px wide (A4). On narrow viewports the iframe
-   overflows right. We scale-to-fit using a CSS transform.
-   The wrapper retains the correct visual height via padding-bottom.
-   ──────────────────────────────────────────────────────────────── */
+    Resume HTML is ~794px wide (A4). On narrow viewports we use
+    horizontal scrolling to maintain readability instead of scaling,
+    which causes content loss and unreadable text.
+    ──────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .pdf-preview-container {
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    /* Show scrollbar on mobile for discoverability */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-subtle) transparent;
   }
+
+  .pdf-preview-container::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .pdf-preview-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .pdf-preview-container::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: 3px;
+  }
+
   .pdf-preview-frame {
-    /* Document width assumed ~794px; container is ~100vw.
-       Scale factor = container / document, but CSS calc can't
-       do viewport-relative divisions, so we use a fixed scale
-       that covers iPhone 12/13/14/15 Pro (390px → 794px ≈ 0.49)
-       and is overridden per-breakpoint below. */
+    /* Maintain A4 aspect ratio at readable scale */
     width: 794px !important;
-    transform-origin: top left;
-    transform: scale(0.49);
-    height: calc(100% / 0.49) !important;
-    min-height: calc(400px / 0.49);
+    min-width: 794px;
+    height: 1123px !important; /* A4 height at 96 DPI */
+    min-height: 1123px;
+    transform: none;
+    scroll-snap-align: start;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
   }
-}
-@media (max-width: 430px) {
-  /* iPhone 15 Plus / large phones */
-  .pdf-preview-frame {
-    transform: scale(0.52);
-    height: calc(100% / 0.52) !important;
+
+  /* Mobile pinch-zoom hint overlay */
+  .pdf-preview-container::after {
+    content: '← Scroll to view full document →';
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    white-space: nowrap;
+    z-index: 5;
   }
-}
-@media (min-width: 431px) and (max-width: 540px) {
-  /* Medium phones */
-  .pdf-preview-frame {
-    transform: scale(0.55);
-    height: calc(100% / 0.55) !important;
-  }
-}
-@media (min-width: 541px) and (max-width: 640px) {
-  /* Large phones / small tablets */
-  .pdf-preview-frame {
-    transform: scale(0.65);
-    height: calc(100% / 0.65) !important;
+
+  .pdf-preview-container:hover::after,
+  .pdf-preview-container:focus-within::after {
+    opacity: 1;
   }
 }
 

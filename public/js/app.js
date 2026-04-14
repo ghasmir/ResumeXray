@@ -762,19 +762,31 @@ function switchTab(tabId) {
   // Old HTML uses data-tab values that need "tab-" prefix (e.g. "diagnosis" → "tab-diagnosis")
   let tab = document.getElementById(tabId) || el('tab-' + tabId);
   let btn = document.querySelector(`[data-tab="${tabId}"]`) || el('btn-' + tabId);
+
   if (tab) {
     tab.classList.add('active');
     tab.classList.add('active-tab');
     tab.setAttribute('role', 'tabpanel');
+    // Ensure tabpanel is labeled by its tab button
+    if (btn) {
+      tab.setAttribute('aria-labelledby', btn.id || '');
+    }
   }
+
   if (btn) {
     btn.classList.add('active');
     btn.setAttribute('aria-selected', 'true');
+    btn.setAttribute('tabindex', '0');
+    // Focus the active tab for keyboard navigation
+    btn.focus();
   }
 
-  // Update aria-selected on all tab buttons
+  // Update aria-selected and tabindex on all tab buttons
   document.querySelectorAll('.results-tab-btn').forEach(b => {
-    if (b !== btn) b.setAttribute('aria-selected', 'false');
+    if (b !== btn) {
+      b.setAttribute('aria-selected', 'false');
+      b.setAttribute('tabindex', '-1');
+    }
   });
 
   // Trigger lazy-loading for PDF if switched to that tab
@@ -1915,13 +1927,61 @@ function setupPasswordToggles() {
 }
 
 function setupResultsTabs() {
+  const tabs = Array.from(document.querySelectorAll('.results-tab-btn'));
+
   // Delegate to switchTab() which handles activation, lazy-loading, and aria attributes
-  document.querySelectorAll('.results-tab-btn').forEach(btn => {
+  tabs.forEach((btn, index) => {
+    // Set up initial ARIA attributes
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', btn.classList.contains('active') ? 'true' : 'false');
+    btn.setAttribute('tabindex', btn.classList.contains('active') ? '0' : '-1');
+
+    // Add aria-controls linking to tabpanel
+    const targetId = btn.getAttribute('data-tab');
+    if (targetId) {
+      btn.setAttribute('aria-controls', targetId);
+    }
+
     btn.addEventListener('click', () => {
       const targetId = btn.getAttribute('data-tab');
       if (targetId) {
         // Clear rogue inline display styles before switching
         document.querySelectorAll('.results-tab-pane').forEach(p => (p.style.display = ''));
+        switchTab(targetId);
+        sessionStorage.setItem('resumeXray_activeTab', targetId);
+      }
+    });
+
+    // Keyboard navigation for tabs (ARIA tabs pattern)
+    btn.addEventListener('keydown', e => {
+      let newIndex = index;
+
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'ArrowDown':
+          e.preventDefault();
+          newIndex = (index + 1) % tabs.length;
+          break;
+        case 'ArrowLeft':
+        case 'ArrowUp':
+          e.preventDefault();
+          newIndex = (index - 1 + tabs.length) % tabs.length;
+          break;
+        case 'Home':
+          e.preventDefault();
+          newIndex = 0;
+          break;
+        case 'End':
+          e.preventDefault();
+          newIndex = tabs.length - 1;
+          break;
+        default:
+          return;
+      }
+
+      const newTab = tabs[newIndex];
+      const targetId = newTab.getAttribute('data-tab');
+      if (targetId) {
         switchTab(targetId);
         sessionStorage.setItem('resumeXray_activeTab', targetId);
       }
@@ -3407,6 +3467,14 @@ function showToast(message, type = 'info', options = {}) {
   const duration = options.duration || (type === 'error' ? 6000 : 4000);
   const dismissible = options.dismissible !== false;
 
+  // Screen reader announcement for better accessibility
+  announceToScreenReader(message, type);
+
+  // Persist errors to notification log for reference
+  if (type === 'error') {
+    addToNotificationLog(message, type);
+  }
+
   // SVG icon library — crisp inline SVGs, no emoji
   const icons = {
     success:
@@ -3465,6 +3533,49 @@ function showToast(message, type = 'info', options = {}) {
   // Limit to 5 visible toasts
   while (container.children.length > 5) {
     dismissToast(container.firstElementChild);
+  }
+}
+
+// Helper function to announce messages to screen readers
+function announceToScreenReader(message, type = 'info') {
+  // Create or get the screen reader announcer element
+  let announcer = document.getElementById('sr-announcer');
+  if (!announcer) {
+    announcer = document.createElement('div');
+    announcer.id = 'sr-announcer';
+    announcer.className = 'visually-hidden';
+    announcer.setAttribute('aria-live', 'polite');
+    announcer.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(announcer);
+  }
+
+  // Clear previous content and announce new message
+  announcer.textContent = '';
+  // Small delay to ensure screen reader picks up the change
+  setTimeout(() => {
+    announcer.textContent = message;
+  }, 100);
+}
+
+// Helper function to add errors to a persistent notification log
+function addToNotificationLog(message, type) {
+  let logContainer = document.getElementById('notification-log');
+  if (!logContainer) {
+    logContainer = document.createElement('div');
+    logContainer.id = 'notification-log';
+    logContainer.className = 'notification-log visually-hidden';
+    logContainer.setAttribute('aria-label', 'Notification history');
+    document.body.appendChild(logContainer);
+  }
+
+  const entry = document.createElement('div');
+  entry.className = `notification-log-entry notification-log-entry--${type}`;
+  entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+  logContainer.appendChild(entry);
+
+  // Keep only last 20 entries
+  while (logContainer.children.length > 20) {
+    logContainer.removeChild(logContainer.firstChild);
   }
 }
 
@@ -3712,21 +3823,9 @@ function renderCoverLetter(text) {
 
   if (actions) actions.style.display = 'flex';
 
-  // ── Copy Protection ─────────────────────────────────────────────
-  const protectedEl = clContainer;
-  if (protectedEl && !protectedEl._copyProtected) {
-    protectedEl._copyProtected = true;
-    protectedEl.addEventListener('selectstart', e => e.preventDefault(), { passive: false });
-    protectedEl.addEventListener(
-      'copy',
-      e => {
-        e.preventDefault();
-        e.clipboardData?.clearData();
-      },
-      { passive: false }
-    );
-    protectedEl.addEventListener('contextmenu', e => e.preventDefault(), { passive: false });
-  }
+  // Note: Copy protection removed for accessibility compliance
+  // Visual watermarks in CSS serve as deterrent while maintaining
+  // screen reader and keyboard accessibility (WCAG 2.1 Level AA)
 }
 
 // Cover letter action handlers
