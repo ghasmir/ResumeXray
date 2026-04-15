@@ -37,7 +37,7 @@
     <meta property="og:title" content="ResumeXray — See What ATS Really Sees" />
     <meta
       property="og:description"
-      content="Stop getting ghosted by silent algorithms. Upload your resume and see exactly how Workday, Greenhouse, and Lever parse your experience. Free AI-powered ATS scanner with semantic keyword matching."
+      content="Review how modern ATS systems parse your resume, where recruiter visibility breaks down, and what to fix before you export. Free AI-powered ATS scanner with semantic keyword matching."
     />
     <meta property="og:image" content="https://resumexray.pro/assets/og-image.png" />
     <meta property="og:image:width" content="1200" />
@@ -141,7 +141,7 @@
                 "name": "Which ATS platforms does ResumeXray simulate?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "ResumeXray simulates parsing behavior from 6+ major ATS platforms including Workday, Greenhouse, Lever, iCIMS, Taleo, and SmartRecruiters."
+                  "text": "ResumeXray simulates parsing behavior from major ATS platforms including Workday, Greenhouse, Lever, iCIMS, Taleo, and SmartRecruiters."
                 }
               },
               {
@@ -264,6 +264,7 @@
     <link rel="dns-prefetch" href="https://api.stripe.com" />
 
     <link rel="stylesheet" href="/css/styles.css?v=3.6" />
+    <link rel="stylesheet" href="/css/app-surfaces.css?v=1.0" />
     <link
       rel="icon"
       type="image/svg+xml"
@@ -520,45 +521,48 @@
       <!-- ═══ LANDING ═══ -->
       <section id="view-landing" class="view active">
         <div class="hero">
-          <div class="hero-badge animate-fade-up">BACKED BY ATS RESEARCH FROM 6+ PLATFORMS</div>
+          <div class="hero-badge animate-fade-up">BUILT AROUND REAL ATS PARSING PATTERNS</div>
           <h1 class="hero-title animate-fade-up">
             See What ATS<br /><span class="gradient-text">Really Sees</span>
           </h1>
           <p class="hero-sub animate-fade-up" style="animation-delay: 0.05s">
-            Stop getting "ghosted" by silent algorithms. ResumeXray uses
-            <strong>Semantic Matching</strong> to reveal exactly how the world's most rigorous
-            Applicant Tracking Systems parse your experience into their databases.
+            ResumeXray uses <strong>Semantic Matching</strong> to show how hiring systems read your
+            experience, where important details disappear, and which fixes matter before you apply.
           </p>
           <div class="hero-actions animate-fade-up" style="animation-delay: 0.1s">
             <button class="btn btn-primary btn-lg" data-action="navigate" data-path="/scan">
               Analyze My Resume
             </button>
-            <span class="hero-note">No sign-up needed · Takes 30 seconds · Free ATS scan</span>
+            <span class="hero-note">Quick first pass · No card needed · Free ATS scan</span>
           </div>
         </div>
 
         <!-- Social Proof Stats -->
         <div class="social-proof-stats animate-fade-up" style="animation-delay: 0.15s">
           <div class="proof-stat">
-            <span class="proof-value" data-count="12847">12,847</span>
-            <span class="proof-label">Resumes analyzed</span>
+            <span class="proof-value">Parser View</span>
+            <span class="proof-label">See what systems actually extract</span>
           </div>
           <div class="proof-divider"></div>
           <div class="proof-stat">
-            <span class="proof-value">6+</span>
-            <span class="proof-label">ATS formats studied</span>
+            <span class="proof-value">Job Match</span>
+            <span class="proof-label">Compare your resume to one real role</span>
           </div>
           <div class="proof-divider"></div>
           <div class="proof-stat">
-            <span class="proof-value">30 sec</span>
-            <span class="proof-label">To start a scan</span>
+            <span class="proof-value">Recruiter Fields</span>
+            <span class="proof-label">Spot missing searchable details</span>
           </div>
           <div class="proof-divider"></div>
           <div class="proof-stat">
-            <span class="proof-value">Free</span>
-            <span class="proof-label">Until you export</span>
+            <span class="proof-value">Free Scans</span>
+            <span class="proof-label">Use credits only when you export</span>
           </div>
         </div>
+        <p class="proof-disclaimer animate-fade-up" style="animation-delay: 0.18s">
+          Product guidance only. ResumeXray helps you improve visibility and formatting, not predict
+          hiring outcomes.
+        </p>
 
         <!-- How It Works -->
         <div class="how-section">
@@ -652,7 +656,7 @@
             <details class="faq-item">
               <summary class="faq-question">Which ATS platforms does ResumeXray simulate?</summary>
               <p class="faq-answer">
-                ResumeXray simulates parsing behavior from 6+ major ATS platforms including Workday,
+                ResumeXray simulates parsing behavior from major ATS platforms including Workday,
                 Greenhouse, Lever, iCIMS, Taleo, and SmartRecruiters.
               </p>
             </details>
@@ -1001,6 +1005,31 @@
           <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
             Manage credits, exports, and account security in one place.
           </p>
+          <div class="profile-momentum-banner">
+            <div class="profile-momentum-copy">
+              <div class="profile-momentum-kicker">Application Readiness</div>
+              <h2 class="profile-momentum-title" id="profile-momentum-title">
+                Keep your account ready for send day
+              </h2>
+              <p class="profile-momentum-body" id="profile-momentum-body">
+                Verification, credits, and access settings should never be the reason you miss a
+                timely application.
+              </p>
+            </div>
+            <div class="profile-momentum-actions">
+              <button type="button" class="btn btn-primary" id="profile-primary-action">
+                Review Next Step
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm"
+                data-action="navigate"
+                data-path="/dashboard"
+              >
+                View Dashboard
+              </button>
+            </div>
+          </div>
           <!-- Profile Header with Avatar -->
           <div class="profile-card card-elevated">
             <div class="profile-top">
@@ -1130,6 +1159,36 @@
             <!-- Member Info -->
             <div class="profile-meta">
               <p class="body-xs">Member since <span id="profile-joined"></span></p>
+            </div>
+          </div>
+
+          <div class="profile-guidance-grid">
+            <div class="profile-guidance-card">
+              <div class="profile-guidance-kicker">Account Readiness</div>
+              <h3 class="profile-guidance-title" id="profile-readiness-title">
+                Keep your export workflow ready
+              </h3>
+              <p class="profile-guidance-body" id="profile-readiness-body">
+                Verification, credits, and account access all affect how quickly you can export.
+              </p>
+            </div>
+            <div class="profile-guidance-card">
+              <div class="profile-guidance-kicker">Security</div>
+              <h3 class="profile-guidance-title" id="profile-security-title">
+                Protect your account before export day
+              </h3>
+              <p class="profile-guidance-body" id="profile-security-body">
+                Review password and sign-in settings so last-minute account issues do not slow you down.
+              </p>
+            </div>
+            <div class="profile-guidance-card">
+              <div class="profile-guidance-kicker">Next Credit Moment</div>
+              <h3 class="profile-guidance-title" id="profile-export-title">
+                Keep one export ready
+              </h3>
+              <p class="profile-guidance-body" id="profile-export-body">
+                Credits are only used when you download, so keep one ready when your resume is strong enough to send.
+              </p>
             </div>
           </div>
 
@@ -1563,8 +1622,8 @@
               Running ATS simulation...
             </p>
             <p class="body-sm" style="margin-top: var(--sp-2); max-width: 360px">
-              Simulating 3 parser engines, analyzing keywords, and checking formatting. This takes
-              15–30 seconds.
+              Simulating multiple parser engines, analyzing keywords, and checking formatting. This
+              usually takes under a minute.
             </p>
             <div style="margin-top: var(--sp-8); width: 100%; max-width: 320px">
               <div class="skeleton skeleton-title" style="margin: 0 auto"></div>
@@ -1630,6 +1689,26 @@
 
           <!-- Dashboard Layout -->
           <div id="results-dashboard" class="results-tabs-container" style="display: none">
+            <div class="results-masthead">
+              <div class="results-masthead-copy">
+                <div class="results-masthead-kicker">Results Workspace</div>
+                <h1 class="results-masthead-title" id="results-masthead-title">
+                  Review the highest-impact fixes first
+                </h1>
+                <p class="results-masthead-body" id="results-masthead-body">
+                  Diagnose blockers, check recruiter visibility, and confirm export readiness from
+                  one workspace.
+                </p>
+              </div>
+              <div class="results-masthead-meta">
+                <span class="results-masthead-pill" id="results-masthead-status">
+                  Awaiting analysis
+                </span>
+                <span class="results-masthead-pill" id="results-masthead-context">
+                  Resume review
+                </span>
+              </div>
+            </div>
             <!-- Tab Navigation -->
             <div
               class="results-tab-nav"
@@ -1728,8 +1807,34 @@
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
-                <span>PDF Resume</span>
+                <span>Export Preview</span>
               </button>
+            </div>
+
+            <div id="results-summary-strip" class="results-summary-strip" style="display: none">
+              <div class="results-summary-card results-summary-priority">
+                <div class="results-summary-label">Top Priority</div>
+                <h3 class="results-summary-title" id="results-priority-title">
+                  Build your first diagnostic signal
+                </h3>
+                <p class="results-summary-body" id="results-priority-body">
+                  We surface the single most important fix here once the analysis finishes.
+                </p>
+              </div>
+              <div class="results-summary-card">
+                <div class="results-summary-label">Recruiter Visibility</div>
+                <div class="results-summary-value" id="results-visibility-value">Waiting</div>
+                <p class="results-summary-body" id="results-visibility-body">
+                  Match rate and extracted fields will show how visible you are in recruiter searches.
+                </p>
+              </div>
+              <div class="results-summary-card">
+                <div class="results-summary-label">Export Readiness</div>
+                <div class="results-summary-value" id="results-export-value">In progress</div>
+                <p class="results-summary-body" id="results-export-body">
+                  Parsing quality and formatting health will tell you when the resume is ready to export.
+                </p>
+              </div>
             </div>
 
             <!-- TAB 1: Progress & Diagnosis -->
@@ -1737,7 +1842,7 @@
               <div class="pane-header">
                 <h2 class="pane-title" style="margin-bottom: var(--sp-2)">ATS Diagnosis</h2>
                 <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
-                  See parsing issues, keyword gaps, and next fixes in one place.
+                  Fix the biggest blockers first.
                 </p>
               </div>
 
@@ -1759,7 +1864,7 @@
                   <span class="progress-dot"></span><span class="progress-label">Semantic</span>
                 </div>
                 <div class="progress-step" data-step="6">
-                  <span class="progress-dot"></span><span class="progress-label">Ghosting</span>
+                  <span class="progress-dot"></span><span class="progress-label">Visibility</span>
                 </div>
                 <div class="progress-step" data-step="7">
                   <span class="progress-dot"></span><span class="progress-label">Rewrite</span>
@@ -1898,7 +2003,7 @@
               <div class="pane-header">
                 <h2 class="pane-title" style="margin-bottom: var(--sp-2)">Recruiter Visibility</h2>
                 <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
-                  See which fields recruiters can search and which gaps still hide your experience.
+                  Check which fields stay searchable.
                 </p>
               </div>
               <div
@@ -1928,7 +2033,7 @@
               <div class="pane-header">
                 <h2 class="pane-title" style="margin-bottom: var(--sp-2)">AI Cover Letter</h2>
                 <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
-                  Tailored to the role using your resume details and the target job description.
+                  Turn the scan into a send-ready note for this role.
                 </p>
               </div>
               <div id="cover-letter-content" class="cover-letter-container">
@@ -1971,9 +2076,7 @@
                 <div class="download-bar-inner">
                   <div class="download-bar-text">
                     <strong>Export cover letter</strong>
-                    <span class="body-sm"
-                      >Matches your FAANG-optimized template &middot; 1 credit</span
-                    >
+                    <span class="body-sm">Matches your export layout &middot; 1 credit</span>
                   </div>
                   <div class="download-bar-actions">
                     <button class="btn btn-primary" id="download-cover-letter-pdf">
@@ -1991,15 +2094,15 @@
             <div class="results-tab-pane" id="tab-pdf-preview">
               <div class="pane-header" id="optimized-resume-header">
                 <p class="body-sm text-muted" style="margin-bottom: var(--sp-4)">
-                  Your export-ready resume with ATS-safe structure and refined bullet points.
+                  Review the export version before you spend a credit.
                 </p>
               </div>
               <!-- Shown during scan -->
               <div id="pdf-scanning-overlay" class="pdf-scanning-overlay" style="display: none">
                 <div class="loader" style="margin-bottom: var(--sp-4)"></div>
-                <h3 class="headline">Building FAANG Template...</h3>
+                <h3 class="headline">Building export preview...</h3>
                 <p class="body-sm text-muted" style="margin-top: var(--sp-2)">
-                  Applying strict 1-page formatting rules and optimizing bullets.
+                  Applying one-page formatting rules and refining your strongest bullet points.
                 </p>
               </div>
 
@@ -2023,7 +2126,7 @@
                       </svg>
                       <h3 class="pdf-toolbar-heading">ATS-Optimized Resume</h3>
                     </div>
-                    <div class="anti-fluff-pill">
+                    <div class="export-quality-pill">
                       <svg
                         aria-hidden="true"
                         width="12"
@@ -2035,9 +2138,39 @@
                       >
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                       </svg>
-                      Anti-Fluff Engine
+                      Clarity Pass
                     </div>
                   </div>
+                  <div class="pdf-toolbar-controls">
+                    <div class="pdf-control-group">
+                      <span class="pdf-control-label">Preview</span>
+                      <div class="pdf-pill-group">
+                        <button type="button" class="pdf-pill active" id="pdf-view-standard">
+                          Standard
+                        </button>
+                        <button type="button" class="pdf-pill" id="pdf-view-detailed">
+                          Detailed
+                        </button>
+                      </div>
+                    </div>
+                    <div class="pdf-control-divider"></div>
+                    <div class="pdf-control-group">
+                      <button type="button" class="btn btn-ghost btn-sm" id="pdf-open-new-tab">
+                        Open Full Preview
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm"
+                        id="pdf-toggle-fullscreen"
+                      >
+                        Focus View
+                      </button>
+                    </div>
+                  </div>
+                  <p class="pdf-mobile-note">
+                    On phones, Focus View opens a full-viewport preview for easier reading before
+                    export.
+                  </p>
                 </div>
 
                 <div class="pdf-preview-container">
@@ -2307,6 +2440,103 @@
             <button class="btn btn-primary" data-action="navigate" data-path="/scan">
               New Scan →
             </button>
+          </div>
+
+          <div class="dash-focus-grid">
+            <div class="dash-focus-card dash-focus-primary animate-fade-up">
+              <div class="dash-focus-kicker">Next Best Step</div>
+              <h2 class="dash-focus-title" id="dash-next-step-title">Run a targeted scan</h2>
+              <p class="dash-focus-body" id="dash-next-step-body">
+                Upload your latest resume and a real job description to see recruiter gaps before you export.
+              </p>
+              <div class="dash-focus-actions">
+                <button
+                  class="btn btn-primary"
+                  id="dash-next-step-btn"
+                  data-action="navigate"
+                  data-path="/scan"
+                >
+                  Start Scan
+                </button>
+                <span class="dash-focus-meta" id="dash-next-step-meta">
+                  One targeted scan gives you parsing, match, and rewrite feedback in a single pass.
+                </span>
+              </div>
+            </div>
+
+            <div class="dash-focus-card animate-fade-up" style="animation-delay: 0.05s">
+              <div class="dash-focus-kicker">Latest Target</div>
+              <div class="dash-focus-value" id="dash-focus-target">No recent target yet</div>
+              <p class="dash-focus-body" id="dash-focus-target-sub">
+                Your latest scan will appear here with recruiter-facing context.
+              </p>
+            </div>
+
+            <div class="dash-focus-card animate-fade-up" style="animation-delay: 0.1s">
+              <div class="dash-focus-kicker">Momentum</div>
+              <div class="dash-momentum-stats">
+                <div class="dash-momentum-item">
+                  <span class="dash-momentum-value" id="dash-jobs-count">0</span>
+                  <span class="dash-momentum-label">job links</span>
+                </div>
+                <div class="dash-momentum-item">
+                  <span class="dash-momentum-value" id="dash-resumes-count">0</span>
+                  <span class="dash-momentum-label">saved resumes</span>
+                </div>
+              </div>
+              <p class="dash-focus-body" id="dash-momentum-note">
+                Build one strong scan first, then export when the recruiter view looks clean.
+              </p>
+            </div>
+          </div>
+
+          <div class="dash-journey-grid">
+            <div class="dash-journey-card">
+              <div class="dash-focus-kicker">Application Flow</div>
+              <h2 class="dash-journey-title">Keep momentum from scan to export</h2>
+              <div class="dash-journey-list">
+                <div class="dash-journey-item is-current" id="dash-journey-target">
+                  <div class="dash-journey-dot"></div>
+                  <div>
+                    <div class="dash-journey-item-title">Target one real role</div>
+                    <p class="dash-journey-item-body" id="dash-journey-target-body">
+                      Run a scan against a live job description so the feedback stays specific.
+                    </p>
+                  </div>
+                </div>
+                <div class="dash-journey-item" id="dash-journey-review">
+                  <div class="dash-journey-dot"></div>
+                  <div>
+                    <div class="dash-journey-item-title">Review recruiter visibility</div>
+                    <p class="dash-journey-item-body" id="dash-journey-review-body">
+                      Use the recruiter view to confirm which fields stay searchable.
+                    </p>
+                  </div>
+                </div>
+                <div class="dash-journey-item" id="dash-journey-export">
+                  <div class="dash-journey-dot"></div>
+                  <div>
+                    <div class="dash-journey-item-title">Export only when the story is ready</div>
+                    <p class="dash-journey-item-body" id="dash-journey-export-body">
+                      Keep one credit ready so a polished scan can turn into a same-day application.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dash-journey-card dash-journey-highlight">
+              <div class="dash-focus-kicker">Recent Signal</div>
+              <h2 class="dash-journey-title" id="dash-win-title">
+                Your dashboard will highlight the clearest progress signal here
+              </h2>
+              <p class="dash-journey-item-body" id="dash-win-body">
+                Once you have a scan, we surface the strongest reason to keep iterating or export.
+              </p>
+              <div class="dash-journey-meta" id="dash-win-meta">
+                Run a first scan to turn this space into a live application brief.
+              </div>
+            </div>
           </div>
 
           <div class="bento-grid">

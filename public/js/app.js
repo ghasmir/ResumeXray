@@ -8,6 +8,8 @@ let currentScan = null;
 let lastJobInput = '';
 let loadResultsToken = 0; // Cancellation token for loadResults retries
 let userFetchPromise = null; // Request deduplication for fetchUser
+let pdfPreviewMode = window.innerWidth < 768 ? 'detailed' : 'standard';
+let pdfPreviewFocusMode = false;
 
 // ═══════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS (Performance & Accessibility)
@@ -20,6 +22,27 @@ function debounce(fn, ms) {
     clearTimeout(timer);
     timer = setTimeout(() => fn(...args), ms);
   };
+}
+
+function uiIcon(name, { size = 18, stroke = 2 } = {}) {
+  const icons = {
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />',
+    file: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />',
+    search:
+      '<circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />',
+    mail: '<rect x="2" y="4" width="20" height="16" rx="2" /><polyline points="22,6 12,13 2,6" />',
+    spark: '<path d="M12 2l2.3 5.4L20 10l-5.7 2.6L12 18l-2.3-5.4L4 10l5.7-2.6L12 2z" />',
+    warning:
+      '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />',
+    chart: '<path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" />',
+    copy: '<rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />',
+    archive:
+      '<path d="M22 12h-6l-2 3H10l-2-3H2" /><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z" />',
+    check: '<polyline points="20 6 9 17 4 12" />',
+    dot: '<circle cx="12" cy="12" r="3" />',
+  };
+
+  return `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round">${icons[name] || ''}</svg>`;
 }
 
 // Screen reader announcement helper for accessibility
@@ -149,6 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupAuthForms();
   setupPasswordToggles();
   setupResultsTabs();
+  setupPdfPreviewControls();
   setupMobileMenu();
   setupAgentResults();
 
@@ -792,6 +816,10 @@ function setupGlobalDelegation() {
 }
 
 function switchTab(tabId) {
+  if (tabId !== 'tab-pdf-preview' && tabId !== 'pdf-preview' && pdfPreviewFocusMode) {
+    setPdfPreviewFocusMode(false);
+  }
+
   // Unified tab system: works with both old (.tab-content/.tab-btn) and new (.results-tab-pane/.results-tab-btn)
   document.querySelectorAll('.tab-content, .results-tab-pane').forEach(t => {
     t.classList.remove('active-tab');
@@ -882,6 +910,82 @@ function switchTab(tabId) {
       const actions = el('cover-letter-actions');
       if (actions) actions.style.display = 'flex';
     }
+  }
+}
+
+function setupPdfPreviewControls() {
+  const standardBtn = el('pdf-view-standard');
+  const detailedBtn = el('pdf-view-detailed');
+  const openTabBtn = el('pdf-open-new-tab');
+  const fullscreenBtn = el('pdf-toggle-fullscreen');
+
+  if (standardBtn) {
+    standardBtn.addEventListener('click', () => setPdfPreviewMode('standard'));
+  }
+  if (detailedBtn) {
+    detailedBtn.addEventListener('click', () => setPdfPreviewMode('detailed'));
+  }
+  if (openTabBtn) {
+    openTabBtn.addEventListener('click', () => {
+      const previewFrame = el('pdf-preview-frame');
+      const url = previewFrame?.dataset.previewUrl || previewFrame?.src;
+      if (url && url !== 'about:blank') {
+        window.open(url, '_blank', 'noopener');
+      }
+    });
+  }
+  if (fullscreenBtn) {
+    fullscreenBtn.addEventListener('click', () => {
+      setPdfPreviewFocusMode(!pdfPreviewFocusMode);
+    });
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && pdfPreviewFocusMode) {
+      setPdfPreviewFocusMode(false);
+    }
+  });
+
+  setPdfPreviewMode(pdfPreviewMode);
+}
+
+function setPdfPreviewMode(mode) {
+  pdfPreviewMode = mode;
+  const container = document.querySelector('.pdf-preview-container');
+  const previewFrame = el('pdf-preview-frame');
+  const standardBtn = el('pdf-view-standard');
+  const detailedBtn = el('pdf-view-detailed');
+
+  if (container) {
+    container.classList.toggle('is-detailed', mode === 'detailed');
+  }
+  if (previewFrame) {
+    const viewportFactor = pdfPreviewFocusMode ? 0.9 : mode === 'detailed' ? 0.84 : 0.62;
+    const maxHeight = pdfPreviewFocusMode ? 1400 : mode === 'detailed' ? 1200 : 900;
+    const height = Math.max(320, Math.min(maxHeight, window.innerHeight * viewportFactor));
+    previewFrame.style.height = height + 'px';
+    previewFrame.style.width = '100%';
+  }
+  if (standardBtn) standardBtn.classList.toggle('active', mode === 'standard');
+  if (detailedBtn) detailedBtn.classList.toggle('active', mode === 'detailed');
+}
+
+function setPdfPreviewFocusMode(active) {
+  pdfPreviewFocusMode = active;
+  const viewerOverlay = el('pdf-viewer-overlay');
+  const focusBtn = el('pdf-toggle-fullscreen');
+
+  if (viewerOverlay) {
+    viewerOverlay.classList.toggle('is-focus-mode', active);
+  }
+  document.body.classList.toggle('pdf-focus-mode', active);
+  if (focusBtn) {
+    focusBtn.textContent = active ? 'Exit Focus View' : 'Focus View';
+  }
+  if (active && window.innerWidth < 768) {
+    setPdfPreviewMode('detailed');
+  } else {
+    setPdfPreviewMode(pdfPreviewMode);
   }
 }
 
@@ -1593,8 +1697,15 @@ function updateAgentStepCard(step, status, label, data) {
   const labelEl = card.querySelector('.agent-step-label');
 
   icon.className = `agent-step-icon ${status}`;
-  icon.textContent =
-    status === 'complete' ? '' : status === 'locked' ? '🔒' : status === 'error' ? '✖' : '!';
+  icon.innerHTML = safeHtml(
+    status === 'complete'
+      ? uiIcon('check', { size: 14, stroke: 2.5 })
+      : status === 'locked'
+        ? uiIcon('lock', { size: 14, stroke: 2 })
+        : status === 'error'
+          ? uiIcon('warning', { size: 14, stroke: 2 })
+          : uiIcon('dot', { size: 14, stroke: 2.5 })
+  );
 
   if (status === 'error') {
     statusLabels.textContent = 'REJECTED';
@@ -1730,7 +1841,7 @@ function renderAgentBullet(data) {
         <div class="agent-bullet-text">${esc(data.original)}</div>
       </div>
       <div class="agent-bullet-after ${isGuest ? 'guest-blurred' : ''}">
-        <div class="agent-bullet-label after">OPTIMIZING...</div>
+        <div class="agent-bullet-label after">REFINING...</div>
         <div class="agent-bullet-text" id="bullet-rewrite-text-${data.index}"><span class="cursor"></span></div>
       </div>
     `);
@@ -1757,7 +1868,7 @@ function renderAgentBullet(data) {
 
     const afterLabel = card.querySelector('.agent-bullet-label.after');
     if (afterLabel) {
-      afterLabel.textContent = '✓ HUMANIZED';
+      afterLabel.textContent = 'REFINED';
       afterLabel.classList.add('done');
     }
 
@@ -1769,7 +1880,7 @@ function renderAgentBullet(data) {
     meta.innerHTML = safeHtml(`
       <span class="badge badge-purple">${esc(data.targetKeyword || 'General')}</span>
       <span class="badge badge-blue">${esc(data.method || 'CAR Formula')}</span>
-      <span class="badge badge-green">Anti-Fluff ✓</span>
+      <span class="badge badge-green">Clarity Pass</span>
     `);
     card.appendChild(meta);
   }
@@ -1789,7 +1900,7 @@ function updateAgentScores(scores) {
       overlay.className = 'unlock-overlay';
       overlay.innerHTML = safeHtml(`
         <div class="unlock-card">
-          <div class="unlock-icon">🔒</div>
+          <div class="unlock-icon">${uiIcon('lock', { size: 28, stroke: 2 })}</div>
           <div class="unlock-title">Unlock Full Analysis</div>
           <div class="unlock-text">See your detailed ATS scores and professional bullet points.</div>
           <div class="flex gap-4">
@@ -1836,6 +1947,7 @@ function updateAgentScores(scores) {
   const formatHealth = scores.formatHealth ?? null;
   const matchRate = scores.matchRate ?? scores.jobMatch ?? null;
   const matchAfter = scores.matchRateAfter ?? scores.jobMatchAfter ?? null;
+  updateResultsSummary({ scores });
 
   if (parseRate !== null) {
     animateGauge('gauge-parse', 'score-ats-ready', parseRate, gaugeColor(parseRate));
@@ -1853,6 +1965,141 @@ function updateAgentScores(scores) {
   }
 }
 
+function updateResultsSummary({ scores = null, scan = null } = {}) {
+  const strip = el('results-summary-strip');
+  if (!strip) return;
+  strip.style.display = 'grid';
+
+  const priorityTitleEl = el('results-priority-title');
+  const priorityBodyEl = el('results-priority-body');
+  const visibilityValueEl = el('results-visibility-value');
+  const visibilityBodyEl = el('results-visibility-body');
+  const exportValueEl = el('results-export-value');
+  const exportBodyEl = el('results-export-body');
+
+  const parseRate =
+    scores?.parseRate ?? scores?.atsReady ?? scan?.parseRate ?? scan?.atsReady ?? null;
+  const formatHealth = scores?.formatHealth ?? scan?.formatHealth ?? null;
+  const matchRate =
+    scores?.matchRate ?? scores?.jobMatch ?? scan?.matchRate ?? scan?.jobMatch ?? null;
+  const keywordData = scan?.keywordData || {};
+  const xrayData = scan?.xrayData || {};
+  const missingKeywords = Array.isArray(keywordData.missing) ? keywordData.missing.length : 0;
+  const lowVisibilityFields = Object.values(xrayData.fieldAccuracy || {}).filter(
+    info => info?.status === 'missing' || info?.status === 'warning'
+  ).length;
+  const creditBalance = currentUser?.user?.creditBalance || 0;
+
+  let priorityTitle = 'Keep improving the strongest blocker first';
+  let priorityBody =
+    'We keep the highest-impact recommendation here so you do not have to scan every card before deciding what to fix next.';
+
+  if (parseRate !== null && parseRate < 70) {
+    priorityTitle = 'Fix parsing blockers before anything else';
+    priorityBody =
+      'If the parser misses sections or fields, recruiters cannot search the experience no matter how strong the writing is.';
+  } else if (formatHealth !== null && formatHealth < 70) {
+    priorityTitle = 'Tighten structure before you export';
+    priorityBody =
+      'Formatting health is still suppressing readability. Clean structure lifts both ATS reliability and recruiter confidence.';
+  } else if (missingKeywords > 0 || (matchRate !== null && matchRate < 70)) {
+    priorityTitle = 'Close the job-match gap';
+    priorityBody =
+      missingKeywords > 0
+        ? `${missingKeywords} relevant keyword${missingKeywords === 1 ? '' : 's'} are still missing from the current story.`
+        : 'Your resume is readable, but it still needs stronger job-specific language to compete in search and ranking.';
+  } else if (creditBalance < 1) {
+    priorityTitle = 'Your resume is close, keep one export credit ready';
+    priorityBody =
+      'The analysis is trending well. The main remaining friction is having a credit available when you decide to ship the final version.';
+  } else if (matchRate !== null) {
+    priorityTitle = 'You are close to an export-ready pass';
+    priorityBody =
+      'The current scan is readable and job-aware, so the next step is validating the recruiter view and exporting with confidence.';
+  }
+
+  if (priorityTitleEl) priorityTitleEl.textContent = priorityTitle;
+  if (priorityBodyEl) priorityBodyEl.textContent = priorityBody;
+
+  if (visibilityValueEl) {
+    visibilityValueEl.textContent =
+      lowVisibilityFields > 0
+        ? `${lowVisibilityFields} field${lowVisibilityFields === 1 ? '' : 's'} at risk`
+        : matchRate !== null
+          ? `${Math.round(matchRate)}% match`
+          : 'Waiting for field data';
+  }
+  if (visibilityBodyEl) {
+    visibilityBodyEl.textContent =
+      lowVisibilityFields > 0
+        ? 'Recruiters may still miss part of your profile in search because extracted fields are incomplete or partial.'
+        : 'The recruiter view looks structurally stronger, so focus shifts toward keyword fit and final polish.';
+  }
+
+  if (exportValueEl) {
+    const exportScore =
+      parseRate !== null && formatHealth !== null ? Math.round((parseRate + formatHealth) / 2) : null;
+    exportValueEl.textContent =
+      exportScore === null
+        ? 'Evaluating'
+        : exportScore >= 80
+          ? 'Ready for final review'
+          : exportScore >= 65
+            ? 'Needs one more pass'
+            : 'Hold export for now';
+  }
+  if (exportBodyEl) {
+    exportBodyEl.textContent =
+      creditBalance < 1
+        ? 'Scans stay free, but keep one credit available so a strong result can turn into a same-day export.'
+        : 'Use export only after the parser looks stable, the recruiter table is clean, and the job match feels believable.';
+  }
+}
+
+function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
+  const titleEl = el('results-masthead-title');
+  const bodyEl = el('results-masthead-body');
+  const statusEl = el('results-masthead-status');
+  const contextEl = el('results-masthead-context');
+  if (!titleEl || !bodyEl || !statusEl || !contextEl) return;
+
+  const scanTitle = scan ? getDashboardScanTitle(scan) : 'Review the highest-impact fixes first';
+  const parseRate = scan?.parseRate ?? scan?.parse_rate ?? null;
+  const formatHealth = scan?.formatHealth ?? scan?.format_health ?? null;
+  const matchRate = scan?.matchRate ?? scan?.match_rate ?? null;
+  const hasJobContext = !!(scan?.job_url || (scan?.job_description || '').trim());
+  const readinessScore =
+    parseRate !== null && formatHealth !== null ? Math.round((parseRate + formatHealth) / 2) : null;
+
+  titleEl.textContent = scanTitle;
+  bodyEl.textContent = hasJobContext
+    ? 'Use the tabs below to tighten parser reliability, recruiter visibility, and export confidence for this role.'
+    : 'This pass is strongest as a structural review. Add a target role next time for sharper match and cover-letter feedback.';
+
+  if (readinessScore !== null && readinessScore >= 80) {
+    statusEl.textContent = 'Ready for final review';
+  } else if (readinessScore !== null && readinessScore >= 65) {
+    statusEl.textContent = 'One more pass recommended';
+  } else if (scan) {
+    statusEl.textContent = 'Diagnosis in progress';
+  } else {
+    statusEl.textContent = 'Awaiting analysis';
+  }
+
+  if (scan) {
+    const timeLabel =
+      scan.created_at ? timeAgo(scan.created_at) : source === 'history' ? 'saved scan' : 'live scan';
+    const contextParts = [
+      source === 'history' ? 'Saved scan' : 'Live workspace',
+      matchRate !== null ? `${Math.round(matchRate)}% match` : null,
+      timeLabel,
+    ].filter(Boolean);
+    contextEl.textContent = contextParts.join(' · ');
+  } else {
+    contextEl.textContent = 'Resume review';
+  }
+}
+
 async function finalizeAgentUI(data) {
   // 1. Wait for pending bullets
   let attempts = 0;
@@ -1863,7 +2110,7 @@ async function finalizeAgentUI(data) {
 
   // 2. Clean up lingering animations
   document.querySelectorAll('.agent-bullet-label.after').forEach(label => {
-    if (label.textContent === 'OPTIMIZING...') label.textContent = 'HUMANIZED';
+    if (label.textContent === 'REFINING...') label.textContent = 'REFINED';
   });
   document.querySelectorAll('.cursor').forEach(c => c.remove());
 
@@ -1873,6 +2120,7 @@ async function finalizeAgentUI(data) {
   if (data.scanId) {
     currentScan = { ...data, id: data.scanId };
   }
+  updateResultsWorkspaceHeader({ scan: currentScan, source: 'live' });
 
   // 4. Show Dashboard & Reveal Tabs
   const dashboard = el('results-dashboard');
@@ -1905,7 +2153,7 @@ async function finalizeAgentUI(data) {
   // 6. No full-page overlay — just show the tab and toast
   switchTab('tab-diagnosis');
   showToast(
-    'Analysis complete! Your optimized resume is ready in the Optimized Resume tab.',
+    'Analysis complete. Your export preview is ready for review.',
     'success'
   );
 
@@ -1924,6 +2172,8 @@ async function finalizeAgentUI(data) {
         if (scanJson.results) {
           const fullData = scanJson.results;
           currentScan = { ...currentScan, ...fullData, id: data.scanId };
+          updateResultsSummary({ scores: fullData, scan: fullData });
+          updateResultsWorkspaceHeader({ scan: fullData, source: 'live' });
 
           // Populate Recruiter View
           const xray = fullData.xrayData || {};
@@ -2154,7 +2404,9 @@ function reloadPdfPreview(scanId) {
   // Apply an initial responsive height and width for the PDF preview frame
   function adaptPdfFrameSize(frame) {
     if (!frame) return;
-    const h = Math.max(320, Math.min(900, window.innerHeight * 0.62));
+    const viewportFactor = pdfPreviewMode === 'detailed' ? 0.84 : 0.62;
+    const maxHeight = pdfPreviewMode === 'detailed' ? 1200 : 900;
+    const h = Math.max(320, Math.min(maxHeight, window.innerHeight * viewportFactor));
     frame.style.height = h + 'px';
     frame.style.width = '100%';
   }
@@ -2166,6 +2418,7 @@ function reloadPdfPreview(scanId) {
 
   // Show loading skeleton while iframe renders
   const container = previewFrame.parentElement;
+  setPdfPreviewMode(pdfPreviewMode);
   let skeleton = container?.querySelector('.preview-skeleton');
   if (!skeleton && container) {
     skeleton = document.createElement('div');
@@ -2182,6 +2435,7 @@ function reloadPdfPreview(scanId) {
 
   // Build the preview URL with proper token
   let url = `/api/agent/preview/${scanId}?template=${template}&density=${density}&t=${Date.now()}${currentScanTokenQuery()}`;
+  previewFrame.dataset.previewUrl = url;
 
   // Handle iframe load errors
   const handleError = () => {
@@ -2192,7 +2446,7 @@ function reloadPdfPreview(scanId) {
     errorDiv.className = 'pdf-error-message';
     errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
     errorDiv.innerHTML = safeHtml(`
-      <div style="font-size:3rem;margin-bottom:1rem;opacity:0.5">📄</div>
+      <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
       <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
       <p class="body-sm">Unable to load the PDF preview. The file may still be processing or there was an error.</p>
       <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="reloadPdfPreview('${scanId}')">Retry</button>
@@ -2392,6 +2646,7 @@ async function loadResults(scanId, retryCount = 0) {
 function setupAgentHistoricalView(data) {
   const scanId = data.id || data.scanId;
   console.log('[AgentView] Initializing historical view for scan', scanId, data);
+  updateResultsWorkspaceHeader({ scan: data, source: 'history' });
 
   // 1. Dashboard + tabs visible
   const dashboard = el('results-dashboard');
@@ -2422,6 +2677,7 @@ function setupAgentHistoricalView(data) {
     matchRate: data.matchRate || 0,
     matchRateAfter: data.matchRateAfter || null,
   });
+  updateResultsSummary({ scores: data, scan: data });
 
   // 5. Populate Historical Timeline
   if (typeof renderAgentHistoricalTimeline === 'function') {
@@ -2449,7 +2705,7 @@ function setupAgentHistoricalView(data) {
           overlay.className = 'unlock-overlay';
           overlay.innerHTML = safeHtml(`
             <div class="unlock-card">
-              <div class="unlock-icon">🔒</div>
+              <div class="unlock-icon">${uiIcon('lock', { size: 28, stroke: 2 })}</div>
               <div class="unlock-title">Unlock Recruiter Visibility</div>
               <div class="unlock-text">See precisely what Workday and Taleo parsers extract into their databases.</div>
               <div class="flex gap-4">
@@ -2463,7 +2719,7 @@ function setupAgentHistoricalView(data) {
     } else {
       recBody.innerHTML =
         safeHtml(`<tr><td colspan="3" style="text-align:center; padding:4rem; color:var(--text-muted)">
-        <div style="margin-bottom:1.5rem; opacity:0.5"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-6l-2 3H10l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
+        <div style="display:flex;justify-content:center;margin-bottom:1.5rem; opacity:0.5">${uiIcon('archive', { size: 48, stroke: 1.5 })}</div>
         <h4 style="color:var(--text-main)">Parser data unavailable</h4>
         <p class="body-sm" style="margin-top:0.5rem">This legacy scan record only contains the final scores.</p>
         <p class="body-xs" style="margin-top:1rem; opacity:0.6">Run a new scan to see live extraction and keywords.</p>
@@ -2481,7 +2737,7 @@ function setupAgentHistoricalView(data) {
       kwVisibility.innerHTML = safeHtml(`
         <div class="card" style="background:var(--bg-card-subtle); padding:var(--sp-6); border:1px solid rgba(255,255,255,0.05)">
           <h4 style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
-            <span style="font-size:1.25rem">🔍</span> Search Visibility Analysis
+            ${uiIcon('search', { size: 20, stroke: 2 })} Search Visibility Analysis
           </h4>
           <p class="body-xs text-muted" style="margin-bottom:1.5rem">These keywords were found in your resume based on the job description:</p>
           <div class="keyword-list">
@@ -2509,7 +2765,7 @@ function setupAgentHistoricalView(data) {
     if (clContainer) {
       clContainer.innerHTML = safeHtml(`
         <div class="cover-letter-placeholder">
-          <div style="font-size:3rem; margin-bottom:1rem; opacity:0.4">✉️</div>
+          <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.4">${uiIcon('mail', { size: 44, stroke: 1.6 })}</div>
           <h4>No cover letter for this scan</h4>
           <p class="body-sm text-muted" style="margin-top:0.5rem">Cover letters require a job description. Run a new scan with a JD to generate one.</p>
         </div>
@@ -2535,9 +2791,9 @@ function setupAgentHistoricalView(data) {
     // Basic Scan or Error — Show upgrade message in PDF tab
     scanOverlay.style.display = 'flex';
     scanOverlay.innerHTML = safeHtml(`
-      <div style="font-size:3.5rem; margin-bottom:1.5rem">✨</div>
-      <h3 class="headline">Unlock FAANG Formatting</h3>
-      <p class="body-sm text-muted" style="margin-top:1rem; max-width:320px; text-align:center">Your ATS Diagnosis is complete. Upgrade to <strong>Pro Agent</strong> to unlock our one-page "Humanized" template and auto-bullet rewriting.</p>
+      <div style="display:flex;justify-content:center;margin-bottom:1.5rem">${uiIcon('spark', { size: 44, stroke: 1.8 })}</div>
+      <h3 class="headline">Unlock the export preview</h3>
+      <p class="body-sm text-muted" style="margin-top:1rem; max-width:320px; text-align:center">Your ATS diagnosis is complete. Create an account to preview the one-page export layout and refined bullet updates.</p>
       <button class="btn btn-primary" style="margin-top:2rem" data-action="navigate" data-path="/pricing">View Pro Plans</button>
     `);
     if (viewOverlay) viewOverlay.style.display = 'none';
@@ -2557,7 +2813,7 @@ function setupAgentHistoricalView(data) {
       clOverlay.className = 'unlock-overlay';
       clOverlay.innerHTML = safeHtml(`
         <div class="unlock-card">
-          <div class="unlock-icon">✉️</div>
+          <div class="unlock-icon">${uiIcon('mail', { size: 28, stroke: 2 })}</div>
           <div class="unlock-title">Your AI Cover Letter is Ready</div>
           <div class="unlock-text">Sign up to preview your personalized cover letter. Export as PDF or DOCX costs 1 credit.</div>
           <div style="display:flex; gap:0.75rem; margin-top:1rem;">
@@ -2577,9 +2833,9 @@ function setupAgentHistoricalView(data) {
       pdfOverlay.className = 'unlock-overlay';
       pdfOverlay.innerHTML = safeHtml(`
         <div class="unlock-card">
-          <div class="unlock-icon">📄</div>
+          <div class="unlock-icon">${uiIcon('file', { size: 28, stroke: 2 })}</div>
           <div class="unlock-title">ATS-Optimized Resume Ready</div>
-          <div class="unlock-text">Your resume has been rebuilt with FAANG formatting rules. Sign up to preview and export.</div>
+          <div class="unlock-text">Your resume has been rebuilt into an export-ready layout. Sign up to preview and export.</div>
           <div style="display:flex; gap:0.75rem; margin-top:1rem;">
             <button class="btn btn-primary" data-auth="signup">Create Free Account</button>
             <button class="btn btn-ghost btn-sm" data-auth="login" style="color:var(--text-muted)">Log In</button>
@@ -2775,6 +3031,8 @@ async function renderDashboard() {
     const res = await fetch('/user/dashboard');
     if (!res.ok) return;
     const data = await res.json();
+    updateDashboardFocus(data, user);
+    updateDashboardJourney(data, user);
 
     // Update Last Score Card
     if (data.scans?.length > 0) {
@@ -2921,6 +3179,214 @@ async function renderDashboard() {
   }
 }
 
+function updateDashboardFocus(data, user) {
+  const scans = Array.isArray(data?.scans) ? data.scans : [];
+  const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
+  const resumes = Array.isArray(data?.resumes) ? data.resumes : [];
+  const latest = scans[0] || null;
+  const creditBalance = data?.creditBalance ?? user?.creditBalance ?? 0;
+
+  const titleEl = el('dash-next-step-title');
+  const bodyEl = el('dash-next-step-body');
+  const btnEl = el('dash-next-step-btn');
+  const metaEl = el('dash-next-step-meta');
+  const targetEl = el('dash-focus-target');
+  const targetSubEl = el('dash-focus-target-sub');
+  const jobsCountEl = el('dash-jobs-count');
+  const resumesCountEl = el('dash-resumes-count');
+  const momentumEl = el('dash-momentum-note');
+
+  if (jobsCountEl) jobsCountEl.textContent = String(jobs.length);
+  if (resumesCountEl) resumesCountEl.textContent = String(resumes.length);
+
+  const latestTitle = latest ? getDashboardScanTitle(latest) : 'No recent target yet';
+
+  if (targetEl) targetEl.textContent = latestTitle;
+  if (targetSubEl) {
+    targetSubEl.textContent = latest
+      ? `${Math.round(latest.match_rate || 0)}% match · ${timeAgo(latest.created_at)}`
+      : 'Your latest scan will appear here with recruiter-facing context.';
+  }
+
+  if (momentumEl) {
+    if (!scans.length) {
+      momentumEl.textContent = 'Build one strong scan first, then export when the recruiter view looks clean.';
+    } else if (jobs.length > 0) {
+      momentumEl.textContent = `You have ${jobs.length} saved job link${jobs.length === 1 ? '' : 's'} feeding future scan decisions.`;
+    } else if (resumes.length > 0) {
+      momentumEl.textContent = `You already have ${resumes.length} saved resume${resumes.length === 1 ? '' : 's'} to compare against future targets.`;
+    } else {
+      momentumEl.textContent = 'Run one more job-specific scan to build a stronger benchmark before exporting.';
+    }
+  }
+
+  const recommendation = getDashboardRecommendation({ scans, jobs, resumes, creditBalance });
+  if (titleEl) titleEl.textContent = recommendation.title;
+  if (bodyEl) bodyEl.textContent = recommendation.body;
+  if (metaEl) metaEl.textContent = recommendation.meta;
+  if (btnEl) {
+    btnEl.textContent = recommendation.cta;
+    btnEl.setAttribute('data-action', 'navigate');
+    btnEl.setAttribute('data-path', recommendation.path);
+  }
+}
+
+function updateDashboardJourney(data, user) {
+  const scans = Array.isArray(data?.scans) ? data.scans : [];
+  const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
+  const resumes = Array.isArray(data?.resumes) ? data.resumes : [];
+  const latest = scans[0] || null;
+  const creditBalance = data?.creditBalance ?? user?.creditBalance ?? 0;
+
+  const targetBodyEl = el('dash-journey-target-body');
+  const reviewBodyEl = el('dash-journey-review-body');
+  const exportBodyEl = el('dash-journey-export-body');
+  const winTitleEl = el('dash-win-title');
+  const winBodyEl = el('dash-win-body');
+  const winMetaEl = el('dash-win-meta');
+
+  const targetState = latest ? 'complete' : 'current';
+  const reviewState = latest ? (latest.match_rate >= 70 || latest.parse_rate >= 75 ? 'complete' : 'current') : 'pending';
+  const exportState =
+    latest && creditBalance > 0 && (latest.match_rate || 0) >= 75 && (latest.parse_rate || 0) >= 75
+      ? 'complete'
+      : creditBalance > 0
+        ? 'current'
+        : 'pending';
+
+  setJourneyItemState('dash-journey-target', targetState);
+  setJourneyItemState('dash-journey-review', reviewState);
+  setJourneyItemState('dash-journey-export', exportState);
+
+  if (targetBodyEl) {
+    targetBodyEl.textContent = latest
+      ? `Latest focus: ${getDashboardScanTitle(latest)}`
+      : 'Run one scan against a live job description so the feedback stays specific.';
+  }
+  if (reviewBodyEl) {
+    reviewBodyEl.textContent = latest
+      ? 'Open the latest results and confirm which fields stay visible to recruiter searches.'
+      : 'Once a scan exists, use recruiter visibility to decide which fixes matter most.';
+  }
+  if (exportBodyEl) {
+    exportBodyEl.textContent =
+      creditBalance > 0
+        ? `${creditBalance} credit${creditBalance === 1 ? '' : 's'} ready once the latest scan feels send-ready.`
+        : 'Keep one credit ready so a polished result can turn into a same-day application.';
+  }
+
+  if (!winTitleEl || !winBodyEl || !winMetaEl) return;
+
+  if (!latest) {
+    winTitleEl.textContent = 'Your first scan becomes the benchmark for everything that follows';
+    winBodyEl.textContent =
+      'Once you analyze one real target role, this panel turns into a live application brief with the strongest next move.';
+    winMetaEl.textContent = 'No recent scans yet';
+    return;
+  }
+
+  const matchRate = Math.round(latest.match_rate || 0);
+  const parseRate = Math.round(latest.parse_rate || 0);
+  if (matchRate >= 80 && parseRate >= 80) {
+    winTitleEl.textContent = 'The latest scan is already close to application-ready';
+    winBodyEl.textContent =
+      'You have enough signal to do a final recruiter-view pass, then export while the role is still fresh.';
+  } else if (matchRate >= 60 || parseRate >= 70) {
+    winTitleEl.textContent = 'The latest scan has a workable foundation';
+    winBodyEl.textContent =
+      'You are past generic resume review. One more targeted pass should lift visibility and confidence before export.';
+  } else {
+    winTitleEl.textContent = 'The latest scan exposed the clearest improvement path';
+    winBodyEl.textContent =
+      'Use this gap as leverage: cleaner parsing and sharper role language will create the biggest jump in visibility.';
+  }
+
+  const metaParts = [
+    getDashboardScanTitle(latest),
+    `${matchRate}% match`,
+    `${parseRate}% parse`,
+    jobs.length ? `${jobs.length} saved job${jobs.length === 1 ? '' : 's'}` : null,
+    resumes.length ? `${resumes.length} saved resume${resumes.length === 1 ? '' : 's'}` : null,
+  ].filter(Boolean);
+  winMetaEl.textContent = metaParts.join(' · ');
+}
+
+function setJourneyItemState(id, state) {
+  const item = el(id);
+  if (!item) return;
+  item.classList.remove('is-pending', 'is-current', 'is-complete');
+  item.classList.add(`is-${state}`);
+}
+
+function getDashboardRecommendation({ scans, jobs, resumes, creditBalance }) {
+  const latest = scans[0];
+
+  if (!latest) {
+    return {
+      title: 'Run your first targeted scan',
+      body: 'Upload your latest resume and a real job description to unlock recruiter visibility, keyword coverage, and rewrite suggestions in one pass.',
+      cta: 'Start First Scan',
+      path: '/scan',
+      meta: 'You will get a recruiter-view benchmark before spending a single credit.',
+    };
+  }
+
+  if (creditBalance < 1) {
+    return {
+      title: 'Keep one export credit ready',
+      body: 'Your recruiter feedback is already flowing. Add a credit now so you can export the minute this resume is ready to send.',
+      cta: 'Get More Credits',
+      path: '/pricing',
+      meta: `Latest target: ${getDashboardScanTitle(latest)}`,
+    };
+  }
+
+  if (!latest.job_url && !(latest.job_description || '').trim()) {
+    return {
+      title: 'Add a real job target to sharpen the scan',
+      body: 'Generic scans help, but the strongest recommendations appear when you include a job link or pasted description.',
+      cta: 'Start Targeted Scan',
+      path: '/scan',
+      meta: 'Targeted scans improve match feedback and cover letter quality.',
+    };
+  }
+
+  if (jobs.length < 1 && resumes.length < 2) {
+    return {
+      title: 'Build a second benchmark before exporting',
+      body: 'Compare one more role or resume version so you know which changes actually improve recruiter visibility.',
+      cta: 'Scan Another Version',
+      path: '/scan',
+      meta: `Latest scan: ${getDashboardScanTitle(latest)}`,
+    };
+  }
+
+  return {
+    title: 'Review the latest recruiter gaps',
+    body: 'Open your newest scan and tighten any missing fields or weak match areas before you export the final version.',
+    cta: 'Open Latest Scan',
+    path: `/results/${latest.id}`,
+    meta: `Updated ${timeAgo(latest.created_at)} · ${Math.round(latest.match_rate || 0)}% current match`,
+  };
+}
+
+function getDashboardScanTitle(scan) {
+  let title = decodeHtml(scan.job_title || '');
+  const company = decodeHtml(scan.company_name || '');
+
+  if (!title || title.toLowerCase() === 'no job description') {
+    if (company) return `Role at ${company}`;
+    if (scan.job_description && scan.job_description.trim()) return 'Pasted Job Description';
+    return 'General Scan';
+  }
+
+  if (company && !title.toLowerCase().includes(company.toLowerCase())) {
+    title = `${title}, ${company}`;
+  }
+
+  return title;
+}
+
 async function renderProfile() {
   if (!currentUser) return;
   await fetchUser();
@@ -2940,6 +3406,8 @@ async function renderProfile() {
   const badge = el('profile-tier-badge');
   badge.textContent = tierNames[tier] || 'Free';
   badge.className = `tier-badge tier-${tier}`;
+  updateProfileGuidance(user, creditBalance);
+  updateProfileMomentum(user, creditBalance);
 
   // Credit balance
   el('profile-credit-count').textContent = creditBalance;
@@ -2978,7 +3446,7 @@ async function renderProfile() {
         const data = await res.json();
         if (res.ok) {
           showToast('Verification email sent! Check your inbox.', 'success');
-          resendBtn.textContent = 'Sent ✓';
+          resendBtn.textContent = 'Sent';
         } else {
           showToast(data.error || 'Failed to resend.', 'error');
           resendBtn.disabled = false;
@@ -2989,6 +3457,21 @@ async function renderProfile() {
         resendBtn.disabled = false;
         resendBtn.textContent = 'Resend Email';
       }
+    });
+  }
+
+  const primaryActionBtn = el('profile-primary-action');
+  if (primaryActionBtn && !primaryActionBtn._bound) {
+    primaryActionBtn._bound = true;
+    primaryActionBtn.addEventListener('click', () => {
+      const action = primaryActionBtn.dataset.profileAction;
+      if (action === 'resend-verification') {
+        resendBtn?.click();
+        return;
+      }
+
+      const path = primaryActionBtn.dataset.path;
+      if (path) navigateTo(path);
     });
   }
 
@@ -3201,6 +3684,88 @@ async function renderProfile() {
   }
 }
 
+function updateProfileGuidance(user, creditBalance) {
+  const readinessTitleEl = el('profile-readiness-title');
+  const readinessBodyEl = el('profile-readiness-body');
+  const securityTitleEl = el('profile-security-title');
+  const securityBodyEl = el('profile-security-body');
+  const exportTitleEl = el('profile-export-title');
+  const exportBodyEl = el('profile-export-body');
+
+  const providerLabel = user.provider
+    ? `${user.provider.charAt(0).toUpperCase()}${user.provider.slice(1)} sign-in`
+    : 'Email and password sign-in';
+
+  if (readinessTitleEl && readinessBodyEl) {
+    if (!user.isVerified && !user.provider) {
+      readinessTitleEl.textContent = 'Verify your account before export day';
+      readinessBodyEl.textContent =
+        'Your welcome credit unlocks after verification, and verifying now avoids delays when you are ready to send.';
+    } else if (creditBalance < 1) {
+      readinessTitleEl.textContent = 'Your account is ready but credits are empty';
+      readinessBodyEl.textContent =
+        'Scans stay free, but you will need at least one credit available when you want the final export.';
+    } else {
+      readinessTitleEl.textContent = 'You are ready to export when the scan looks clean';
+      readinessBodyEl.textContent =
+        'Verification, credits, and account access are all in place, so the next gating factor is scan quality.';
+    }
+  }
+
+  if (securityTitleEl && securityBodyEl) {
+    securityTitleEl.textContent = user.hasPassword ? 'Password protection is enabled' : providerLabel;
+    securityBodyEl.textContent = user.hasPassword
+      ? 'You can update your password here before a busy application week so you are not locked out at the wrong moment.'
+      : 'This account uses connected sign-in only, so access depends on your external provider staying available.';
+  }
+
+  if (exportTitleEl && exportBodyEl) {
+    if (creditBalance > 0) {
+      exportTitleEl.textContent = `${creditBalance} credit${creditBalance === 1 ? '' : 's'} ready for export`;
+      exportBodyEl.textContent =
+        'Use credits only when the resume or cover letter feels complete. Until then, keep scanning and rewriting for free.';
+    } else {
+      exportTitleEl.textContent = 'Keep one export credit ready';
+      exportBodyEl.textContent =
+        'Adding a small credit buffer now removes friction when a recruiter response forces a same-day application.';
+    }
+  }
+}
+
+function updateProfileMomentum(user, creditBalance) {
+  const titleEl = el('profile-momentum-title');
+  const bodyEl = el('profile-momentum-body');
+  const primaryBtn = el('profile-primary-action');
+  if (!titleEl || !bodyEl || !primaryBtn) return;
+
+  if (!user.isVerified && !user.provider) {
+    titleEl.textContent = 'Unlock your welcome credit before application week';
+    bodyEl.textContent =
+      'Verify your email now so credits and recovery are already in place when a role becomes urgent.';
+    primaryBtn.textContent = 'Resend Verification Email';
+    primaryBtn.dataset.profileAction = 'resend-verification';
+    delete primaryBtn.dataset.path;
+    return;
+  }
+
+  if (creditBalance < 1) {
+    titleEl.textContent = 'Keep one export credit ready';
+    bodyEl.textContent =
+      'Scans and rewrites stay free. The only remaining friction is having a credit ready when the resume is strong enough to send.';
+    primaryBtn.textContent = 'Buy Credits';
+    primaryBtn.dataset.profileAction = 'navigate';
+    primaryBtn.dataset.path = '/pricing';
+    return;
+  }
+
+  titleEl.textContent = 'Your account is ready for fast application turns';
+  bodyEl.textContent =
+    'Credits, verification, and account access are in good shape, so the next move is reviewing the latest scan and exporting at the right moment.';
+  primaryBtn.textContent = 'Open Dashboard';
+  primaryBtn.dataset.profileAction = 'navigate';
+  primaryBtn.dataset.path = '/dashboard';
+}
+
 function renderPricing() {
   // Credit packs are static — no plan-based logic needed
   // Just ensure buttons work
@@ -3220,7 +3785,7 @@ function buildRecruiterRows(fieldAccuracy, extractedFields) {
 
   if (fields.length === 0) {
     return `<tr><td colspan="3" style="text-align:center;padding:4rem;color:var(--text-muted)">
-      <div style="font-size:3rem; margin-bottom:1.5rem; opacity:0.5">📭</div>
+      <div style="display:flex;justify-content:center;margin-bottom:1.5rem;opacity:0.5">${uiIcon('archive', { size: 48, stroke: 1.5 })}</div>
       <h4 style="color:var(--text-main)">Parser data unavailable</h4>
       <p class="body-sm" style="margin-top:0.5rem">This scan record does not contain structured parser data.</p>
       <p class="body-xs" style="margin-top:1rem; opacity:0.6">Try running a new scan to see live extraction.</p>
@@ -3329,21 +3894,21 @@ async function fixBullet(btn) {
 
     resultDiv.innerHTML = safeHtml(`
       <div class="diff-after">
-        <div class="diff-label diff-label-after">✓ Humanized Rewrite (CAR Formula)</div>
+        <div class="diff-label diff-label-after">Refined Rewrite (CAR Formula)</div>
         <p id="fix-text-${idx}">${esc(data.rewritten)}</p>
       </div>
       <div class="diff-meta">
         <span class="badge badge-purple">${esc(data.targetKeyword || 'General')}</span>
         <span class="badge badge-blue">${esc(data.method || 'CAR Formula')}</span>
-        <span class="badge badge-green">Anti-Fluff ✓</span>
-        <button class="btn-copy" onclick="copyToClipboard('${esc(data.rewritten.replace(/'/g, "\\'"))}', this)">📋 Copy</button>
+        <span class="badge badge-green">Clarity Pass</span>
+        <button class="btn-copy" onclick="copyToClipboard('${esc(data.rewritten.replace(/'/g, "\\'"))}', this)">${uiIcon('copy', { size: 14, stroke: 2 })} Copy</button>
       </div>
       ${
         data.needsMetric && data.metricPrompt
           ? `
       <div class="context-metric-prompt" style="margin-top:0.75rem">
         <div class="metric-prompt-header">
-          <span class="metric-prompt-icon">📊</span>
+          <span class="metric-prompt-icon">${uiIcon('chart', { size: 14, stroke: 2 })}</span>
           <span class="metric-prompt-label">The AI needs a real number here</span>
         </div>
         <p class="metric-prompt-question">${esc(data.metricPrompt)}</p>
@@ -3358,7 +3923,7 @@ async function fixBullet(btn) {
         data.contextAudit && data.contextAudit.warnings && data.contextAudit.warnings.length
           ? `
       <div class="context-warnings" style="margin-top:0.5rem">
-        ${data.contextAudit.warnings.map(w => `<div class="context-warning-item"><span class="context-warning-icon">⚠️</span> ${esc(w)}</div>`).join('')}
+        ${data.contextAudit.warnings.map(w => `<div class="context-warning-item"><span class="context-warning-icon">${uiIcon('warning', { size: 14, stroke: 2 })}</span> ${esc(w)}</div>`).join('')}
       </div>`
           : ''
       }
@@ -3372,7 +3937,7 @@ async function fixBullet(btn) {
     if (actionsDiv) {
       actionsDiv.innerHTML = safeHtml(`
         <div class="diff-badges">
-          <span class="badge badge-green">✓ Humanized</span>
+          <span class="badge badge-green">Refined</span>
         </div>
       `);
     }
