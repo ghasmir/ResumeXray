@@ -1832,7 +1832,7 @@ a:hover {
 .recruiter-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   display: table;
 }
 
@@ -1864,7 +1864,7 @@ a:hover {
   vertical-align: top;
 }
 
-/* Column width constraints - enforce table layout */
+/* Column width constraints - keep the table stable without crushing the content */
 .recruiter-table {
   table-layout: fixed;
 }
@@ -1880,7 +1880,7 @@ a:hover {
 .recruiter-table td:nth-child(2) {
   width: auto;
   max-width: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .recruiter-table th:nth-child(3),
@@ -1903,43 +1903,43 @@ a:hover {
 
 .field-name {
   font-weight: 700;
-  white-space: nowrap;
   color: var(--text-primary);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   letter-spacing: 0.01em;
 }
 .field-found {
   color: var(--text-secondary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.8125rem;
   line-height: 1.5;
-  display: block;
-  max-width: 100%;
-}
-
-/* Allow text wrapping only on hover for long content */
-.recruiter-table tr:hover .field-found {
-  white-space: normal;
   word-break: break-word;
 }
 .field-missing {
   color: var(--red);
-  font-style: italic;
   font-size: 0.8125rem;
+  line-height: 1.55;
 }
 .field-missing em {
   opacity: 0.8;
 }
+.field-preview-main {
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1.5;
+}
+.field-preview-meta {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  margin-top: 0.25rem;
+}
 
 /* Status pills — polished */
 .recruiter-table .status-found,
+.recruiter-table .status-partial,
 .recruiter-table .status-missing {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   font-size: 0.7rem;
   font-weight: 700;
   padding: 3px 10px;
@@ -1950,6 +1950,10 @@ a:hover {
 .recruiter-table .status-found {
   background: rgba(74, 222, 128, 0.12);
   color: #4ade80;
+}
+.recruiter-table .status-partial {
+  background: rgba(250, 204, 21, 0.12);
+  color: #facc15;
 }
 .recruiter-table .status-missing {
   background: rgba(239, 68, 68, 0.12);

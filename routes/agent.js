@@ -49,6 +49,79 @@ function parseScanId(raw) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+function sendEmbeddedState(res, statusCode, { title, message, accent = '#8b5cf6' }) {
+  return res.status(statusCode).setHeader('Content-Type', 'text/html; charset=utf-8').send(`
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>${sanitizeInput(title)}</title>
+        <style>
+          :root { color-scheme: dark; }
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top, rgba(99, 91, 255, 0.18), transparent 32%), #0b0b12;
+            color: #f5f7fb;
+          }
+          .state-card {
+            width: min(100%, 480px);
+            padding: 32px 28px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(22, 22, 32, 0.94);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+            text-align: center;
+          }
+          .state-icon {
+            width: 58px;
+            height: 58px;
+            margin: 0 auto 18px;
+            display: grid;
+            place-items: center;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.04);
+            color: ${accent};
+          }
+          h1 {
+            margin: 0 0 10px;
+            font-size: 1.125rem;
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+          }
+          p {
+            margin: 0;
+            color: rgba(231, 234, 243, 0.78);
+            font-size: 0.94rem;
+            line-height: 1.6;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="state-card">
+          <div class="state-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="11" x2="12" y2="15" />
+              <line x1="12" y1="18" x2="12.01" y2="18" />
+            </svg>
+          </div>
+          <h1>${sanitizeInput(title)}</h1>
+          <p>${sanitizeInput(message)}</p>
+        </div>
+      </body>
+    </html>
+  `);
+}
+
 function readJobContext(rawJobContext, fallback = {}) {
   if (!rawJobContext) return normalizeJobContext(fallback);
   if (typeof rawJobContext === 'object') return normalizeJobContext(rawJobContext);
@@ -184,6 +257,13 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     });
     const jdInput = req.body.jobDescription || jobUrl || '';
 
+    if (!String(jdInput || '').trim()) {
+      return res.status(400).json({
+        error:
+          'Add a job link or paste the job description so we can optimize the resume for a real application.',
+      });
+    }
+
     if (jobUrl && jobUrl.length > 2048) {
       return res.status(400).json({ error: 'Job URL is too long (max 2048 characters).' });
     }
@@ -221,7 +301,7 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
       if (guestCount >= 2) {
         return res
           .status(429)
-          .json({ error: 'Free scan limit reached. Sign up to continue.', signup: true });
+          .json({ error: 'Free guest preview limit reached for today. Create a free account to continue.', signup: true });
       }
     }
 
@@ -399,8 +479,8 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
     async emitScores(scores) {
       await sseWrite('scores', scores);
     },
-    async emitInit(scanId) {
-      await sseWrite('init', { scanId });
+    async emitInit(scanId, accessTokenValue = null) {
+      await sseWrite('init', { scanId, accessToken: accessTokenValue || null });
     },
     async emitJobContext(jobContextValue) {
       await sseWrite('jobContext', jobContextValue);
@@ -525,7 +605,7 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
   log.info('Scan created', { scanId, userId: session.userId });
 
   // Let the frontend know our persistent ID
-  await emitter.emitInit(scanId);
+  await emitter.emitInit(scanId, accessToken);
   await emitter.emitJobContext(session.jobContext);
   await emitter.emitRenderProfile({
     template: session.jobContext.templateProfile?.template || 'modern',
@@ -620,30 +700,30 @@ router.get('/preview/:scanId', async (req, res) => {
     const userId = req.user ? req.user.id : null;
     const scanId = parseScanId(req.params.scanId);
     const accessToken = typeof req.query.token === 'string' ? req.query.token : null;
-    if (!scanId) return res.status(400).json({ error: 'Invalid scan ID.' });
+    if (!scanId) {
+      return sendEmbeddedState(res, 400, {
+        title: 'Preview unavailable',
+        message: 'We could not open this export preview because the scan reference is invalid.',
+      });
+    }
     const scan = await db.getFullScan(scanId, userId, accessToken);
-    if (!scan) return res.status(404).json({ error: 'Scan not found.' });
+    if (!scan) {
+      return sendEmbeddedState(res, 404, {
+        title: 'Preview unavailable',
+        message: 'This scan could not be found. Start a new scan and we will rebuild the preview.',
+      });
+    }
 
     // SECURITY: Guest scans require a valid access token (prevents IDOR)
     if (!userId && scan.access_token) {
       const providedToken = req.query.token;
       if (scan.access_token !== providedToken) {
-        return res.setHeader('Content-Type', 'text/html; charset=utf-8').send(`
-          <!DOCTYPE html>
-          <html><head><style>
-            body { margin:0; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#f8f9fa; color:#333; }
-            .paywall { text-align:center; padding:3rem; max-width:400px; }
-            .paywall svg { margin-bottom:1.5rem; opacity:0.3; }
-            .paywall h3 { font-size:1.2rem; margin-bottom:0.75rem; }
-            .paywall p { color:#666; font-size:0.9rem; line-height:1.6; }
-          </style></head><body>
-            <div class="paywall">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              <h3>Premium Content</h3>
-              <p>Sign in or create an account to view your ATS-optimized resume. Export requires 1 credit.</p>
-            </div>
-          </body></html>
-        `);
+        return sendEmbeddedState(res, 403, {
+          title: 'Preview session expired',
+          message:
+            'This guest preview is missing its secure access token. Return to the active results workspace or start a fresh scan to rebuild it.',
+          accent: '#f59e0b',
+        });
       }
     }
 
@@ -703,31 +783,40 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
     const userId = req.user ? req.user.id : null;
     const scanId = parseScanId(req.params.scanId);
     const accessToken = typeof req.query.token === 'string' ? req.query.token : null;
-    if (!scanId) return res.status(400).send('Invalid scan ID.');
+    if (!scanId) {
+      return sendEmbeddedState(res, 400, {
+        title: 'Cover letter unavailable',
+        message: 'We could not open this cover-letter preview because the scan reference is invalid.',
+      });
+    }
     const scan = await db.getFullScan(scanId, userId, accessToken);
-    if (!scan) return res.status(404).send('Scan not found.');
+    if (!scan) {
+      return sendEmbeddedState(res, 404, {
+        title: 'Cover letter unavailable',
+        message: 'This scan could not be found. Start a fresh scan with a target job to generate a letter.',
+      });
+    }
 
     // SECURITY: Guest scans require a valid access token (prevents IDOR)
     if (!userId && scan.access_token) {
       const providedToken = req.query.token;
       if (scan.access_token !== providedToken) {
-        return res.setHeader('Content-Type', 'text/html; charset=utf-8').send(`
-          <!DOCTYPE html>
-          <html><head><style>
-            body { margin:0; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#fff; color:#333; }
-            .paywall { text-align:center; padding:3rem; max-width:400px; }
-            .paywall svg { margin-bottom:1.5rem; opacity:0.3; }
-            .paywall h3 { font-size:1.2rem; margin-bottom:0.75rem; }
-            .paywall p { color:#666; font-size:0.9rem; line-height:1.6; }
-          </style></head><body>
-            <div class="paywall">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg>
-              <h3>AI Cover Letter Preview</h3>
-              <p>Sign in to preview your personalized cover letter. Export as PDF or DOCX requires 1 credit.</p>
-            </div>
-          </body></html>
-        `);
+        return sendEmbeddedState(res, 403, {
+          title: 'Cover letter session expired',
+          message:
+            'This guest cover-letter preview is missing its secure access token. Return to the active results workspace or start a fresh scan to rebuild it.',
+          accent: '#f59e0b',
+        });
       }
+    }
+
+    if (!scan.cover_letter_text || !String(scan.cover_letter_text).trim()) {
+      return sendEmbeddedState(res, 200, {
+        title: 'No cover letter generated yet',
+        message:
+          'This scan does not contain a cover letter yet. Add a target job description so we can generate one for the role.',
+        accent: '#94a3b8',
+      });
     }
 
     // Build context for cover letter — try multiple sources for name/contact
@@ -754,96 +843,34 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
     const parsed = parseCoverLetter(scan.cover_letter_text || '', ctx);
     const html = renderTemplate('cover-letter', parsed, { watermark: false, density: 'standard' });
 
-    // ── REVENUE PROTECTION ──────────────────────────────────────────────
-    // Logged-in users: light watermark only (good preview experience)
-    // Guests: full blur + watermark + anti-copy (prevents free usage)
-    const isLoggedIn = !!userId;
-
-    let protectionCss = '';
-    let protectionJs = '';
-
-    if (isLoggedIn) {
-      // Light watermark + anti-copy (no blur)
-      protectionCss = `
-        html, body {
-          overflow: hidden !important;
-          width: 100vw;
-          max-width: 100%;
-          box-sizing: border-box;
-          user-select: none !important;
-          -webkit-user-select: none !important;
-          -moz-user-select: none !important;
-        }
-        body::after {
-          content: 'ResumeXray Preview';
-          position: fixed;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%) rotate(-35deg);
-          font-size: 3.5rem;
-          font-weight: 900;
-          color: rgba(180, 180, 180, 0.08);
-          pointer-events: none;
-          z-index: 9999;
-          white-space: nowrap;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-      `;
-      protectionJs = `<script>document.addEventListener('contextmenu', function(e) { e.preventDefault(); });</script>`;
-    } else {
-      // Full guest protection: blur + watermark + anti-copy
-      protectionCss = `
-        html, body {
-          overflow: hidden !important;
-          width: 100vw;
-          max-width: 100%;
-          box-sizing: border-box;
-        }
-        body::after {
-          content: 'ResumeXray';
-          position: fixed;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%) rotate(-35deg);
-          font-size: 4.5rem;
-          font-weight: 900;
-          color: rgba(120, 120, 120, 0.13);
-          pointer-events: none;
-          z-index: 9999;
-          white-space: nowrap;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          user-select: none;
-          -webkit-user-select: none;
-        }
-        body::before {
-          content: '';
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 60%;
-          background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.7) 20%, rgba(255,255,255,0.95) 100%);
-          backdrop-filter: blur(6px);
-          -webkit-backdrop-filter: blur(6px);
-          z-index: 9998;
-          pointer-events: none;
-        }
-        body {
-          user-select: none !important;
-          -webkit-user-select: none !important;
-          -moz-user-select: none !important;
-        }
-      `;
-      protectionJs = `<script>document.addEventListener('contextmenu', function(e) { e.preventDefault(); });</script>`;
-    }
+    const protectionCss = `
+      html, body {
+        overflow-x: hidden !important;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      body::after {
+        content: 'ResumeXray Preview';
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-35deg);
+        font-size: 3.5rem;
+        font-weight: 900;
+        color: rgba(148, 163, 184, 0.08);
+        pointer-events: none;
+        z-index: 9999;
+        white-space: nowrap;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+    `;
 
     const protectedHtml = html.replace(
       '</head>',
       `
       <style>${protectionCss}</style>
-      ${protectionJs}
     </head>`
     );
 

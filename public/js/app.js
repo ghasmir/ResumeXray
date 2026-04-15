@@ -867,12 +867,12 @@ function switchTab(tabId) {
   if (tabId === 'tab-pdf-preview' || tabId === 'pdf-preview') {
     const previewFrame = el('pdf-preview-frame');
     const bar = el('agent-download-bar');
-    const scanId = bar?.dataset?.scanId || currentScan?.id || currentScan?.scanId;
+    const scanId = getActiveScanId();
 
     if (scanId) {
       // Update the bar dataset if needed
       if (bar && !bar.dataset.scanId) {
-        bar.dataset.scanId = scanId;
+        bar.dataset.scanId = String(scanId);
       }
 
       // Always reload on tab switch to ensure fresh content
@@ -890,12 +890,20 @@ function switchTab(tabId) {
   if (tabId === 'tab-cover-letter' || tabId === 'cover-letter') {
     const bar = el('agent-download-bar');
     const clContainer = el('cover-letter-content');
-    const scanId = bar?.dataset?.scanId || currentScan?.id || currentScan?.scanId;
+    const scanId = getActiveScanId();
+    const canGenerateCoverLetter = scanHasTargetJob(currentScan);
 
     if (scanId) {
       // Update the bar dataset if needed
       if (bar && !bar.dataset.scanId) {
-        bar.dataset.scanId = scanId;
+        bar.dataset.scanId = String(scanId);
+      }
+
+      const actions = el('cover-letter-actions');
+      if (!canGenerateCoverLetter) {
+        renderCoverLetter('');
+        if (actions) actions.style.display = 'none';
+        return;
       }
 
       // Only render if there's no visible content at all
@@ -909,8 +917,6 @@ function switchTab(tabId) {
         renderCoverLetter('');
       }
 
-      // Show actions bar
-      const actions = el('cover-letter-actions');
       if (actions) actions.style.display = 'flex';
     }
   }
@@ -1488,23 +1494,46 @@ function setupFileUpload() {
       return;
     }
 
+    const urlInputVal = el('job-url-input') ? el('job-url-input').value.trim() : '';
+    lastJobInput = el('job-input').value;
+    const jdVal = lastJobInput.trim();
+    const looksLikeUrl = value =>
+      value.startsWith('http://') || value.startsWith('https://');
+    const hasJobUrl = looksLikeUrl(urlInputVal) || looksLikeUrl(jdVal);
+    const hasPastedJobDescription = !!(jdVal && !looksLikeUrl(jdVal));
+
+    if (!hasJobUrl && !hasPastedJobDescription) {
+      el('scan-error').textContent =
+        'Add a job link or paste the job description so we can optimize this resume for a real application.';
+      el('scan-error').style.display = 'block';
+      renderJobLinkStatus(currentJobContext || {}, {
+        state: 'warning',
+        note: 'A target job is required for portal-aware resume and cover-letter generation.',
+      });
+      return;
+    }
+
+    if (urlInputVal && !looksLikeUrl(urlInputVal) && !hasPastedJobDescription) {
+      el('scan-error').textContent =
+        'Enter a full job link starting with http:// or https://, or paste the job description below.';
+      el('scan-error').style.display = 'block';
+      return;
+    }
+
     el('scan-error').style.display = 'none';
     form.style.display = 'none';
     el('scan-loading').style.display = 'flex';
     renderScanLoadingContext(currentJobContext);
 
-    lastJobInput = el('job-input').value;
     const fd = new FormData();
     fd.append('resume', fileInput.files[0]);
 
     // Prefer dedicated URL input; fall back to smart detection in JD textarea.
-    const urlInputVal = el('job-url-input') ? el('job-url-input').value.trim() : '';
-    const jdVal = lastJobInput.trim();
-    if (urlInputVal && (urlInputVal.startsWith('http://') || urlInputVal.startsWith('https://'))) {
+    if (urlInputVal && looksLikeUrl(urlInputVal)) {
       fd.append('jobUrl', urlInputVal);
       // Also send JD text if provided alongside URL
       if (jdVal) fd.append('jobDescription', jdVal);
-    } else if (jdVal.startsWith('http://') || jdVal.startsWith('https://')) {
+    } else if (looksLikeUrl(jdVal)) {
       fd.append('jobUrl', jdVal);
     } else if (jdVal) {
       fd.append('jobDescription', jdVal);
@@ -1676,7 +1705,22 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
                   showToast('Analysis completed with partial results.', 'warning', {
                     duration: 6000,
                   });
-                  finalizeAgentUI({ scanId: sessionId });
+                  const partialScanId = getActiveScanId();
+                  if (partialScanId) {
+                    finalizeAgentUI({
+                      scanId: partialScanId,
+                      partial: true,
+                      jobContext: currentJobContext,
+                    });
+                  } else {
+                    const initBlock = el('results-initializing');
+                    const errorBlock = el('results-error');
+                    const dashboard = el('results-dashboard');
+
+                    if (initBlock) initBlock.style.display = 'none';
+                    if (errorBlock) errorBlock.style.display = 'block';
+                    if (dashboard) dashboard.style.display = 'none';
+                  }
                 } else if (sseRetryCount < SSE_MAX_RETRIES) {
                   // No results yet, try to reconnect
                   scheduleReconnect(sessionId);
@@ -1815,6 +1859,9 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
           localStorage.setItem('resumeXray_currentScanId', data.scanId);
           const bar = el('agent-download-bar');
           if (bar) bar.dataset.scanId = data.scanId;
+        }
+        if (data.accessToken) {
+          persistCurrentScanToken(data.accessToken);
         }
         break;
 
@@ -2227,12 +2274,17 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
     info => info?.status === 'missing' || info?.status === 'warning'
   ).length;
   const creditBalance = currentUser?.user?.creditBalance || 0;
+  const hasTargetJob = scanHasTargetJob(scan || currentScan, jobContext);
 
   let priorityTitle = 'Keep improving the strongest blocker first';
   let priorityBody =
     'We keep the highest-impact recommendation here so you do not have to scan every card before deciding what to fix next.';
 
-  if (parseRate !== null && parseRate < 70) {
+  if (!hasTargetJob) {
+    priorityTitle = 'Add a target job before you export';
+    priorityBody =
+      'This is a structural pass only. Add a job link or paste the job description so we can detect the company, portal, keywords, and cover-letter context.';
+  } else if (parseRate !== null && parseRate < 70) {
     priorityTitle = 'Fix parsing blockers before anything else';
     priorityBody =
       'If the parser misses sections or fields, recruiters cannot search the experience no matter how strong the writing is.';
@@ -2263,7 +2315,9 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
 
   if (visibilityValueEl) {
     visibilityValueEl.textContent =
-      lowVisibilityFields > 0
+      !hasTargetJob
+        ? 'Structural review only'
+        : lowVisibilityFields > 0
         ? `${lowVisibilityFields} field${lowVisibilityFields === 1 ? '' : 's'} at risk`
         : matchRate !== null
           ? `${Math.round(matchRate)}% match`
@@ -2271,7 +2325,9 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
   }
   if (visibilityBodyEl) {
     visibilityBodyEl.textContent =
-      lowVisibilityFields > 0
+      !hasTargetJob
+        ? 'Recruiter view can confirm parser coverage, but role match and portal-specific guidance stay limited without a target job.'
+        : lowVisibilityFields > 0
         ? 'Recruiters may still miss part of your profile in search because extracted fields are incomplete or partial.'
         : 'The recruiter view looks structurally stronger, so focus shifts toward keyword fit and final polish.';
   }
@@ -2280,7 +2336,9 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
     const exportScore =
       parseRate !== null && formatHealth !== null ? Math.round((parseRate + formatHealth) / 2) : null;
     exportValueEl.textContent =
-      exportScore === null
+      !hasTargetJob
+        ? 'Target job required'
+        : exportScore === null
         ? 'Evaluating'
         : exportScore >= 80
           ? 'Ready for final review'
@@ -2290,7 +2348,9 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
   }
   if (exportBodyEl) {
     exportBodyEl.textContent =
-      creditBalance < 1
+      !hasTargetJob
+        ? 'Preview the structure for free, then rerun with a target job before you spend a credit on export.'
+        : creditBalance < 1
         ? 'Scans stay free, but keep one credit available so a strong result can turn into a same-day export.'
         : jobContext.atsDisplayName
           ? `Preview the ${jobContext.atsDisplayName}-ready layout first, then export once the recruiter table and job match feel believable.`
@@ -2323,9 +2383,11 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
     ? jobContext.atsDisplayName
       ? `We resolved the role, company, and portal context for this application. Use the tabs below to tighten parser reliability, recruiter visibility, and export confidence for ${jobContext.atsDisplayName}.`
       : 'Use the tabs below to tighten parser reliability, recruiter visibility, and export confidence for this role.'
-    : 'This pass is strongest as a structural review. Add a target role next time for sharper match and cover-letter feedback.';
+    : 'This is a resume-only structural review. Add a target job link or paste the job description to unlock portal detection, match analysis, and a usable cover letter.';
 
-  if (readinessScore !== null && readinessScore >= 80) {
+  if (scan && !hasJobContext) {
+    statusEl.textContent = 'Target job required';
+  } else if (readinessScore !== null && readinessScore >= 80) {
     statusEl.textContent = 'Ready for final review';
   } else if (readinessScore !== null && readinessScore >= 65) {
     statusEl.textContent = 'One more pass recommended';
@@ -2339,9 +2401,15 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
     const timeLabel =
       scan.created_at ? timeAgo(scan.created_at) : source === 'history' ? 'saved scan' : 'live scan';
     const contextParts = [
-      source === 'history' ? 'Saved scan' : 'Live workspace',
+      !hasJobContext
+        ? source === 'history'
+          ? 'Saved structural review'
+          : 'Live structural review'
+        : source === 'history'
+          ? 'Saved scan'
+          : 'Live workspace',
       jobContext.companyName || null,
-      matchRate !== null ? `${Math.round(matchRate)}% match` : null,
+      hasJobContext && matchRate !== null ? `${Math.round(matchRate)}% match` : null,
       timeLabel,
     ].filter(Boolean);
     contextEl.textContent = contextParts.join(' · ');
@@ -2405,7 +2473,9 @@ async function finalizeAgentUI(data) {
   // 6. No full-page overlay — just show the tab and toast
   switchTab('tab-diagnosis');
   showToast(
-    'Analysis complete. Your export preview is ready for review.',
+    scanHasTargetJob(currentScan, currentJobContext)
+      ? 'Analysis complete. Your export preview is ready for review.'
+      : 'Analysis complete. Review the structural pass, then rerun with a target job for export-ready feedback.',
     'success'
   );
 
@@ -2471,9 +2541,16 @@ async function finalizeAgentUI(data) {
             renderCoverLetter(fullData.coverLetterText);
           } else {
             const clContainer = el('cover-letter-content');
+            const hasTargetJob = scanHasTargetJob(fullData, getJobContext(fullData));
             if (clContainer)
               clContainer.innerHTML = safeHtml(
-                '<div class="preview-empty" style="padding:2rem;text-align:center;color:var(--text-muted);"><div style="font-size:3rem;margin-bottom:1rem;opacity:0.3">&#9993;&#65039;</div><h4 style="margin-bottom:0.5rem">No cover letter for this scan</h4><p class="body-sm" style="margin-bottom:1rem">This scan was run without a job description. Cover letters require job details to personalize the content.</p><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Create New Scan with JD</button></div>'
+                hasTargetJob
+                  ? '<div class="preview-empty" style="padding:2rem;text-align:center;color:var(--text-muted);"><div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.34">' +
+                    uiIcon('mail', { size: 44, stroke: 1.7 }) +
+                    '</div><h4 style="margin-bottom:0.5rem">Cover letter preview unavailable</h4><p class="body-sm" style="margin-bottom:1rem">We resolved the target role, but this scan did not return a usable cover letter yet. Run a fresh targeted scan to regenerate it cleanly.</p><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Start New Targeted Scan</button></div>'
+                  : '<div class="preview-empty" style="padding:2rem;text-align:center;color:var(--text-muted);"><div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.34">' +
+                    uiIcon('mail', { size: 44, stroke: 1.7 }) +
+                    '</div><h4 style="margin-bottom:0.5rem">No cover letter for this scan</h4><p class="body-sm" style="margin-bottom:1rem">This scan only reviewed the resume structure. Add a target job link or paste the job description to generate a cover letter.</p><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Start Targeted Scan</button></div>'
               );
             const clActions = el('cover-letter-actions');
             if (clActions) clActions.style.display = 'none';
@@ -2663,6 +2740,27 @@ function getSelectedDensity() {
 function reloadPdfPreview(scanId) {
   const previewFrame = el('pdf-preview-frame');
   if (!previewFrame) return;
+  const resolvedScanId = Number.parseInt(String(scanId || getActiveScanId() || ''), 10);
+  const container = previewFrame.parentElement;
+
+  if (!Number.isInteger(resolvedScanId) || resolvedScanId <= 0) {
+    if (container) {
+      const existingError = container.querySelector('.pdf-error-message');
+      if (existingError) existingError.remove();
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'pdf-error-message';
+      errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
+      errorDiv.innerHTML = safeHtml(`
+        <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
+        <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
+        <p class="body-sm">We could not resolve this scan preview. Start a new targeted scan and try again.</p>
+      `);
+      container.appendChild(errorDiv);
+    }
+    previewFrame.src = 'about:blank';
+    previewFrame.style.opacity = '1';
+    return;
+  }
 
   // Apply an initial responsive height and width for the PDF preview frame
   function adaptPdfFrameSize(frame) {
@@ -2677,7 +2775,6 @@ function reloadPdfPreview(scanId) {
   adaptPdfFrameSize(previewFrame);
 
   // Show loading skeleton while iframe renders
-  const container = previewFrame.parentElement;
   setPdfPreviewMode(pdfPreviewMode);
   let skeleton = container?.querySelector('.preview-skeleton');
   if (!skeleton && container) {
@@ -2694,7 +2791,7 @@ function reloadPdfPreview(scanId) {
   previewFrame.style.opacity = '0';
 
   // Build the preview URL with proper token
-  let url = `/api/agent/preview/${scanId}?t=${Date.now()}${currentScanTokenQuery()}`;
+  let url = `/api/agent/preview/${resolvedScanId}?t=${Date.now()}${currentScanTokenQuery()}`;
   previewFrame.dataset.previewUrl = url;
 
   // Handle iframe load errors
@@ -2721,12 +2818,46 @@ function reloadPdfPreview(scanId) {
 
   // Set up load handler
   const handleLoad = () => {
+    let embeddedError = '';
+    try {
+      const frameDoc = previewFrame.contentDocument;
+      const frameText = frameDoc?.body?.textContent?.trim() || '';
+      const contentType = frameDoc?.contentType || '';
+
+      if (
+        (contentType && contentType.includes('json')) ||
+        (frameText.startsWith('{') && frameText.includes('"error"'))
+      ) {
+        const payload = JSON.parse(frameText);
+        embeddedError = payload.error || 'Unable to load the PDF preview.';
+      }
+    } catch (err) {
+      embeddedError = embeddedError || '';
+    }
+
+    if (embeddedError) {
+      if (skeleton) skeleton.style.display = 'none';
+      previewFrame.style.opacity = '1';
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'pdf-error-message';
+      errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
+      errorDiv.innerHTML = safeHtml(`
+        <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
+        <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
+        <p class="body-sm">${esc(embeddedError)}</p>
+        <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="reloadPdfPreview('${resolvedScanId}')">Retry</button>
+      `);
+      const existingError = container?.querySelector('.pdf-error-message');
+      if (existingError) existingError.remove();
+      if (container) container.appendChild(errorDiv);
+      previewFrame.src = 'about:blank';
+      return;
+    }
+
     previewFrame.style.opacity = '1';
     if (skeleton) skeleton.style.display = 'none';
-    // Remove any error messages on successful load
     const existingError = container?.querySelector('.pdf-error-message');
     if (existingError) existingError.remove();
-    // Re-apply size in case iframe content changes height after load
     adaptPdfFrameSize(previewFrame);
   };
 
@@ -2765,7 +2896,7 @@ async function downloadOptimized(format) {
 
   const bar = el('agent-download-bar');
   if (!bar) return;
-  const scanId = bar.dataset.scanId;
+  const scanId = getActiveScanId();
   if (!scanId) return;
 
   try {
@@ -3009,12 +3140,17 @@ function setupAgentHistoricalView(data) {
     renderCoverLetter(data.coverLetterText);
   } else {
     const clContainer = el('cover-letter-content');
+    const hasTargetJob = scanHasTargetJob(data, getJobContext(data));
     if (clContainer) {
       clContainer.innerHTML = safeHtml(`
         <div class="cover-letter-placeholder">
           <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.4">${uiIcon('mail', { size: 44, stroke: 1.6 })}</div>
-          <h4>No cover letter for this scan</h4>
-          <p class="body-sm text-muted" style="margin-top:0.5rem">Cover letters require a job description. Run a new scan with a JD to generate one.</p>
+          <h4>${hasTargetJob ? 'Cover letter preview unavailable' : 'No cover letter for this scan'}</h4>
+          <p class="body-sm text-muted" style="margin-top:0.5rem">${
+            hasTargetJob
+              ? 'This scan has target-job context, but the cover-letter output was not usable. Start a fresh targeted scan to regenerate it.'
+              : 'This scan only reviewed the resume structure. Add a target job link or paste the job description to generate a cover letter.'
+          }</p>
         </div>
       `);
     }
@@ -3248,7 +3384,7 @@ async function renderDashboard() {
     if (data.scans?.length > 0) {
       const last = data.scans[0];
       el('stat-last-score').textContent = Math.round(last.match_rate || 0) + '%';
-      let lastTitle = decodeHtml(last.job_title) || 'General Scan';
+      let lastTitle = decodeHtml(last.job_title) || 'Resume-only Scan';
       const lastCompany = decodeHtml(last.company_name) || '';
       if (lastCompany && !lastTitle.toLowerCase().includes(lastCompany.toLowerCase())) {
         lastTitle = `${lastTitle}, ${lastCompany}`;
@@ -3339,7 +3475,7 @@ async function renderDashboard() {
               } else if (s.job_description && s.job_description.trim().length > 0) {
                 title = 'Pasted Job Description';
               } else {
-                title = 'General Scan (No JD)';
+                title = 'Resume-only Scan';
               }
             }
 
@@ -3588,7 +3724,7 @@ function getDashboardScanTitle(scan) {
   if (!title || title.toLowerCase() === 'no job description') {
     if (company) return `Role at ${company}`;
     if (scan.job_description && scan.job_description.trim()) return 'Pasted Job Description';
-    return 'General Scan';
+    return 'Resume-only Scan';
   }
 
   if (company && !title.toLowerCase().includes(company.toLowerCase())) {
@@ -3987,6 +4123,57 @@ function renderPricing() {
 }
 
 // ── Build Recruiter Table ──────────────────────────────────────
+function normalizeRecruiterFieldValue(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s([,.;:])/g, '$1')
+    .trim();
+}
+
+function summarizeRecruiterField(fieldName, rawValue) {
+  const cleaned = normalizeRecruiterFieldValue(rawValue);
+  if (!cleaned) return null;
+
+  const compactList = cleaned
+    .split(/\s*[•\n|,;]\s*/g)
+    .map(item => item.trim())
+    .filter(Boolean);
+
+  switch (String(fieldName || '').toLowerCase()) {
+    case 'experience': {
+      const highlights = compactList.slice(0, 4);
+      return {
+        title: `${highlights.length || 1} experience signal${highlights.length === 1 ? '' : 's'} captured`,
+        detail: truncate(highlights.join(' · ') || cleaned, 180),
+      };
+    }
+    case 'skills': {
+      const uniqueSkills = [...new Set(compactList.map(item => item.replace(/\s{2,}/g, ' ')))];
+      return {
+        title: `${uniqueSkills.length || 1} skill keyword${uniqueSkills.length === 1 ? '' : 's'} captured`,
+        detail: truncate(uniqueSkills.slice(0, 10).join(' · '), 180),
+      };
+    }
+    case 'education': {
+      const schools = compactList.slice(0, 3);
+      return {
+        title: `${schools.length || 1} education entr${schools.length === 1 ? 'y' : 'ies'} captured`,
+        detail: truncate(schools.join(' · ') || cleaned, 180),
+      };
+    }
+    case 'summary':
+      return {
+        title: 'Professional summary captured',
+        detail: truncate(cleaned, 180),
+      };
+    default:
+      return {
+        title: truncate(cleaned, 110),
+        detail: cleaned.length > 110 ? truncate(cleaned, 180) : 'Searchable value extracted for recruiter review.',
+      };
+  }
+}
+
 function buildRecruiterRows(fieldAccuracy, extractedFields) {
   // Use either the accuracy map or the raw extraction keys
   const fields =
@@ -4040,28 +4227,31 @@ function buildRecruiterRows(fieldAccuracy, extractedFields) {
       const rawValue = info.value || extractedFields[fieldName] || '';
 
       const isMissing = !rawValue || rawValue.includes('[Parser could not extract');
-      // Use longer truncation for content-heavy fields
-      const isLongField = ['Experience', 'Education', 'Skills', 'Summary'].includes(fieldName);
-      const displayVal = isMissing
+      const summary = isMissing
         ? null
-        : truncate(maskValue(fieldName, String(rawValue)), isLongField ? 500 : 200);
+        : summarizeRecruiterField(fieldName, maskValue(fieldName, String(rawValue)));
 
       // Polished status pills
       const statusClass =
         status === 'success'
           ? 'status-found'
           : status === 'warning'
-            ? 'status-found'
+            ? 'status-partial'
             : 'status-missing';
-      const statusIcon = status === 'success' ? '✓' : status === 'warning' ? '⚠' : '✗';
       const statusLabel =
-        status === 'success' ? 'FOUND' : status === 'warning' ? 'PARTIAL' : 'MISSING';
+        status === 'success' ? 'Captured' : status === 'warning' ? 'Partial' : 'Missing';
       const tdClass = isMissing ? 'field-missing' : 'field-found';
+      const displayVal = isMissing
+        ? '<em style="opacity:0.72">Parser could not map this field to a recruiter-searchable value.</em>'
+        : `
+          <div class="field-preview-main">${esc(summary.title)}</div>
+          <div class="field-preview-meta">${esc(summary.detail)}</div>
+        `;
 
       return `<tr>
       <td class="field-name">${esc(fieldName)}</td>
-      <td class="${tdClass}">${displayVal ? esc(displayVal) : '<em style="opacity:0.5">Not detected by parser — this will be blank in recruiter searches</em>'}</td>
-      <td><span class="${statusClass}">${statusIcon} ${statusLabel}</span></td>
+      <td class="${tdClass}">${displayVal}</td>
+      <td><span class="${statusClass}">${esc(statusLabel)}</span></td>
     </tr>`;
     })
     .join('');
@@ -4544,6 +4734,30 @@ function currentScanTokenQuery() {
   return token ? `&token=${encodeURIComponent(token)}` : '';
 }
 
+function getActiveScanId() {
+  const candidates = [
+    el('agent-download-bar')?.dataset?.scanId,
+    currentScan?.id,
+    currentScan?.scanId,
+    localStorage.getItem('resumeXray_currentScanId'),
+  ];
+  for (const candidate of candidates) {
+    const parsed = Number.parseInt(String(candidate || '').trim(), 10);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+}
+
+function scanHasTargetJob(scan = currentScan, jobContext = getJobContext(scan)) {
+  const context = jobContext || getJobContext(scan);
+  return !!(
+    context?.jobUrl ||
+    context?.jdText ||
+    context?.jobTitle ||
+    (scan?.job_description && String(scan.job_description).trim())
+  );
+}
+
 function persistCurrentScanToken(token) {
   if (token) localStorage.setItem('resumeXray_currentScanToken', token);
   else localStorage.removeItem('resumeXray_currentScanToken');
@@ -4609,17 +4823,18 @@ function renderCoverLetter(text) {
 
   // Get scanId from multiple possible sources
   const bar = el('agent-download-bar');
-  const scanId = bar?.dataset?.scanId || currentScan?.id || currentScan?.scanId;
+  const scanId = getActiveScanId();
+  const canGenerateCoverLetter = scanHasTargetJob(currentScan);
 
-  if (!scanId) {
+  if (!scanId || !canGenerateCoverLetter) {
     // Preserve the stream container if it exists
     if (streamContainer) {
       streamContainer.innerHTML = safeHtml(
-        '<div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Job Description</button><button class="btn btn-ghost btn-sm" style="color:var(--text-muted)" data-action="navigate" data-path="/help/cover-letters">Learn More</button></div></div>'
+        '<div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a target job link or paste the job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Target Job</button></div></div>'
       );
     } else {
       clContainer.innerHTML = safeHtml(
-        '<div class="cover-letter-container"><div id="cover-letter-stream" class="agent-stream-text" style="min-height:300px;white-space:pre-wrap;font-family:var(--font-serif);line-height:1.6;font-size:1.05rem;padding:var(--sp-8)"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Job Description</button><button class="btn btn-ghost btn-sm" style="color:var(--text-muted)" data-action="navigate" data-path="/help/cover-letters">Learn More</button></div></div></div></div>'
+        '<div class="cover-letter-container"><div id="cover-letter-stream" class="agent-stream-text" style="min-height:300px;white-space:pre-wrap;font-family:var(--font-serif);line-height:1.6;font-size:1.05rem;padding:var(--sp-8)"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a target job link or paste the job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Target Job</button></div></div></div></div>'
       );
     }
     if (actions) actions.style.display = 'none';
@@ -4747,8 +4962,7 @@ async function downloadCoverLetter(format) {
     return;
   }
 
-  const bar = el('agent-download-bar');
-  const scanId = bar ? bar.dataset.scanId : null;
+  const scanId = getActiveScanId();
   if (!scanId) {
     showToast('No scan data available. Please run a new scan first.', 'warning');
     return;
