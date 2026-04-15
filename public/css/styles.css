@@ -312,13 +312,13 @@ a:hover {
   line-height: 1.7;
 }
 .body-sm {
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   color: var(--text-secondary);
   line-height: 1.6;
 }
 .body-xs {
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 .gradient-text {
@@ -951,8 +951,8 @@ a:hover {
   gap: var(--sp-4);
 }
 .hero-note {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
 /* ── Social Proof Stats ───────────────────────────────────── */
@@ -1013,11 +1013,11 @@ a:hover {
   line-height: 1.2;
 }
 .proof-label {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   line-height: 1.3;
 }
 .proof-divider {
@@ -1091,18 +1091,26 @@ a:hover {
   z-index: 2;
 }
 .step-icon {
-  font-size: 1.75rem;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
   margin-bottom: var(--sp-4);
-  display: block;
+}
+.step-icon svg {
+  width: 24px;
+  height: 24px;
 }
 .step-card h3 {
-  font-size: 0.9375rem;
+  font-size: 1rem;
   font-weight: 600;
   margin-bottom: var(--sp-2);
   letter-spacing: -0.01em;
 }
 .step-card p {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
   line-height: 1.6;
 }
@@ -1402,11 +1410,32 @@ a:hover {
   height: 36px;
   background: var(--accent-subtle);
   border-radius: var(--radius-md);
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
   flex-shrink: 0;
+}
+.file-preview-icon svg {
+  color: var(--accent);
+  opacity: 0.95;
+}
+.file-preview-icon::after {
+  content: attr(data-file-type);
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 22px;
+  padding: 2px 5px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-align: center;
 }
 .file-preview-info {
   flex: 1;
@@ -2179,12 +2208,32 @@ a:hover {
   letter-spacing: -0.01em;
 }
 .pricing-per-credit {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  margin-bottom: var(--sp-6);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--sp-2);
 }
 .pricing-per-credit strong {
   color: var(--green);
+}
+.pricing-intro-note {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-8);
+  padding: var(--sp-3) var(--sp-4);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+.pricing-plan-note {
+  min-height: 2.6em;
+  margin-bottom: var(--sp-5);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.45;
 }
 
 /* Featured badge ("MOST POPULAR") */
@@ -2194,14 +2243,15 @@ a:hover {
   left: 50%;
   transform: translateX(-50%);
   padding: 4px 16px;
-  background: linear-gradient(135deg, var(--accent) 0%, #818cf8 100%);
+  background: rgba(99, 91, 255, 0.14);
+  border: 1px solid rgba(99, 91, 255, 0.24);
   border-radius: var(--radius-full);
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  color: white;
+  letter-spacing: 0.06em;
+  color: #d9d6ff;
   white-space: nowrap;
-  box-shadow: 0 2px 12px rgba(99, 91, 255, 0.3);
+  box-shadow: none;
   z-index: 1;
 }
 
@@ -2237,7 +2287,10 @@ a:hover {
 
 /* ── Scan History ──────────────────────────────────────────── */
 .scan-history-card {
+  display: block;
   border-left: 3px solid transparent;
+  color: inherit;
+  text-decoration: none;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 }
@@ -2250,7 +2303,18 @@ a:hover {
   transform: translateY(-2px);
 }
 
+.scan-history-card:hover,
+.scan-history-card:focus-visible {
+  color: inherit;
+  text-decoration: none;
+}
+
 .scan-history-card:hover .history-arrow {
+  color: var(--text-primary);
+  transform: translateX(4px);
+}
+
+.scan-history-card:focus-visible .history-arrow {
   color: var(--text-primary);
   transform: translateX(4px);
 }
@@ -2883,7 +2947,7 @@ a:hover {
   gap: var(--sp-3);
 }
 .footer-heading {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-secondary);
@@ -2891,7 +2955,7 @@ a:hover {
   margin-bottom: var(--sp-1);
 }
 .footer-col a {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--text-muted);
   transition: color var(--duration-fast) var(--ease);
 }
@@ -2908,8 +2972,31 @@ a:hover {
   color: var(--text-faint);
 }
 .footer-disclaimer {
-  opacity: 0.5;
-  font-size: 0.65rem;
+  opacity: 0.68;
+  font-size: 0.75rem;
+}
+body[data-route-group='app'] .footer,
+body[data-route-group='auth'] .footer {
+  margin-top: var(--sp-10);
+  padding: var(--sp-10) var(--sp-6) var(--sp-6);
+}
+body[data-route-group='app'] .footer-grid,
+body[data-route-group='auth'] .footer-grid {
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-6);
+}
+body[data-route-group='app'] .footer-brand,
+body[data-route-group='auth'] .footer-brand {
+  max-width: 240px;
+}
+body[data-route-group='app'] .footer-brand .body-xs,
+body[data-route-group='auth'] .footer-brand .body-xs {
+  display: none;
+}
+body[data-route-group='app'] .footer-disclaimer,
+body[data-route-group='auth'] .footer-disclaimer {
+  opacity: 0.48;
+  font-size: 0.6875rem;
 }
 
 /* ── Cover Letter Tab ───────────────────────────────────────── */
@@ -4205,68 +4292,26 @@ body.modal-open {
 }
 
 /* ── Mobile PDF scaling ─────────────────────────────────────────
-    Resume HTML is ~794px wide (A4). On narrow viewports we use
-    horizontal scrolling to maintain readability instead of scaling,
-    which causes content loss and unreadable text.
+    Default to a fit-to-width preview on narrow screens so the
+    document feels native to mobile instead of like a desktop canvas.
     ──────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .pdf-preview-container {
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x mandatory;
-    /* Show scrollbar on mobile for discoverability */
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-subtle) transparent;
-  }
-
-  .pdf-preview-container::-webkit-scrollbar {
-    height: 6px;
-  }
-
-  .pdf-preview-container::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .pdf-preview-container::-webkit-scrollbar-thumb {
-    background: var(--border-subtle);
-    border-radius: 3px;
+    overflow: hidden;
+    min-height: clamp(360px, 70vh, 820px);
   }
 
   .pdf-preview-frame {
-    /* Maintain A4 aspect ratio at readable scale */
-    width: 794px !important;
-    min-width: 794px;
-    height: 1123px !important; /* A4 height at 96 DPI */
-    min-height: 1123px;
-    transform: none;
-    scroll-snap-align: start;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
+    width: 100% !important;
+    min-width: 0;
+    height: clamp(420px, 72vh, 860px) !important;
+    min-height: clamp(420px, 72vh, 860px);
+    border: none;
+    border-radius: 0;
   }
 
-  /* Mobile pinch-zoom hint overlay */
   .pdf-preview-container::after {
-    content: '← Scroll to view full document →';
-    position: absolute;
-    bottom: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.7);
-    color: var(--text-primary);
-    padding: 6px 12px;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    white-space: nowrap;
-    z-index: 5;
-  }
-
-  .pdf-preview-container:hover::after,
-  .pdf-preview-container:focus-within::after {
-    opacity: 1;
+    display: none;
   }
 }
 
@@ -5992,8 +6037,8 @@ a svg {
   margin-bottom: 2px;
 }
 .credits-feature-desc {
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
   line-height: 1.45;
 }
 .credits-feature-tag {
@@ -6066,8 +6111,8 @@ a svg {
   line-height: 1.3;
 }
 .dash-section-sub {
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
   margin: 2px 0 0;
   line-height: 1.4;
 }
@@ -6629,18 +6674,38 @@ a svg {
 
 /* Progressive disclosure — job details revealed after resume upload */
 .scan-col-job-details {
-  opacity: 0.4;
-  pointer-events: none;
-  filter: grayscale(0.5);
-  transition:
-    opacity var(--duration-normal) var(--ease-out),
-    filter var(--duration-normal) var(--ease-out);
+  position: relative;
+  opacity: 1;
+  transition: opacity var(--duration-normal) var(--ease-out);
 }
 
-.scan-col-job-details.is-active {
+.job-details-hint {
+  display: flex;
+  align-items: center;
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-2);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.scan-col-job-details:not(.is-active) .form-group {
+  opacity: 0.24;
+  pointer-events: none;
+  filter: saturate(0.4);
+}
+
+.scan-col-job-details.is-active .job-details-hint {
+  display: none;
+}
+
+.scan-col-job-details.is-active .form-group {
   opacity: 1;
   pointer-events: auto;
-  filter: grayscale(0);
+  filter: none;
 }
 
 /* Upload completion indicator */

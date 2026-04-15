@@ -128,6 +128,24 @@ export async function post(endpoint, body) {
 }
 
 /**
+ * PUT request helper
+ * @param {string} endpoint - API endpoint
+ * @param {Object} body - Request body
+ * @returns {Promise<any>} JSON response
+ */
+export async function put(endpoint, body) {
+  const response = await apiRequest(endpoint, {
+    method: 'PUT',
+    body,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+/**
  * PATCH request helper
  * @param {string} endpoint - API endpoint
  * @param {Object} body - Request body
@@ -148,11 +166,13 @@ export async function patch(endpoint, body) {
 /**
  * DELETE request helper
  * @param {string} endpoint - API endpoint
+ * @param {Object} [body] - Optional request body
  * @returns {Promise<any>} JSON response
  */
-export async function del(endpoint) {
+export async function del(endpoint, body) {
   const response = await apiRequest(endpoint, {
     method: 'DELETE',
+    body,
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));

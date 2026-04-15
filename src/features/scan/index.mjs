@@ -3,21 +3,15 @@
  * Resume upload and analysis functionality
  */
 
-import { el, formatFileSize } from '../core/utils.mjs';
-import { navigateTo } from '../core/router.mjs';
-import { upload, get } from '../core/api.mjs';
+import { el, formatFileSize } from '../../core/utils.mjs';
+import { navigateTo } from '../../core/router.mjs';
+import { upload } from '../../core/api.mjs';
 import { showToast } from '../../components/toast.mjs';
 import { announceToScreenReader } from '../../core/accessibility.mjs';
 
 // Constants
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['.pdf', '.docx', '.doc', '.txt'];
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/msword',
-  'text/plain',
-];
 
 let currentFile = null;
 let isScanning = false;
@@ -36,6 +30,7 @@ export function setupScanForm() {
 function setupFileUpload() {
   const uploadArea = el('upload-area');
   const fileInput = el('resume-file');
+  const removeBtn = el('file-remove-btn');
   if (!uploadArea || !fileInput) return;
 
   // Click to upload
@@ -62,6 +57,14 @@ function setupFileUpload() {
       handleFile(files[0]);
     }
   });
+
+  if (removeBtn) {
+    removeBtn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      resetScanForm();
+    });
+  }
 }
 
 /**
@@ -81,7 +84,7 @@ function handleFileSelect(e) {
  */
 function handleFile(file) {
   const errorEl = el('scan-error');
-  errorEl.style.display = 'none';
+  if (errorEl) errorEl.style.display = 'none';
 
   // Check file size
   if (file.size > MAX_FILE_SIZE) {
@@ -101,8 +104,9 @@ function handleFile(file) {
   // Update UI
   const preview = el('file-preview');
   const uploadArea = el('upload-area');
-  const fileName = el('file-name');
-  const fileSize = el('file-size');
+  const fileName = el('file-name-display');
+  const fileSize = el('file-size-display');
+  const jobDetailsSection = el('job-details-section');
 
   if (fileName) fileName.textContent = file.name;
   if (fileSize) fileSize.textContent = formatFileSize(file.size);
@@ -116,6 +120,7 @@ function handleFile(file) {
   // Enable submit button
   const submitBtn = el('scan-submit-btn');
   if (submitBtn) submitBtn.disabled = false;
+  if (jobDetailsSection) jobDetailsSection.classList.add('is-active');
 
   announceToScreenReader(`File selected: ${file.name}`);
 }
@@ -144,7 +149,7 @@ function setupFormSubmission() {
     if (!currentFile || isScanning) return;
 
     const jobInput = el('job-input');
-    const jobUrl = el('job-url');
+    const jobUrl = el('job-url-input');
 
     const formData = new FormData();
     formData.append('resume', currentFile);
@@ -197,6 +202,7 @@ export function resetScanForm() {
   const uploadArea = el('upload-area');
   const errorEl = el('scan-error');
   const submitBtn = el('scan-submit-btn');
+  const jobDetailsSection = el('job-details-section');
 
   if (form) {
     form.reset();
@@ -209,4 +215,5 @@ export function resetScanForm() {
   }
   if (errorEl) errorEl.style.display = 'none';
   if (submitBtn) submitBtn.disabled = true;
+  if (jobDetailsSection) jobDetailsSection.classList.remove('is-active');
 }

@@ -3,7 +3,7 @@
  * Business logic for user, scan, and credit management
  */
 
-import { get, post, patch, del } from '../core/api.mjs';
+import { get, post, put, del } from '../core/api.mjs';
 import { appStore } from '../core/state.mjs';
 
 // Request deduplication cache
@@ -63,17 +63,6 @@ export async function fetchUser() {
 }
 
 /**
- * Update user profile
- * @param {Object} updates - Profile updates
- * @returns {Promise<Object>} Updated user
- */
-export async function updateUser(updates) {
-  const user = await patch('/user/me', updates);
-  appStore.set('user', user);
-  return user;
-}
-
-/**
  * Update user avatar
  * @param {File} file - Avatar image file
  * @returns {Promise<Object>} Updated user
@@ -82,9 +71,18 @@ export async function updateAvatar(file) {
   const formData = new FormData();
   formData.append('avatar', file);
 
-  const user = await post('/user/avatar', formData);
-  appStore.set('user', user);
-  return user;
+  const result = await put('/user/avatar', formData);
+  const currentUser = appStore.get('user');
+
+  if (currentUser && result.avatarUrl) {
+    appStore.set('user', {
+      ...currentUser,
+      avatar: result.avatarUrl,
+      avatarUrl: result.avatarUrl,
+    });
+  }
+
+  return result;
 }
 
 /**
@@ -94,15 +92,16 @@ export async function updateAvatar(file) {
  * @returns {Promise<Object>} Result
  */
 export async function changePassword(currentPassword, newPassword) {
-  return post('/user/password', { currentPassword, newPassword });
+  return put('/user/password', { currentPassword, newPassword });
 }
 
 /**
  * Delete account
+ * @param {string} confirmEmail - Email confirmation
  * @returns {Promise<Object>} Result
  */
-export async function deleteAccount() {
-  const result = await del('/user/me');
+export async function deleteAccount(confirmEmail) {
+  const result = await del('/user/account', { confirmEmail });
   appStore.set('user', null);
   return result;
 }
@@ -152,7 +151,9 @@ export async function getScan(scanId) {
  * @returns {Promise<Array>} Scan history
  */
 export async function getScanHistory({ limit = 20, offset = 0 } = {}) {
-  return get(`/api/scan/history?limit=${limit}&offset=${offset}`);
+  const data = await get('/user/dashboard');
+  const scans = Array.isArray(data.scans) ? data.scans : [];
+  return scans.slice(offset, offset + limit);
 }
 
 /**
@@ -171,7 +172,7 @@ export async function deleteScan(scanId) {
  * @returns {Promise<Blob>} File blob
  */
 export async function downloadResume(scanId, format = 'pdf') {
-  const response = await fetch(`/api/scan/${scanId}/download?format=${format}`);
+  const response = await fetch(`/api/agent/download/${scanId}?format=${encodeURIComponent(format)}`);
   if (!response.ok) throw new Error('Download failed');
   return response.blob();
 }
@@ -196,7 +197,8 @@ export async function getCreditBalance() {
  * @returns {Promise<Array>} Transaction history
  */
 export async function getCreditHistory() {
-  return get('/billing/history');
+  const data = await get('/user/credit-history');
+  return data.history || [];
 }
 
 /**

@@ -302,6 +302,46 @@ function setupRouter() {
   window.addEventListener('popstate', () => navigateTo(location.pathname, false));
 }
 
+function getPageTitle(path) {
+  if (path === '/') return 'ResumeXray — Free ATS Resume Scanner & Optimizer';
+  if (path === '/signup') return 'Create Account — ResumeXray';
+  if (path === '/login') return 'Log In — ResumeXray';
+  if (path === '/dashboard') return 'Dashboard — ResumeXray';
+  if (path === '/scan') return 'Analyze Your Resume — ResumeXray';
+  if (path === '/pricing') return 'Pricing — ResumeXray';
+  if (path === '/profile') return 'Your Profile — ResumeXray';
+  if (path === '/agent-results') return 'Live Analysis — ResumeXray';
+  if (path.startsWith('/verify/')) return 'Verify Email — ResumeXray';
+  if (path === '/forgot-password') return 'Forgot Password — ResumeXray';
+  if (path.startsWith('/reset-password/')) return 'Reset Password — ResumeXray';
+  if (path.startsWith('/results/')) return 'Scan Results — ResumeXray';
+  if (path === '/privacy') return 'Privacy Policy — ResumeXray';
+  if (path === '/terms') return 'Terms of Service — ResumeXray';
+  return 'Page Not Found — ResumeXray';
+}
+
+function getRouteGroup(path) {
+  if (
+    path === '/dashboard' ||
+    path === '/profile' ||
+    path === '/agent-results' ||
+    path.startsWith('/results/')
+  ) {
+    return 'app';
+  }
+  if (
+    path === '/login' ||
+    path === '/signup' ||
+    path === '/forgot-password' ||
+    path.startsWith('/reset-password/') ||
+    path.startsWith('/verify/')
+  ) {
+    return 'auth';
+  }
+  if (path === '/privacy' || path === '/terms') return 'legal';
+  return 'marketing';
+}
+
 function navigateTo(path, push = true) {
   if (push) history.pushState({}, '', path);
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -383,6 +423,9 @@ function navigateTo(path, push = true) {
       el('view-landing').classList.add('active');
     }
   }
+
+  document.title = getPageTitle(path);
+  document.body.dataset.routeGroup = getRouteGroup(path);
 
   // Scroll to top
   window.scrollTo(0, 0);
@@ -522,7 +565,7 @@ function setupAuthForms() {
           // Show persistent nudge: verification email was sent
           setTimeout(() => {
             showToast(
-              '📧 Check your inbox! Verify your email to claim your free download credit.',
+              'Check your inbox to verify your email and unlock your free export credit.',
               'info',
               { duration: 8000 }
             );
@@ -1018,9 +1061,8 @@ function setupFileUpload() {
       }, 100);
     }
 
-    const icons = { '.pdf': '📕', '.docx': '📘', '.doc': '📘', '.txt': '📄' };
     const iconEl = el('file-preview').querySelector('.file-preview-icon');
-    if (iconEl) iconEl.textContent = icons[ext] || '📄';
+    if (iconEl) iconEl.dataset.fileType = ext.replace('.', '').toUpperCase();
   }
 
   function removeFile() {
@@ -1036,6 +1078,9 @@ function setupFileUpload() {
     if (jobDetailsSection) {
       jobDetailsSection.classList.remove('is-active');
     }
+
+    const iconEl = el('file-preview')?.querySelector('.file-preview-icon');
+    if (iconEl) iconEl.dataset.fileType = '';
   }
 
   area.addEventListener('click', () => fileInput.click());
@@ -1958,6 +2003,26 @@ async function finalizeAgentUI(data) {
 let agentResumeText = '';
 let agentBulletPairs = []; // {original, rewritten, method, targetKeyword}
 
+function getPasswordToggleIcon(isVisible) {
+  if (isVisible) {
+    return `
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 3l18 18" />
+        <path d="M10.58 10.58a2 2 0 102.83 2.83" />
+        <path d="M9.88 5.09A9.77 9.77 0 0112 5c7 0 11 7 11 7a18.78 18.78 0 01-5.17 5.64" />
+        <path d="M6.61 6.61A18.72 18.72 0 001 12s4 7 11 7a10.76 10.76 0 005.39-1.39" />
+      </svg>
+    `;
+  }
+
+  return `
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  `;
+}
+
 function setupPasswordToggles() {
   document.querySelectorAll('.pw-toggle').forEach(btn => {
     btn.addEventListener('click', e => {
@@ -1966,11 +2031,11 @@ function setupPasswordToggles() {
       if (input && input.tagName === 'INPUT') {
         if (input.type === 'password') {
           input.type = 'text';
-          btn.textContent = '🙈';
+          btn.innerHTML = getPasswordToggleIcon(true);
           btn.setAttribute('aria-label', 'Hide password');
         } else {
           input.type = 'password';
-          btn.textContent = '👁️';
+          btn.innerHTML = getPasswordToggleIcon(false);
           btn.setAttribute('aria-label', 'Show password');
         }
       }
@@ -2689,11 +2754,11 @@ async function renderDashboard() {
 
   // Show tier name
   const tier = user?.tier || 'free';
-  const tierNames = { free: 'FREE', starter: 'STARTER', pro: 'PRO', hustler: 'HUSTLER' };
+  const tierNames = { free: 'FREE', starter: 'STARTER', pro: 'PRO', hustler: 'CAREER PLUS' };
   if (el('dash-plan-bento')) {
     const tierClass = tier === 'free' ? 'tier-free' : 'tier-pro';
     el('dash-plan-bento').innerHTML = safeHtml(
-      `<span id="dash-tier-badge" class="dash-tier-badge ${tierClass}">${tierNames[tier]}</span> ⚡ ${esc(creditBalance)}`
+      `<span id="dash-tier-badge" class="dash-tier-badge ${tierClass}">${tierNames[tier]}</span> ${esc(creditBalance)} credits`
     );
   }
 
@@ -2735,9 +2800,9 @@ async function renderDashboard() {
       list.innerHTML = safeHtml(`
         <div class="empty-state card bento-glass text-center" style="padding:3rem">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3;margin:0 auto 1rem"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <p style="font-weight:600;margin-bottom:0.5rem">No scans yet</p>
-          <p class="body-sm" style="opacity:0.5;margin-bottom:1.25rem">You haven't scanned any resumes yet. Upload one to see how ATS software reads it.</p>
-          <button class="btn btn-primary" data-action="navigate" data-path="/scan">Scan My Resume</button>
+          <p style="font-weight:700;margin-bottom:0.5rem">Start with one target role</p>
+          <p class="body-sm" style="opacity:0.82;margin-bottom:1.25rem">Upload a resume and job description to unlock recruiter-view feedback, keyword gaps, and export-ready recommendations.</p>
+          <button class="btn btn-primary" data-action="navigate" data-path="/scan">Start First Scan</button>
         </div>`);
     } else {
       list.innerHTML = safeHtml(
@@ -2818,7 +2883,7 @@ async function renderDashboard() {
             const displayTitle = title.length > 65 ? title.substring(0, 65) + '…' : title;
 
             return `
-        <div class="card scan-history-card animate-fade-up" data-action="navigate" data-path="/results/${esc(s.id)}" role="button" tabindex="0" style="margin-bottom:1rem; border-left:3px solid ${borderColor}; cursor:pointer; padding: 1.25rem;">
+        <a class="card scan-history-card animate-fade-up" href="/results/${esc(s.id)}" data-link aria-label="View scan results for ${esc(title)}" style="margin-bottom:1rem; border-left:3px solid ${borderColor}; padding: 1.25rem;">
           <div class="flex justify-between items-center gap-4">
 
             <div style="flex: 1; min-width: 0;">
@@ -2842,7 +2907,7 @@ async function renderDashboard() {
             </div>
 
           </div>
-        </div>`;
+        </a>`;
           })
           .join('')
       );
@@ -2871,7 +2936,7 @@ async function renderProfile() {
   );
 
   // Tier badge
-  const tierNames = { free: 'Free', starter: 'Starter', pro: 'Pro', hustler: 'Hustler' };
+  const tierNames = { free: 'Free', starter: 'Starter', pro: 'Professional', hustler: 'Career Plus' };
   const badge = el('profile-tier-badge');
   badge.textContent = tierNames[tier] || 'Free';
   badge.className = `tier-badge tier-${tier}`;

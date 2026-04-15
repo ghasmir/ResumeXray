@@ -3,11 +3,11 @@
  * Login, signup, password reset functionality
  */
 
-import { el, debounce, getInitials } from '../core/utils.mjs';
-import { navigateTo } from '../core/router.mjs';
-import { post } from '../core/api.mjs';
-import { fetchUser } from '../services/index.mjs';
-import { showToast } from '../components/toast.mjs';
+import { el, debounce } from '../../core/utils.mjs';
+import { navigateTo } from '../../core/router.mjs';
+import { post } from '../../core/api.mjs';
+import { fetchUser } from '../../services/index.mjs';
+import { showToast } from '../../components/toast.mjs';
 
 /**
  * Setup all auth forms
@@ -135,8 +135,11 @@ function setupResetPasswordForm() {
   const form = el('reset-password-form');
   if (!form) return;
 
-  // Extract token from URL
-  const token = window.location.pathname.split('/').pop();
+  const tokenInput = el('reset-token');
+  const tokenFromPath = window.location.pathname.split('/').pop();
+  if (tokenInput && !tokenInput.value) {
+    tokenInput.value = tokenFromPath || '';
+  }
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
@@ -144,14 +147,8 @@ function setupResetPasswordForm() {
     const errorEl = el('reset-error');
     errorEl.style.display = 'none';
 
-    const password = el('reset-password').value;
-    const confirmPassword = el('reset-confirm-password').value;
-
-    if (password !== confirmPassword) {
-      errorEl.textContent = 'Passwords do not match';
-      errorEl.style.display = 'block';
-      return;
-    }
+    const token = tokenInput?.value || tokenFromPath;
+    const password = el('reset-new-password').value;
 
     try {
       await post('/auth/reset-password', { token, password });
@@ -168,15 +165,19 @@ function setupResetPasswordForm() {
  * Setup password toggle buttons (show/hide)
  */
 export function setupPasswordToggles() {
-  document.querySelectorAll('.password-toggle').forEach(toggle => {
+  document.querySelectorAll('.pw-toggle, .password-toggle').forEach(toggle => {
+    if (toggle.dataset.bound === '1') return;
+    toggle.dataset.bound = '1';
+
     toggle.addEventListener('click', () => {
-      const inputId = toggle.dataset.target;
-      const input = el(inputId);
+      const wrapper = toggle.closest('.password-wrapper');
+      const input = wrapper?.querySelector('input') || toggle.previousElementSibling;
       if (!input) return;
 
       const isVisible = input.type === 'text';
       input.type = isVisible ? 'password' : 'text';
       toggle.setAttribute('aria-label', isVisible ? 'Show password' : 'Hide password');
+      toggle.setAttribute('aria-pressed', String(!isVisible));
       toggle.classList.toggle('visible', !isVisible);
     });
   });

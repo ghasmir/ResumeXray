@@ -541,22 +541,22 @@
         <div class="social-proof-stats animate-fade-up" style="animation-delay: 0.15s">
           <div class="proof-stat">
             <span class="proof-value" data-count="12847">12,847</span>
-            <span class="proof-label">Resumes Analyzed</span>
+            <span class="proof-label">Resumes analyzed</span>
           </div>
           <div class="proof-divider"></div>
           <div class="proof-stat">
             <span class="proof-value">6+</span>
-            <span class="proof-label">ATS Platforms Tested</span>
+            <span class="proof-label">ATS formats studied</span>
           </div>
           <div class="proof-divider"></div>
           <div class="proof-stat">
-            <span class="proof-value">94%</span>
-            <span class="proof-label">Parse Rate Improvement</span>
+            <span class="proof-value">30 sec</span>
+            <span class="proof-label">To start a scan</span>
           </div>
           <div class="proof-divider"></div>
           <div class="proof-stat">
-            <span class="proof-value">2.4x</span>
-            <span class="proof-label">More Interview Callbacks</span>
+            <span class="proof-value">Free</span>
+            <span class="proof-label">Until you export</span>
           </div>
         </div>
 
@@ -566,7 +566,12 @@
           <div class="steps-grid">
             <div class="step-card animate-fade-up">
               <div class="step-number">1</div>
-              <div class="step-icon">📄</div>
+              <div class="step-icon" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </div>
               <h3>Upload Resume</h3>
               <p>
                 PDF or DOCX. We extract every character and simulate how 3 different ATS parsers
@@ -575,7 +580,12 @@
             </div>
             <div class="step-card animate-fade-up" style="animation-delay: 0.1s">
               <div class="step-number">2</div>
-              <div class="step-icon">🔬</div>
+              <div class="step-icon" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </div>
               <h3>See What Breaks</h3>
               <p>
                 We show you a recruiter's actual database view — which fields parsed correctly,
@@ -584,7 +594,12 @@
             </div>
             <div class="step-card animate-fade-up" style="animation-delay: 0.2s">
               <div class="step-number">3</div>
-              <div class="step-icon">🤖</div>
+              <div class="step-icon" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </div>
               <h3>AI Fixes It Live</h3>
               <p>
                 Our AI agent rewrites weak bullet points using the CAR formula (Challenge → Action →
@@ -984,7 +999,7 @@
         <div class="container-narrow" style="max-width: 600px">
           <h1 class="headline" style="margin-bottom: var(--sp-2)">Your Profile</h1>
           <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
-            Manage your account, view credit history, and update security settings.
+            Manage credits, exports, and account security in one place.
           </p>
           <!-- Profile Header with Avatar -->
           <div class="profile-card card-elevated">
@@ -1270,7 +1285,7 @@
           <!-- Delete Account Modal -->
           <div id="delete-modal" class="modal-overlay" style="display: none">
             <div class="card-elevated" style="max-width: 400px; width: 90%; padding: var(--sp-6)">
-              <h3 style="margin-bottom: var(--sp-2); color: var(--red)">⚠️ Delete Account</h3>
+              <h3 style="margin-bottom: var(--sp-2); color: var(--red)">Delete Account</h3>
               <p class="body-sm" style="margin-bottom: var(--sp-4)">
                 This action is permanent. All your scans, resumes, and credits will be lost. Type
                 your email to confirm.
@@ -1398,7 +1413,21 @@
                   <input type="file" id="resume-file" accept=".pdf,.docx,.doc,.txt" hidden />
                 </div>
                 <div id="file-preview" class="file-preview" style="display: none">
-                  <div class="file-preview-icon">📄</div>
+                  <div class="file-preview-icon" data-file-type="" aria-hidden="true">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                    >
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="8" y1="13" x2="16" y2="13" />
+                      <line x1="8" y1="17" x2="13" y2="17" />
+                    </svg>
+                  </div>
                   <div class="file-preview-info">
                     <div class="file-preview-name" id="file-name-display">resume.pdf</div>
                     <div class="file-preview-size" id="file-size-display">128 KB</div>
@@ -1433,6 +1462,9 @@
                     <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
                   </svg>
                   Target Job
+                </div>
+                <div class="job-details-hint" id="job-details-hint">
+                  Upload your resume first to unlock targeted job matching and company detection.
                 </div>
 
                 <!-- URL Input with company detection -->
@@ -1705,7 +1737,7 @@
               <div class="pane-header">
                 <h2 class="pane-title" style="margin-bottom: var(--sp-2)">ATS Diagnosis</h2>
                 <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
-                  Real-time analysis of your resume formatting and keyword matching.
+                  See parsing issues, keyword gaps, and next fixes in one place.
                 </p>
               </div>
 
@@ -1866,8 +1898,7 @@
               <div class="pane-header">
                 <h2 class="pane-title" style="margin-bottom: var(--sp-2)">Recruiter Visibility</h2>
                 <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
-                  This is exactly what recruiters see when they search their ATS database for
-                  candidates. Missing fields mean you're invisible for those searches.
+                  See which fields recruiters can search and which gaps still hide your experience.
                 </p>
               </div>
               <div
@@ -1897,7 +1928,7 @@
               <div class="pane-header">
                 <h2 class="pane-title" style="margin-bottom: var(--sp-2)">AI Cover Letter</h2>
                 <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
-                  Tailored to the job description. Uses your resume data — no generic fluff.
+                  Tailored to the role using your resume details and the target job description.
                 </p>
               </div>
               <div id="cover-letter-content" class="cover-letter-container">
@@ -1960,8 +1991,7 @@
             <div class="results-tab-pane" id="tab-pdf-preview">
               <div class="pane-header" id="optimized-resume-header">
                 <p class="body-sm text-muted" style="margin-bottom: var(--sp-4)">
-                  Your resume rebuilt with strict ATS formatting rules. Every bullet optimized,
-                  every section placed where parsers expect it.
+                  Your export-ready resume with ATS-safe structure and refined bullet points.
                 </p>
               </div>
               <!-- Shown during scan -->
@@ -2074,71 +2104,73 @@
       <section id="view-pricing" class="view">
         <div class="container text-center">
           <h1 class="headline animate-fade-up">
-            Bypass the ATS Black Hole.<br />Just Download & Apply.
+            Choose credits only when you're ready to export.
           </h1>
           <p class="body-md animate-fade-up" style="max-width: 640px; margin: 0 auto 1rem">
-            ATS scans and AI optimization are <strong>always free</strong>. Pay only when you
-            download your ATS-optimized resume + cover letter.
+            ATS scans, recruiter-view diagnostics, and AI rewrites stay <strong>free</strong>.
+            Credits are only used when you download an ATS-ready resume or cover letter.
           </p>
-          <p class="body-sm animate-fade-up" style="opacity: 0.5; margin-bottom: 3rem">
-            No subscriptions. No traps. No expensive recurring fees. Just pay for what you actually
-            download.
+          <p class="body-sm animate-fade-up" style="opacity: 0.82; margin-bottom: 1.25rem">
+            No subscription, no auto-renewal, and no card required to try the product first.
+          </p>
+          <p class="pricing-intro-note animate-fade-up" style="animation-delay: 0.05s">
+            Every plan includes unlimited scans and rewrites. <strong>1 credit = 1 export.</strong>
           </p>
 
           <div class="pricing-grid animate-fade-up" style="animation-delay: 0.1s">
             <div class="pricing-card">
               <div class="pricing-tier">Starter</div>
               <div class="pricing-price">$4.99</div>
-              <div class="pricing-credits">5 Downloads</div>
-              <div class="pricing-per-credit">$1.00 / resume</div>
+              <div class="pricing-credits">5 Export Credits</div>
+              <div class="pricing-per-credit">$1.00 per export</div>
+              <div class="pricing-plan-note">Best for a focused application round.</div>
               <ul class="pricing-features">
-                <li>5 optimized resume downloads</li>
-                <li>5 AI-generated cover letters</li>
+                <li>5 resume or cover letter exports</li>
+                <li>PDF and DOCX resume downloads</li>
+                <li>Tailored cover letter exports</li>
                 <li>Unlimited free ATS scans</li>
                 <li>Unlimited AI bullet rewrites</li>
-                <li>Full recruiter database view</li>
+                <li>Full recruiter-view diagnostics</li>
               </ul>
               <button class="btn btn-secondary" data-action="checkout" data-plan="starter">
-                Get Starter
+                Choose Starter
               </button>
             </div>
 
             <div class="pricing-card featured">
-              <div class="featured-badge">MOST POPULAR</div>
+              <div class="featured-badge">MOST CHOSEN</div>
               <div class="pricing-tier" style="color: var(--accent)">Professional</div>
               <div class="pricing-price">$9.99</div>
-              <div class="pricing-credits">15 Downloads</div>
-              <div class="pricing-per-credit">
-                $0.67 / resume <span class="discount-badge">33% OFF</span>
-              </div>
+              <div class="pricing-credits">15 Export Credits</div>
+              <div class="pricing-per-credit">$0.67 per export</div>
+              <div class="pricing-plan-note">Best balance for active weekly applications.</div>
               <ul class="pricing-features">
-                <li>15 optimized resume downloads</li>
-                <li>15 AI-generated cover letters</li>
-                <li>Everything in Starter Pack</li>
-                <li>Premium CAR bullet optimization</li>
-                <li>High-priority AI processing</li>
+                <li>15 resume or cover letter exports</li>
+                <li>Everything in Starter</li>
+                <li>Lower cost per export</li>
+                <li>Priority generation queue</li>
+                <li>Built for ongoing job searches</li>
               </ul>
               <button class="btn btn-primary" data-action="checkout" data-plan="pro">
-                Get Pro
+                Choose Professional
               </button>
             </div>
 
             <div class="pricing-card">
-              <div class="pricing-tier">Hustler</div>
+              <div class="pricing-tier">Career Plus</div>
               <div class="pricing-price">$19.99</div>
-              <div class="pricing-credits">50 Downloads</div>
-              <div class="pricing-per-credit">
-                $0.40 / resume <span class="discount-badge">60% OFF</span>
-              </div>
+              <div class="pricing-credits">50 Export Credits</div>
+              <div class="pricing-per-credit">$0.40 per export</div>
+              <div class="pricing-plan-note">Best for multi-role searches and frequent exports.</div>
               <ul class="pricing-features">
-                <li>50 optimized resume downloads</li>
-                <li>50 AI-generated cover letters</li>
-                <li>Everything in Pro Pack</li>
-                <li>Bulk discount applied</li>
+                <li>50 resume or cover letter exports</li>
+                <li>Everything in Professional</li>
+                <li>Lowest cost per export</li>
+                <li>Built for multi-role job searches</li>
                 <li>Priority support</li>
               </ul>
               <button class="btn btn-secondary" data-action="checkout" data-plan="hustler">
-                Get Hustler
+                Choose Career Plus
               </button>
             </div>
           </div>
@@ -2199,7 +2231,7 @@
                 <div>
                   <div class="credits-feature-name">AI Bullet Rewrites</div>
                   <p class="credits-feature-desc">
-                    Optimize every bullet with our Anti-Fluff engine.
+                    Refine bullet points before you decide to export.
                   </p>
                 </div>
                 <span class="credits-feature-tag tag-free">FREE</span>
@@ -2224,7 +2256,9 @@
                 </div>
                 <div>
                   <div class="credits-feature-name">1 Credit = 1 Download</div>
-                  <p class="credits-feature-desc">Export ATS-proof PDF + tailored cover letter.</p>
+                  <p class="credits-feature-desc">
+                    Use a credit when you export a resume or cover letter.
+                  </p>
                 </div>
                 <span class="credits-feature-tag tag-credit">1 CREDIT</span>
               </div>
@@ -2267,7 +2301,7 @@
             <div>
               <h1 class="headline">Career Dashboard</h1>
               <p class="body-sm text-muted" style="margin-top: 0.25rem">
-                Personal performance and ATS health tracking
+                Track scans, credits, and the next best step for the role you're targeting.
               </p>
             </div>
             <button class="btn btn-primary" data-action="navigate" data-path="/scan">
@@ -2309,9 +2343,10 @@
               style="animation-delay: 0.1s"
             >
               <div class="bento-label">CREDIT BALANCE</div>
-              <div id="dash-plan-bento" class="bento-value">
-                <span id="dash-tier-badge" class="dash-tier-badge tier-free">FREE</span> ⚡ 0
-              </div>
+                <div id="dash-plan-bento" class="bento-value">
+                  <span id="dash-tier-badge" class="dash-tier-badge tier-free">FREE</span>
+                  0 credits
+                </div>
               <div id="dash-manage-btn" style="margin-top: 1.5rem">
                 <button class="btn btn-primary btn-sm" data-action="navigate" data-path="/pricing">
                   Get More Credits →
@@ -2354,7 +2389,7 @@
               <div>
                 <h2 class="dash-section-title">Recent History</h2>
                 <p class="dash-section-sub">
-                  Your past scans with scores and quick access to results.
+                  Jump back into a scan or start a new targeted review.
                 </p>
               </div>
             </div>

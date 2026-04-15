@@ -3,11 +3,9 @@
  * User dashboard and scan history
  */
 
-import { el, timeAgo, formatNumber } from '../core/utils.mjs';
-import { navigateTo } from '../core/router.mjs';
-import { getScanHistory, deleteScan, downloadResume } from '../../services/index.mjs';
-import { showToast } from '../../components/toast.mjs';
-import { confirmDialog } from '../../components/modal.mjs';
+import { el, timeAgo, formatNumber, esc } from '../../core/utils.mjs';
+import { getScanHistory } from '../../services/index.mjs';
+import { appStore } from '../../core/state.mjs';
 
 let currentPage = 1;
 const ITEMS_PER_PAGE = 10;
@@ -21,11 +19,15 @@ export function setupDashboard() {
   setupStats();
 }
 
+function getHistoryContainer() {
+  return el('dash-scans-list') || el('scan-history-list');
+}
+
 /**
  * Setup scan history list
  */
 function setupScanHistory() {
-  const container = el('scan-history-list');
+  const container = getHistoryContainer();
   if (!container) return;
 
   // Load initial history
@@ -48,7 +50,6 @@ async function loadScanHistory() {
   if (isLoading) return;
   isLoading = true;
 
-  const container = el('scan-history-list');
   const loadingEl = el('history-loading');
 
   if (loadingEl) loadingEl.style.display = 'block';
@@ -80,17 +81,20 @@ async function loadScanHistory() {
  * @param {Array} scans - Scan data array
  */
 function renderScanList(scans) {
-  const container = el('scan-history-list');
+  const container = getHistoryContainer();
   if (!container) return;
 
   if (scans.length === 0 && currentPage === 1) {
     container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">📄</div>
-        <h3>No scans yet</h3>
-        <p>Upload your first resume to get started</p>
+      <div class="empty-state card bento-glass text-center" style="padding:3rem">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3;margin:0 auto 1rem">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <h3>Start with one target role</h3>
+        <p>Upload a resume and job description to unlock recruiter-view feedback, keyword gaps, and export-ready recommendations.</p>
         <button class="btn btn-primary" data-action="navigate" data-path="/scan">
-          Analyze Resume
+          Start First Scan
         </button>
       </div>
     `;
@@ -116,111 +120,97 @@ function renderScanList(scans) {
  * @returns {HTMLElement} Card element
  */
 function createScanCard(scan) {
-  const card = document.createElement('div');
-  card.className = 'scan-card';
-  card.dataset.scanId = scan.id;
+  const scanId = scan.id;
+  const parseRate = Math.round(scan.parse_rate ?? scan.parseRate ?? 0);
+  const matchRate = Math.round(scan.match_rate ?? scan.matchRate ?? 0);
+  const createdAt = scan.created_at ?? scan.createdAt;
+  const title = buildScanTitle(scan);
+  const displayTitle = title.length > 65 ? `${title.slice(0, 65)}…` : title;
+  const accentColor =
+    Math.max(parseRate, matchRate) >= 80
+      ? 'var(--green)'
+      : Math.max(parseRate, matchRate) >= 50
+        ? 'var(--amber)'
+        : 'var(--red)';
 
-  const score = Math.round((scan.parseRate + scan.formatHealth + scan.matchRate) / 3);
-
+  const card = document.createElement('a');
+  card.className = 'card scan-history-card animate-fade-up';
+  card.href = `/results/${scanId}`;
+  card.setAttribute('data-link', '');
+  card.setAttribute('aria-label', `View scan results for ${title}`);
+  card.style.marginBottom = '1rem';
+  card.style.borderLeft = `3px solid ${accentColor}`;
+  card.style.padding = '1.25rem';
   card.innerHTML = `
-    <div class="scan-card-header">
-      <h4 class="scan-title">${scan.jobTitle || 'Untitled Scan'}</h4>
-      <span class="scan-date">${timeAgo(scan.createdAt)}</span>
-    </div>
-    <div class="scan-card-body">
-      <div class="scan-scores">
-        <div class="score-item">
-          <span class="score-value">${scan.parseRate}%</span>
-          <span class="score-label">Parse</span>
-        </div>
-        <div class="score-item">
-          <span class="score-value">${scan.formatHealth}%</span>
-          <span class="score-label">Format</span>
-        </div>
-        <div class="score-item">
-          <span class="score-value">${scan.matchRate}%</span>
-          <span class="score-label">Match</span>
+    <div class="flex justify-between items-center gap-4">
+      <div style="flex: 1; min-width: 0;">
+        <h4 style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(title)}">
+          ${esc(displayTitle)}
+        </h4>
+        <div style="display:flex; gap:0.5rem; align-items: center; flex-wrap:wrap;">
+          ${buildScoreBadge(parseRate, 'Parse')}
+          ${matchRate ? buildScoreBadge(matchRate, 'Match') : ''}
+          <span style="color: var(--text-muted); font-size: 0.8rem; margin-left: 0.5rem; display: flex; align-items: center; gap: 4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            ${esc(timeAgo(createdAt))}
+          </span>
         </div>
       </div>
-    </div>
-    <div class="scan-card-footer">
-      <button class="btn btn-sm btn-secondary" data-action="view">View</button>
-      <button class="btn btn-sm btn-primary" data-action="download">Download</button>
-      <button class="btn btn-sm btn-ghost" data-action="delete">Delete</button>
+      <div style="color: var(--text-muted); transition: transform 0.2s ease;" class="history-arrow">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14"></path>
+          <path d="M12 5l7 7-7 7"></path>
+        </svg>
+      </div>
     </div>
   `;
-
-  // Event listeners
-  card.querySelector('[data-action="view"]').addEventListener('click', () => {
-    navigateTo(`/results/${scan.id}`);
-  });
-
-  card.querySelector('[data-action="download"]').addEventListener('click', () => {
-    handleDownload(scan.id);
-  });
-
-  card.querySelector('[data-action="delete"]').addEventListener('click', () => {
-    handleDelete(scan.id, card);
-  });
-
   return card;
 }
 
-/**
- * Handle resume download
- * @param {string} scanId - Scan ID
- */
-async function handleDownload(scanId) {
-  try {
-    const blob = await downloadResume(scanId, 'pdf');
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `optimized-resume-${scanId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+function buildScanTitle(scan) {
+  const jobTitle = String(scan.job_title || scan.jobTitle || '').trim();
+  const companyName = String(scan.company_name || scan.companyName || '').trim();
+  const jobDescription = String(scan.job_description || scan.jobDescription || '').trim();
 
-    showToast('Download started', 'success');
-  } catch (err) {
-    showToast('Download failed', 'error');
+  if (jobTitle && companyName && !jobTitle.toLowerCase().includes(companyName.toLowerCase())) {
+    return `${jobTitle}, ${companyName}`;
   }
+  if (jobTitle) return jobTitle;
+  if (companyName) return `Role at ${companyName}`;
+  if (jobDescription) return 'Pasted Job Description';
+  return 'General Scan';
 }
 
-/**
- * Handle scan deletion
- * @param {string} scanId - Scan ID
- * @param {HTMLElement} card - Card element to remove
- */
-async function handleDelete(scanId, card) {
-  const confirmed = await confirmDialog(
-    'Are you sure you want to delete this scan? This action cannot be undone.',
-    'Delete Scan'
-  );
+function buildScoreBadge(score, label) {
+  const tone =
+    score >= 80
+      ? 'background: rgba(34,197,94,0.14); color: var(--green); border-color: rgba(34,197,94,0.2);'
+      : score >= 50
+        ? 'background: rgba(251,191,36,0.12); color: var(--amber); border-color: rgba(251,191,36,0.2);'
+        : 'background: rgba(239,68,68,0.12); color: var(--red); border-color: rgba(239,68,68,0.18);';
 
-  if (!confirmed) return;
-
-  try {
-    await deleteScan(scanId);
-    card.style.opacity = '0';
-    setTimeout(() => card.remove(), 300);
-    showToast('Scan deleted', 'success');
-  } catch (err) {
-    showToast('Failed to delete scan', 'error');
-  }
+  return `
+    <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid transparent; border-radius:999px; font-size:0.78rem; font-weight:600; ${tone}">
+      <span>${score}%</span>
+      <span style="opacity:0.8">${esc(label)}</span>
+    </span>
+  `;
 }
 
 /**
  * Setup dashboard stats
  */
 function setupStats() {
-  const statsContainer = el('dashboard-stats');
-  if (!statsContainer) return;
+  const hasDashboardStats =
+    !!el('stat-scans-bento') || !!el('stat-resumes-bento') || !!el('dash-plan-bento');
+  if (!hasDashboardStats) return;
 
-  // Stats are updated when user data changes
-  window.addEventListener('userUpdated', e => {
-    updateStats(e.detail.user);
+  updateStats(appStore.get('user'));
+  appStore.subscribe('user', user => {
+    updateStats(user);
   });
 }
 
@@ -231,11 +221,31 @@ function setupStats() {
 function updateStats(user) {
   if (!user) return;
 
-  const totalScansEl = el('stat-total-scans');
-  const creditsEl = el('stat-credits');
-  const tierEl = el('stat-tier');
+  const scansUsed = user.scansUsed || user.totalScans || 0;
+  const credits = user.creditBalance || 0;
+  const tier = user.tier || 'free';
+  const tierNames = {
+    free: 'FREE',
+    starter: 'STARTER',
+    pro: 'PRO',
+    hustler: 'CAREER PLUS',
+  };
 
-  if (totalScansEl) totalScansEl.textContent = formatNumber(user.totalScans || 0);
-  if (creditsEl) creditsEl.textContent = formatNumber(user.creditBalance || 0);
-  if (tierEl) tierEl.textContent = user.tier || 'Free';
+  const freeScansEl = el('stat-scans-bento');
+  const resumesEl = el('stat-resumes-bento');
+  const scansProgressEl = el('progress-scans');
+  const resumesProgressEl = el('progress-resumes');
+  const planEl = el('dash-plan-bento');
+
+  if (freeScansEl) freeScansEl.textContent = '∞ Free';
+  if (resumesEl) resumesEl.textContent = formatNumber(scansUsed);
+  if (scansProgressEl) scansProgressEl.style.width = '100%';
+  if (resumesProgressEl) resumesProgressEl.style.width = scansUsed > 0 ? `${Math.min(100, scansUsed * 10)}%` : '0%';
+  if (planEl) {
+    const tierClass = tier === 'free' ? 'tier-free' : 'tier-pro';
+    planEl.innerHTML = `
+      <span id="dash-tier-badge" class="dash-tier-badge ${tierClass}">${tierNames[tier] || 'FREE'}</span>
+      ${formatNumber(credits)} credits
+    `;
+  }
 }
