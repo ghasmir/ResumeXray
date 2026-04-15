@@ -10,6 +10,9 @@ let loadResultsToken = 0; // Cancellation token for loadResults retries
 let userFetchPromise = null; // Request deduplication for fetchUser
 let pdfPreviewMode = window.innerWidth < 768 ? 'detailed' : 'standard';
 let pdfPreviewFocusMode = false;
+let currentJobContext = null;
+let currentRenderProfile = null;
+let jobContextProbeController = null;
 
 // ═══════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS (Performance & Accessibility)
@@ -1069,44 +1072,303 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-function setupCompanyDetection() {
-  const urlInput = el('job-url-input');
+function getJobContext(scanOrContext = null) {
+  const source = scanOrContext || currentJobContext || currentScan || {};
+  const nested = source.jobContext || {};
+  return {
+    jobUrl: nested.jobUrl || source.jobUrl || source.job_url || '',
+    jobTitle: nested.jobTitle || source.jobTitle || source.job_title || '',
+    companyName: nested.companyName || source.companyName || source.company_name || '',
+    jdSource: nested.jdSource || source.jdSource || '',
+    scrapeStatus: nested.scrapeStatus || source.scrapeStatus || '',
+    scrapeError: nested.scrapeError || source.scrapeError || '',
+    atsPlatform: nested.atsPlatform || source.atsPlatform || source.ats_platform || '',
+    atsDisplayName: nested.atsDisplayName || source.atsDisplayName || '',
+    templateProfile: nested.templateProfile || source.templateProfile || null,
+  };
+}
+
+function getJobSourceLabel(jobContext) {
+  switch (jobContext.jdSource) {
+    case 'scraped_url':
+      return 'Fetched from job link';
+    case 'pasted_fallback':
+      return 'Using pasted JD fallback';
+    case 'pasted_text':
+      return 'Using pasted job description';
+    case 'url_only':
+      return 'Job link needs pasted JD';
+    default:
+      return jobContext.jobUrl ? 'Waiting on job link' : 'No job source yet';
+  }
+}
+
+function getJobStatusTone(jobContext) {
+  if (jobContext.scrapeStatus === 'blocked' || jobContext.scrapeStatus === 'failed') {
+    return 'is-warning';
+  }
+  if (jobContext.scrapeStatus === 'ready' || jobContext.jdSource === 'pasted_fallback') {
+    return 'is-success';
+  }
+  return 'is-info';
+}
+
+function renderJobLinkStatus(jobContext, options = {}) {
+  const statusEl = el('job-link-status');
   const preview = el('company-preview');
   const favicon = el('company-favicon');
   const nameEl = el('company-name-preview');
-  if (!urlInput || !preview) return;
+  if (!statusEl || !preview || !nameEl) return;
+
+  const state = options.state || 'idle';
+  const note =
+    options.note ||
+    (state === 'fetching'
+      ? 'Fetching the role, company, and portal so we can target the right ATS profile.'
+      : jobContext.scrapeError || '');
+
+  const validUrl =
+    jobContext.jobUrl &&
+    (jobContext.jobUrl.startsWith('http://') || jobContext.jobUrl.startsWith('https://'));
+
+  if (!validUrl && !jobContext.jobTitle && !jobContext.companyName && !note) {
+    statusEl.style.display = 'none';
+    preview.style.display = 'none';
+    return;
+  }
+
+  if (jobContext.companyName) {
+    nameEl.textContent = jobContext.companyName;
+    try {
+      const domain = new URL(jobContext.jobUrl).hostname;
+      favicon.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+      favicon.onerror = () => {
+        favicon.style.display = 'none';
+      };
+      favicon.onload = () => {
+        favicon.style.display = 'inline-block';
+      };
+      favicon.style.display = 'none';
+    } catch {
+      favicon.style.display = 'none';
+    }
+    preview.style.display = 'flex';
+  } else {
+    preview.style.display = 'none';
+  }
+
+  const portalLabel = jobContext.atsDisplayName || 'General ATS';
+  const statusTone = getJobStatusTone(jobContext);
+  const statusTitle =
+    state === 'fetching'
+      ? 'Fetching job details'
+      : jobContext.scrapeStatus === 'blocked'
+        ? 'Portal blocked automatic fetch'
+        : jobContext.scrapeStatus === 'failed'
+          ? 'Automatic fetch needs a fallback'
+          : jobContext.jdSource === 'pasted_fallback'
+            ? 'Using your pasted job description'
+            : jobContext.jdSource === 'scraped_url'
+              ? 'Job link resolved'
+              : 'Target role ready';
+
+  const pills = [
+    {
+      tone: state === 'fetching' ? 'is-info' : statusTone,
+      label:
+        state === 'fetching'
+          ? 'Fetching JD'
+          : jobContext.jdSource === 'pasted_fallback'
+            ? 'Fallback active'
+          : jobContext.scrapeStatus === 'ready'
+            ? 'JD captured'
+            : jobContext.scrapeStatus === 'blocked'
+              ? 'Fallback needed'
+              : jobContext.jdSource === 'pasted_fallback'
+                ? 'Fallback active'
+                : 'JD pending',
+    },
+    {
+      tone: jobContext.companyName ? 'is-success' : 'is-info',
+      label: jobContext.companyName ? jobContext.companyName : 'Company pending',
+    },
+    {
+      tone: jobContext.atsDisplayName ? 'is-success' : 'is-info',
+      label: portalLabel,
+    },
+  ];
+
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = safeHtml(`
+    <div class="job-link-status-row">
+      <div class="job-link-status-title">${esc(statusTitle)}</div>
+      <div class="job-link-status-pills">
+        ${pills
+          .map(
+            pill => `<span class="job-link-pill ${pill.tone}">${esc(pill.label)}</span>`
+          )
+          .join('')}
+      </div>
+    </div>
+    <div class="job-link-status-note">${esc(note || getJobSourceLabel(jobContext))}</div>
+  `);
+}
+
+function renderScanLoadingContext(jobContext) {
+  const titleEl = el('scan-loading-title');
+  const subtitleEl = el('scan-loading-subtitle');
+  const contextEl = el('scan-loading-context');
+  if (!titleEl || !subtitleEl || !contextEl) return;
+
+  if (!jobContext || (!jobContext.jobUrl && !jobContext.jobTitle && !jobContext.companyName)) {
+    contextEl.style.display = 'none';
+    titleEl.textContent = 'Building your ATS-targeted workspace...';
+    subtitleEl.textContent =
+      'We fetch the job when possible, detect the hiring portal, and build a preview before any export credit is required.';
+    return;
+  }
+
+  const portalLabel = jobContext.atsDisplayName || 'General ATS';
+  const roleLabel = jobContext.jobTitle || 'Target role resolving';
+  const sourceLabel = getJobSourceLabel(jobContext);
+  const fetchLabel =
+    jobContext.jdSource === 'pasted_fallback'
+      ? 'Fallback active'
+      : jobContext.scrapeStatus === 'ready'
+      ? 'Job details ready'
+      : jobContext.scrapeStatus === 'blocked'
+        ? 'Paste JD to finish targeting'
+        : jobContext.scrapeStatus === 'failed'
+          ? 'Retrying fetch logic'
+          : 'Fetching job details';
+
+  titleEl.textContent = jobContext.jobTitle
+    ? `Optimizing for ${jobContext.jobTitle}`
+    : 'Building your ATS-targeted workspace...';
+  subtitleEl.textContent = jobContext.companyName
+    ? `Detected ${jobContext.companyName}. We are matching the resume to the role and shaping it for the right hiring portal.`
+    : 'We are extracting the job details, choosing the ATS profile, and preparing your preview.';
+
+  contextEl.style.display = 'flex';
+  contextEl.innerHTML = safeHtml(`
+    <span class="scan-loading-pill ${getJobStatusTone(jobContext)}">${esc(fetchLabel)}</span>
+    <span class="scan-loading-pill is-info">${esc(portalLabel)}</span>
+    <span class="scan-loading-pill ${jobContext.companyName ? 'is-success' : 'is-info'}">${esc(
+      jobContext.companyName || roleLabel
+    )}</span>
+    <span class="scan-loading-pill is-info">${esc(sourceLabel)}</span>
+  `);
+}
+
+function updateResultsContextStrip(scanOrContext = null) {
+  const strip = el('results-context-strip');
+  const pdfHeading = el('pdf-toolbar-heading');
+  if (!strip) return;
+  const jobContext = getJobContext(scanOrContext);
+
+  const hasContext =
+    jobContext.jobTitle ||
+    jobContext.companyName ||
+    jobContext.atsDisplayName ||
+    jobContext.jdSource ||
+    jobContext.jobUrl;
+
+  if (!hasContext) {
+    strip.style.display = 'none';
+    strip.innerHTML = '';
+    if (pdfHeading) pdfHeading.textContent = 'ATS-Optimized Resume';
+    return;
+  }
+
+  if (pdfHeading) {
+    pdfHeading.textContent = jobContext.atsDisplayName
+      ? `${jobContext.atsDisplayName}-Ready Resume Preview`
+      : 'ATS-Optimized Resume';
+  }
+
+  strip.style.display = 'flex';
+  strip.innerHTML = safeHtml(`
+    <div class="results-context-card">
+      <span class="results-context-label">Role</span>
+      <span class="results-context-value">${esc(jobContext.jobTitle || 'General resume review')}</span>
+    </div>
+    <div class="results-context-card">
+      <span class="results-context-label">Company</span>
+      <span class="results-context-value">${esc(jobContext.companyName || 'Not resolved')}</span>
+    </div>
+    <div class="results-context-card">
+      <span class="results-context-label">Portal</span>
+      <span class="results-context-value">${esc(jobContext.atsDisplayName || 'General ATS')}</span>
+    </div>
+    <div class="results-context-card">
+      <span class="results-context-label">Source</span>
+      <span class="results-context-value">${esc(getJobSourceLabel(jobContext))}</span>
+    </div>
+  `);
+}
+
+function setupCompanyDetection() {
+  const urlInput = el('job-url-input');
+  if (!urlInput) return;
 
   let debounceTimer = null;
 
   urlInput.addEventListener('input', () => {
     clearTimeout(debounceTimer);
+    if (jobContextProbeController) {
+      jobContextProbeController.abort();
+      jobContextProbeController = null;
+    }
+
     const val = urlInput.value.trim();
     if (!val || (!val.startsWith('http://') && !val.startsWith('https://'))) {
-      preview.style.display = 'none';
+      currentJobContext = null;
+      renderJobLinkStatus({}, { state: 'idle' });
       return;
     }
+
+    renderJobLinkStatus(
+      {
+        jobUrl: val,
+        companyName: extractCompanyFromUrl(val) || '',
+        atsDisplayName: '',
+        jdSource: 'url_only',
+        scrapeStatus: 'pending',
+      },
+      { state: 'fetching' }
+    );
+
     debounceTimer = setTimeout(() => {
-      const company = extractCompanyFromUrl(val);
-      if (company) {
-        nameEl.textContent = company;
-        // Load favicon via Google S2 API — safe cross-origin image
-        try {
-          const domain = new URL(val).hostname;
-          favicon.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-          favicon.onerror = () => {
-            favicon.style.display = 'none';
-          };
-          favicon.onload = () => {
-            favicon.style.display = 'inline-block';
-          };
-          favicon.style.display = 'none'; // hide until loaded
-        } catch {
-          favicon.style.display = 'none';
-        }
-        preview.style.display = 'flex';
-      } else {
-        preview.style.display = 'none';
-      }
+      jobContextProbeController = new AbortController();
+      fetch(`/api/agent/job-context?jobUrl=${encodeURIComponent(val)}`, {
+        credentials: 'same-origin',
+        signal: jobContextProbeController.signal,
+      })
+        .then(async res => {
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(payload.error || 'Unable to inspect that job link.');
+          currentJobContext = payload.jobContext || null;
+          renderJobLinkStatus(payload.jobContext || {}, {
+            state: payload.needsJobDescription ? 'warning' : 'resolved',
+            note: payload.needsJobDescription
+              ? payload.jobContext?.scrapeError ||
+                'Paste the job description to keep the portal-specific optimization.'
+              : '',
+          });
+        })
+        .catch(err => {
+          if (err.name === 'AbortError') return;
+          renderJobLinkStatus(
+            {
+              jobUrl: val,
+              companyName: extractCompanyFromUrl(val) || '',
+              jdSource: 'url_only',
+              scrapeStatus: 'failed',
+              scrapeError: err.message,
+            },
+            { state: 'warning', note: err.message }
+          );
+        });
     }, 350);
   });
 }
@@ -1173,6 +1435,9 @@ function setupFileUpload() {
     fileInput.value = '';
     el('file-preview').style.display = 'none';
     area.classList.remove('file-selected');
+    currentJobContext = null;
+    renderJobLinkStatus({}, { state: 'idle' });
+    renderScanLoadingContext(null);
     // Disable scan submit button
     const submitBtn = el('scan-submit-btn');
     if (submitBtn) submitBtn.disabled = true;
@@ -1226,6 +1491,7 @@ function setupFileUpload() {
     el('scan-error').style.display = 'none';
     form.style.display = 'none';
     el('scan-loading').style.display = 'flex';
+    renderScanLoadingContext(currentJobContext);
 
     lastJobInput = el('job-input').value;
     const fd = new FormData();
@@ -1257,6 +1523,13 @@ function setupFileUpload() {
       if (data.error) {
         form.style.display = 'block';
         el('scan-loading').style.display = 'none';
+        if (data.jobContext) {
+          currentJobContext = data.jobContext;
+          renderJobLinkStatus(data.jobContext, {
+            state: data.needsJobDescription ? 'warning' : 'resolved',
+            note: data.error,
+          });
+        }
         let errHtml = esc(data.error);
         if (data.signup || data.upgrade) {
           const path = data.signup ? '/signup' : '/pricing';
@@ -1268,6 +1541,8 @@ function setupFileUpload() {
         el('scan-error').innerHTML = safeHtml(errHtml);
         el('scan-error').style.display = 'block';
       } else {
+        currentJobContext = data.jobContext || currentJobContext;
+        renderScanLoadingContext(currentJobContext);
         // Start the live streaming agent
         // IMPORTANT: Do NOT use navigateTo('/agent-results') here!
         // The router's /agent-results handler checks localStorage for old scan IDs
@@ -1280,7 +1555,7 @@ function setupFileUpload() {
         // Ensure we are viewing the diagnosis tab during the scan
         switchTab('tab-diagnosis');
 
-        startAgentAnalysis(data.sessionId);
+        startAgentAnalysis(data.sessionId, data.jobContext || null);
       }
     } catch (err) {
       form.style.display = 'block';
@@ -1305,7 +1580,8 @@ function setupAgentResults() {
   if (dPdf) dPdf.addEventListener('click', () => downloadOptimized('pdf'));
 }
 
-function startAgentAnalysis(sessionId) {
+function startAgentAnalysis(sessionId, initialJobContext = null) {
+  currentJobContext = initialJobContext || currentJobContext;
   // 1. Immediately Activate View — BEFORE anything else
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const resultsView = el('view-results');
@@ -1343,6 +1619,9 @@ function startAgentAnalysis(sessionId) {
 
   agentBulletPairs = []; // Reset bullet pairs
   agentResumeText = '';
+  currentRenderProfile = null;
+  updateResultsContextStrip(currentJobContext);
+  updateResultsWorkspaceHeader({ scan: { jobContext: currentJobContext }, source: 'live' });
 
   // Nudge guests to convert — single CTA at the bottom of agent timeline only
   // (additional paywalls are overlaid on the score gauges, Cover Letter tab, etc.)
@@ -1516,11 +1795,7 @@ function startAgentAnalysis(sessionId) {
           addAgentStepCard(data.step, data.name, data.label);
           // Announce step start to screen readers
           announceToScreenReader(`Starting analysis step ${data.step}: ${data.name}`);
-        } else if (
-          data.status === 'complete' ||
-          data.status === 'locked' ||
-          data.status === 'error'
-        ) {
+        } else if (data.status === 'complete' || data.status === 'error') {
           if (initBlock) initBlock.style.display = 'none';
           if (dashboard) dashboard.style.display = 'block';
           updateAgentStepCard(data.step, data.status, data.label, data.data);
@@ -1541,6 +1816,17 @@ function startAgentAnalysis(sessionId) {
           const bar = el('agent-download-bar');
           if (bar) bar.dataset.scanId = data.scanId;
         }
+        break;
+
+      case 'jobContext':
+        currentJobContext = data || null;
+        renderScanLoadingContext(currentJobContext);
+        updateResultsContextStrip({ jobContext: currentJobContext });
+        updateResultsWorkspaceHeader({ scan: { jobContext: currentJobContext }, source: 'live' });
+        break;
+
+      case 'renderProfile':
+        currentRenderProfile = data || null;
         break;
 
       case 'token':
@@ -1578,11 +1864,13 @@ function startAgentAnalysis(sessionId) {
 
       case 'atsProfile':
         // Show ATS platform badge in download bar
-        if (data.displayName && data.name !== 'generic') {
-          const atsBadge = el('ats-platform-badge');
-          if (atsBadge) {
+        const atsBadge = el('ats-platform-badge');
+        if (atsBadge) {
+          if (data.displayName && data.name !== 'generic') {
             atsBadge.textContent = `Optimized for ${data.displayName}`;
             atsBadge.style.display = 'inline-flex';
+          } else {
+            atsBadge.style.display = 'none';
           }
         }
         break;
@@ -1591,6 +1879,7 @@ function startAgentAnalysis(sessionId) {
         agentSource = null;
         if (data.resumeText) agentResumeText = data.resumeText;
         persistCurrentScanToken(data.accessToken || '');
+        if (data.jobContext) currentJobContext = data.jobContext;
         if (data.scanId) {
           history.replaceState({}, '', `/results/${data.scanId}`);
           localStorage.setItem('resumeXray_currentScanId', String(data.scanId));
@@ -1700,11 +1989,9 @@ function updateAgentStepCard(step, status, label, data) {
   icon.innerHTML = safeHtml(
     status === 'complete'
       ? uiIcon('check', { size: 14, stroke: 2.5 })
-      : status === 'locked'
-        ? uiIcon('lock', { size: 14, stroke: 2 })
-        : status === 'error'
-          ? uiIcon('warning', { size: 14, stroke: 2 })
-          : uiIcon('dot', { size: 14, stroke: 2.5 })
+      : status === 'error'
+        ? uiIcon('warning', { size: 14, stroke: 2 })
+        : uiIcon('dot', { size: 14, stroke: 2.5 })
   );
 
   if (status === 'error') {
@@ -1712,8 +1999,7 @@ function updateAgentStepCard(step, status, label, data) {
     statusLabels.style.color = 'var(--red)';
     statusLabels.style.fontWeight = '700';
   } else {
-    statusLabels.textContent =
-      status === 'complete' ? 'Completed' : status === 'locked' ? 'Locked' : 'Failed';
+    statusLabels.textContent = status === 'complete' ? 'Completed' : 'Failed';
   }
 
   labelEl.textContent = label;
@@ -1733,15 +2019,6 @@ function updateAgentStepCard(step, status, label, data) {
       <div class="flex gap-4 items-center">
         <div><strong>Sections:</strong> ${esc(data.sections.join(', '))}</div>
         <div><strong>Word Count:</strong> ${esc(String(data.wordCount))}</div>
-      </div>
-    `);
-  } else if (data && step === 7 && status === 'locked') {
-    // Rewrite (locked)
-    body.innerHTML += safeHtml(`
-      <div class="agent-upgrade-prompt">
-        <h4>${esc(String(data.lockedCount))} more improvements available</h4>
-        <p>Free scans include 5 rewrites. Purchase credits to unlock all improvements.</p>
-        <button class="btn btn-primary btn-sm" data-action="navigate" data-path="/pricing">Unlock All Fixes →</button>
       </div>
     `);
   } else if (step === 8 && (status === 'complete' || status === 'running')) {
@@ -1825,8 +2102,6 @@ function renderAgentBullet(data) {
   const body = el(`agent-body-${data.step}`);
   if (!body) return;
 
-  const isGuest = !currentUser;
-
   // Skip rendering if the original text isn't a real bullet (just a metric, number, or too short)
   const isMeaningfulBullet = data.original && data.original.replace(/[\s\d%,.$-]/g, '').length >= 5;
 
@@ -1840,22 +2115,11 @@ function renderAgentBullet(data) {
         <div class="agent-bullet-label before">BEFORE</div>
         <div class="agent-bullet-text">${esc(data.original)}</div>
       </div>
-      <div class="agent-bullet-after ${isGuest ? 'guest-blurred' : ''}">
+      <div class="agent-bullet-after">
         <div class="agent-bullet-label after">REFINING...</div>
         <div class="agent-bullet-text" id="bullet-rewrite-text-${data.index}"><span class="cursor"></span></div>
       </div>
     `);
-
-    // Add unlock overlay for guests on the "AFTER" side
-    if (isGuest) {
-      const afterSide = bulletCard.querySelector('.agent-bullet-after');
-      const overlay = document.createElement('div');
-      overlay.className = 'unlock-overlay-small';
-      overlay.innerHTML = safeHtml(
-        `<button class="btn btn-xs btn-primary" data-auth="signup">Sign Up to Unlock</button>`
-      );
-      afterSide.appendChild(overlay);
-    }
 
     body.appendChild(bulletCard);
   } else if (data.status === 'complete') {
@@ -1876,7 +2140,7 @@ function renderAgentBullet(data) {
     card.classList.add('bullet-complete');
 
     const meta = document.createElement('div');
-    meta.className = `agent-bullet-meta ${isGuest ? 'guest-blurred' : ''}`;
+    meta.className = 'agent-bullet-meta';
     meta.innerHTML = safeHtml(`
       <span class="badge badge-purple">${esc(data.targetKeyword || 'General')}</span>
       <span class="badge badge-blue">${esc(data.method || 'CAR Formula')}</span>
@@ -1890,34 +2154,6 @@ function updateAgentScores(scores) {
   const summary = el('agent-score-summary');
   if (!summary) return;
   summary.style.display = 'grid';
-
-  const isGuest = !currentUser;
-  if (isGuest) {
-    summary.classList.add('blurred-container');
-    // Check if overlay already exists
-    if (!summary.querySelector('.unlock-overlay')) {
-      const overlay = document.createElement('div');
-      overlay.className = 'unlock-overlay';
-      overlay.innerHTML = safeHtml(`
-        <div class="unlock-card">
-          <div class="unlock-icon">${uiIcon('lock', { size: 28, stroke: 2 })}</div>
-          <div class="unlock-title">Unlock Full Analysis</div>
-          <div class="unlock-text">See your detailed ATS scores and professional bullet points.</div>
-          <div class="flex gap-4">
-            <button class="btn btn-primary" data-auth="signup">Create Free Account</button>
-            <button class="btn btn-secondary" data-auth="login">Log In</button>
-          </div>
-        </div>
-      `);
-      summary.appendChild(overlay);
-    }
-    // Apply blur to children
-    Array.from(summary.children).forEach(child => {
-      if (!child.classList.contains('unlock-overlay')) {
-        child.classList.add('guest-blurred');
-      }
-    });
-  }
 
   const circumference = 327; // 2 * PI * 52
 
@@ -1969,6 +2205,7 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
   const strip = el('results-summary-strip');
   if (!strip) return;
   strip.style.display = 'grid';
+  updateResultsContextStrip(scan || currentJobContext);
 
   const priorityTitleEl = el('results-priority-title');
   const priorityBodyEl = el('results-priority-body');
@@ -1984,6 +2221,7 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
     scores?.matchRate ?? scores?.jobMatch ?? scan?.matchRate ?? scan?.jobMatch ?? null;
   const keywordData = scan?.keywordData || {};
   const xrayData = scan?.xrayData || {};
+  const jobContext = getJobContext(scan);
   const missingKeywords = Array.isArray(keywordData.missing) ? keywordData.missing.length : 0;
   const lowVisibilityFields = Object.values(xrayData.fieldAccuracy || {}).filter(
     info => info?.status === 'missing' || info?.status === 'warning'
@@ -2015,7 +2253,9 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
   } else if (matchRate !== null) {
     priorityTitle = 'You are close to an export-ready pass';
     priorityBody =
-      'The current scan is readable and job-aware, so the next step is validating the recruiter view and exporting with confidence.';
+      jobContext.atsDisplayName
+        ? `The current scan now targets ${jobContext.atsDisplayName}, so the next step is validating recruiter visibility and the export preview.`
+        : 'The current scan is readable and job-aware, so the next step is validating the recruiter view and exporting with confidence.';
   }
 
   if (priorityTitleEl) priorityTitleEl.textContent = priorityTitle;
@@ -2052,7 +2292,9 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
     exportBodyEl.textContent =
       creditBalance < 1
         ? 'Scans stay free, but keep one credit available so a strong result can turn into a same-day export.'
-        : 'Use export only after the parser looks stable, the recruiter table is clean, and the job match feels believable.';
+        : jobContext.atsDisplayName
+          ? `Preview the ${jobContext.atsDisplayName}-ready layout first, then export once the recruiter table and job match feel believable.`
+          : 'Use export only after the parser looks stable, the recruiter table is clean, and the job match feels believable.';
   }
 }
 
@@ -2063,17 +2305,24 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
   const contextEl = el('results-masthead-context');
   if (!titleEl || !bodyEl || !statusEl || !contextEl) return;
 
+  const jobContext = getJobContext(scan);
   const scanTitle = scan ? getDashboardScanTitle(scan) : 'Review the highest-impact fixes first';
   const parseRate = scan?.parseRate ?? scan?.parse_rate ?? null;
   const formatHealth = scan?.formatHealth ?? scan?.format_health ?? null;
   const matchRate = scan?.matchRate ?? scan?.match_rate ?? null;
-  const hasJobContext = !!(scan?.job_url || (scan?.job_description || '').trim());
+  const hasJobContext = !!(
+    jobContext.jobUrl ||
+    jobContext.jobTitle ||
+    (scan?.job_description || '').trim()
+  );
   const readinessScore =
     parseRate !== null && formatHealth !== null ? Math.round((parseRate + formatHealth) / 2) : null;
 
   titleEl.textContent = scanTitle;
   bodyEl.textContent = hasJobContext
-    ? 'Use the tabs below to tighten parser reliability, recruiter visibility, and export confidence for this role.'
+    ? jobContext.atsDisplayName
+      ? `We resolved the role, company, and portal context for this application. Use the tabs below to tighten parser reliability, recruiter visibility, and export confidence for ${jobContext.atsDisplayName}.`
+      : 'Use the tabs below to tighten parser reliability, recruiter visibility, and export confidence for this role.'
     : 'This pass is strongest as a structural review. Add a target role next time for sharper match and cover-letter feedback.';
 
   if (readinessScore !== null && readinessScore >= 80) {
@@ -2091,6 +2340,7 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
       scan.created_at ? timeAgo(scan.created_at) : source === 'history' ? 'saved scan' : 'live scan';
     const contextParts = [
       source === 'history' ? 'Saved scan' : 'Live workspace',
+      jobContext.companyName || null,
       matchRate !== null ? `${Math.round(matchRate)}% match` : null,
       timeLabel,
     ].filter(Boolean);
@@ -2120,6 +2370,8 @@ async function finalizeAgentUI(data) {
   if (data.scanId) {
     currentScan = { ...data, id: data.scanId };
   }
+  if (data.jobContext) currentJobContext = data.jobContext;
+  updateResultsContextStrip(currentJobContext);
   updateResultsWorkspaceHeader({ scan: currentScan, source: 'live' });
 
   // 4. Show Dashboard & Reveal Tabs
@@ -2172,6 +2424,7 @@ async function finalizeAgentUI(data) {
         if (scanJson.results) {
           const fullData = scanJson.results;
           currentScan = { ...currentScan, ...fullData, id: data.scanId };
+          currentJobContext = getJobContext(fullData);
           updateResultsSummary({ scores: fullData, scan: fullData });
           updateResultsWorkspaceHeader({ scan: fullData, source: 'live' });
 
@@ -2224,6 +2477,16 @@ async function finalizeAgentUI(data) {
               );
             const clActions = el('cover-letter-actions');
             if (clActions) clActions.style.display = 'none';
+          }
+
+          const atsBadge = el('ats-platform-badge');
+          if (atsBadge) {
+            if (currentJobContext.atsDisplayName && currentJobContext.atsPlatform !== 'generic') {
+              atsBadge.textContent = `Optimized for ${currentJobContext.atsDisplayName}`;
+              atsBadge.style.display = 'inline-flex';
+            } else {
+              atsBadge.style.display = 'none';
+            }
           }
         }
       }
@@ -2413,9 +2676,6 @@ function reloadPdfPreview(scanId) {
 
   adaptPdfFrameSize(previewFrame);
 
-  const template = getSelectedTemplate();
-  const density = getSelectedDensity();
-
   // Show loading skeleton while iframe renders
   const container = previewFrame.parentElement;
   setPdfPreviewMode(pdfPreviewMode);
@@ -2434,7 +2694,7 @@ function reloadPdfPreview(scanId) {
   previewFrame.style.opacity = '0';
 
   // Build the preview URL with proper token
-  let url = `/api/agent/preview/${scanId}?template=${template}&density=${density}&t=${Date.now()}${currentScanTokenQuery()}`;
+  let url = `/api/agent/preview/${scanId}?t=${Date.now()}${currentScanTokenQuery()}`;
   previewFrame.dataset.previewUrl = url;
 
   // Handle iframe load errors
@@ -2508,13 +2768,8 @@ async function downloadOptimized(format) {
   const scanId = bar.dataset.scanId;
   if (!scanId) return;
 
-  const template = getSelectedTemplate();
-  const density = getSelectedDensity();
-
   try {
-    const res = await fetch(
-      `/api/agent/download/${scanId}?format=${format}&template=${template}&density=${density}`
-    );
+    const res = await fetch(`/api/agent/download/${scanId}?format=${format}`);
     if (!res.ok) {
       const data = await res.json();
       if (data.upgrade) navigateTo('/pricing');
@@ -2526,12 +2781,13 @@ async function downloadOptimized(format) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `optimized-resume-${template}.${format}`;
+    a.download = `optimized-resume.${format}`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
     a.remove();
     showToast('Resume downloaded!', 'success');
+    if (currentUser) await fetchUser();
   } catch {
     showToast('Download failed — please check your connection and try again.', 'error');
   }
@@ -2593,6 +2849,7 @@ async function loadResults(scanId, retryCount = 0) {
             if (persistedToken) results.accessToken = persistedToken;
           }
           currentScan = results;
+          currentJobContext = getJobContext(results);
         }
       } else if (retryCount < MAX_RETRIES) {
         console.log(
@@ -2646,6 +2903,17 @@ async function loadResults(scanId, retryCount = 0) {
 function setupAgentHistoricalView(data) {
   const scanId = data.id || data.scanId;
   console.log('[AgentView] Initializing historical view for scan', scanId, data);
+  currentJobContext = getJobContext(data);
+  updateResultsContextStrip(currentJobContext);
+  const atsBadge = el('ats-platform-badge');
+  if (atsBadge) {
+    if (currentJobContext.atsDisplayName && currentJobContext.atsPlatform !== 'generic') {
+      atsBadge.textContent = `Optimized for ${currentJobContext.atsDisplayName}`;
+      atsBadge.style.display = 'inline-flex';
+    } else {
+      atsBadge.style.display = 'none';
+    }
+  }
   updateResultsWorkspaceHeader({ scan: data, source: 'history' });
 
   // 1. Dashboard + tabs visible
@@ -2695,27 +2963,6 @@ function setupAgentHistoricalView(data) {
 
     if (rowsHtml && rowsHtml.trim().length > 0) {
       recBody.innerHTML = safeHtml(rowsHtml);
-
-      const isGuest = !currentUser;
-      const recTab = el('tab-recruiter-agent');
-      if (isGuest && recTab) {
-        recTab.classList.add('blurred-container');
-        if (!recTab.querySelector('.unlock-overlay')) {
-          const overlay = document.createElement('div');
-          overlay.className = 'unlock-overlay';
-          overlay.innerHTML = safeHtml(`
-            <div class="unlock-card">
-              <div class="unlock-icon">${uiIcon('lock', { size: 28, stroke: 2 })}</div>
-              <div class="unlock-title">Unlock Recruiter Visibility</div>
-              <div class="unlock-text">See precisely what Workday and Taleo parsers extract into their databases.</div>
-              <div class="flex gap-4">
-                <button class="btn btn-primary" data-auth="signup">Sign Up to Unlock</button>
-              </div>
-            </div>
-          `);
-          recTab.appendChild(overlay);
-        }
-      }
     } else {
       recBody.innerHTML =
         safeHtml(`<tr><td colspan="3" style="text-align:center; padding:4rem; color:var(--text-muted)">
@@ -2780,6 +3027,7 @@ function setupAgentHistoricalView(data) {
     data.optimizedResumeText ||
     (data.optimizedBullets && data.optimizedBullets.length > 0)
   );
+  const renderMeta = data.renderMeta || {};
   const previewFrame = el('pdf-preview-frame');
 
   if (isAgentScan && scanId) {
@@ -2788,62 +3036,24 @@ function setupAgentHistoricalView(data) {
     if (viewOverlay) viewOverlay.style.display = 'flex';
     if (scanOverlay) scanOverlay.style.display = 'none';
   } else if (scanOverlay) {
-    // Basic Scan or Error — Show upgrade message in PDF tab
+    // Basic Scan or legacy record — explain why preview is unavailable
     scanOverlay.style.display = 'flex';
     scanOverlay.innerHTML = safeHtml(`
       <div style="display:flex;justify-content:center;margin-bottom:1.5rem">${uiIcon('spark', { size: 44, stroke: 1.8 })}</div>
-      <h3 class="headline">Unlock the export preview</h3>
-      <p class="body-sm text-muted" style="margin-top:1rem; max-width:320px; text-align:center">Your ATS diagnosis is complete. Create an account to preview the one-page export layout and refined bullet updates.</p>
-      <button class="btn btn-primary" style="margin-top:2rem" data-action="navigate" data-path="/pricing">View Pro Plans</button>
+      <h3 class="headline">${esc(
+        renderMeta.renderStatus === 'failed'
+          ? 'We could not build a reliable PDF preview'
+          : 'Preview unavailable for this saved scan'
+      )}</h3>
+      <p class="body-sm text-muted" style="margin-top:1rem; max-width:360px; text-align:center">${esc(
+        renderMeta.renderStatus === 'failed'
+          ? renderMeta.renderError ||
+              'The renderer could not produce a readable export for this older record. Run a fresh targeted scan to regenerate the preview.'
+          : 'This older record does not include the optimized resume text we now use for the export preview. Run a fresh scan with a target job link or JD to generate the new preview.'
+      )}</p>
+      <button class="btn btn-primary" style="margin-top:2rem" data-action="navigate" data-path="/scan">Run New Targeted Scan</button>
     `);
     if (viewOverlay) viewOverlay.style.display = 'none';
-  }
-
-  // ── 8b. Guest Content Protection Overlays ────────────────────────────
-  // For non-logged-in users, overlay Cover Letter and Optimized Resume
-  // tabs with a professional paywall to prevent free screenshot usage.
-  const isGuest = !currentUser;
-
-  if (isGuest) {
-    // Cover Letter tab — blur + paywall
-    const clTab = el('tab-cover-letter');
-    if (clTab && !clTab.querySelector('.unlock-overlay')) {
-      clTab.classList.add('blurred-container');
-      const clOverlay = document.createElement('div');
-      clOverlay.className = 'unlock-overlay';
-      clOverlay.innerHTML = safeHtml(`
-        <div class="unlock-card">
-          <div class="unlock-icon">${uiIcon('mail', { size: 28, stroke: 2 })}</div>
-          <div class="unlock-title">Your AI Cover Letter is Ready</div>
-          <div class="unlock-text">Sign up to preview your personalized cover letter. Export as PDF or DOCX costs 1 credit.</div>
-          <div style="display:flex; gap:0.75rem; margin-top:1rem;">
-            <button class="btn btn-primary" data-auth="signup">Create Free Account</button>
-            <button class="btn btn-ghost btn-sm" data-auth="login" style="color:var(--text-muted)">Log In</button>
-          </div>
-        </div>
-      `);
-      clTab.appendChild(clOverlay);
-    }
-
-    // Optimized Resume tab — blur + paywall
-    const pdfTab = el('tab-pdf-preview');
-    if (pdfTab && !pdfTab.querySelector('.unlock-overlay')) {
-      pdfTab.classList.add('blurred-container');
-      const pdfOverlay = document.createElement('div');
-      pdfOverlay.className = 'unlock-overlay';
-      pdfOverlay.innerHTML = safeHtml(`
-        <div class="unlock-card">
-          <div class="unlock-icon">${uiIcon('file', { size: 28, stroke: 2 })}</div>
-          <div class="unlock-title">ATS-Optimized Resume Ready</div>
-          <div class="unlock-text">Your resume has been rebuilt into an export-ready layout. Sign up to preview and export.</div>
-          <div style="display:flex; gap:0.75rem; margin-top:1rem;">
-            <button class="btn btn-primary" data-auth="signup">Create Free Account</button>
-            <button class="btn btn-ghost btn-sm" data-auth="login" style="color:var(--text-muted)">Log In</button>
-          </div>
-        </div>
-      `);
-      pdfTab.appendChild(pdfOverlay);
-    }
   }
 
   // 9. Restore tab from sessionStorage (or default to ATS Diagnosis)
@@ -3371,8 +3581,9 @@ function getDashboardRecommendation({ scans, jobs, resumes, creditBalance }) {
 }
 
 function getDashboardScanTitle(scan) {
-  let title = decodeHtml(scan.job_title || '');
-  const company = decodeHtml(scan.company_name || '');
+  const jobContext = getJobContext(scan);
+  let title = decodeHtml(jobContext.jobTitle || scan.job_title || '');
+  const company = decodeHtml(jobContext.companyName || scan.company_name || '');
 
   if (!title || title.toLowerCase() === 'no job description') {
     if (company) return `Role at ${company}`;

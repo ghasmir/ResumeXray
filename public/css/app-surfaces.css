@@ -126,6 +126,40 @@
   margin-bottom: var(--sp-3);
 }
 
+.results-context-strip {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin: calc(var(--sp-4) * -1) 0 var(--sp-4);
+}
+
+.results-context-card {
+  min-width: 148px;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+}
+
+.results-context-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.results-context-value {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
 .pane-header {
   display: flex;
   align-items: flex-end;
@@ -343,6 +377,10 @@ body.pdf-focus-mode {
   .profile-momentum-actions {
     justify-content: flex-start;
   }
+
+  .results-context-strip {
+    margin-top: calc(var(--sp-3) * -1);
+  }
 }
 
 @media (max-width: 768px) {
@@ -362,6 +400,11 @@ body.pdf-focus-mode {
 
   .pane-header .body-sm {
     max-width: none;
+  }
+
+  .results-context-card {
+    min-width: calc(50% - var(--sp-2));
+    flex: 1 1 calc(50% - var(--sp-2));
   }
 
   .pdf-toolbar-controls {

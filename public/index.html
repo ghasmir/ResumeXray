@@ -526,8 +526,8 @@
             See What ATS<br /><span class="gradient-text">Really Sees</span>
           </h1>
           <p class="hero-sub animate-fade-up" style="animation-delay: 0.05s">
-            ResumeXray uses <strong>Semantic Matching</strong> to show how hiring systems read your
-            experience, where important details disappear, and which fixes matter before you apply.
+            Upload your resume, paste a job link, and let ResumeXray fetch the role, detect the
+            hiring portal, and show which fixes matter before you apply.
           </p>
           <div class="hero-actions animate-fade-up" style="animation-delay: 0.1s">
             <button class="btn btn-primary btn-lg" data-action="navigate" data-path="/scan">
@@ -578,8 +578,8 @@
               </div>
               <h3>Upload Resume</h3>
               <p>
-                PDF or DOCX. We extract every character and simulate how 3 different ATS parsers
-                read your file.
+                PDF or DOCX. We extract every character and keep the source resume intact so the
+                export can be rebuilt cleanly.
               </p>
             </div>
             <div class="step-card animate-fade-up" style="animation-delay: 0.1s">
@@ -590,10 +590,10 @@
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
               </div>
-              <h3>See What Breaks</h3>
+              <h3>Fetch the Target Job</h3>
               <p>
-                We show you a recruiter's actual database view — which fields parsed correctly,
-                which are blank, and why.
+                Add the job link and we fetch the role, company, and portal context when the site
+                allows it. If it blocks us, we clearly fall back to pasted JD text.
               </p>
             </div>
             <div class="step-card animate-fade-up" style="animation-delay: 0.2s">
@@ -604,10 +604,10 @@
                   <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
                 </svg>
               </div>
-              <h3>AI Fixes It Live</h3>
+              <h3>Preview Before You Export</h3>
               <p>
-                Our AI agent rewrites weak bullet points using the CAR formula (Challenge → Action →
-                Result) with real metrics.
+                We rebuild the resume and cover letter for the detected portal, then show the
+                preview before any export credit is required.
               </p>
             </div>
           </div>
@@ -1523,14 +1523,15 @@
                   Target Job
                 </div>
                 <div class="job-details-hint" id="job-details-hint">
-                  Upload your resume first to unlock targeted job matching and company detection.
+                  Upload once. Then add a job link so we can fetch the role, detect the hiring
+                  portal, and optimize for the right ATS flow automatically.
                 </div>
 
                 <!-- URL Input with company detection -->
                 <div class="form-group" style="margin-bottom: var(--sp-3)">
                   <label class="form-label" for="job-url-input">
                     Job URL
-                    <span class="form-label-optional">auto-detects company</span>
+                    <span class="form-label-optional">fetches company, role, and portal</span>
                   </label>
                   <div class="job-url-wrapper">
                     <div class="job-url-icon" aria-hidden="true">
@@ -1567,19 +1568,20 @@
                     <span id="company-name-preview" class="company-name-preview"></span>
                     <span class="company-preview-tick">✓ Company detected</span>
                   </div>
+                  <div id="job-link-status" class="job-link-status" style="display: none"></div>
                 </div>
 
                 <!-- JD Textarea -->
                 <div class="form-group">
                   <label class="form-label" for="job-input">
                     Job Description
-                    <span class="form-label-optional">or paste text</span>
+                    <span class="form-label-optional">paste only if the portal blocks auto-fetch</span>
                   </label>
                   <textarea
                     id="job-input"
                     class="jd-textarea"
                     rows="4"
-                    placeholder="Paste the full job description for deep keyword matching..."
+                    placeholder="Paste the job description only if the link is blocked or you want to add missing details..."
                   ></textarea>
                 </div>
               </div>
@@ -1591,21 +1593,21 @@
                 class="btn btn-primary btn-lg scan-submit-btn"
                 id="scan-submit-btn"
                 disabled
-              >
-                <svg
-                  width="17"
+                >
+                  <svg
+                    width="17"
                   height="17"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="2.5"
                   aria-hidden="true"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                Analyze Resume
-              </button>
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  Build ATS-Ready Resume
+                </button>
               <span class="body-xs" style="color: var(--text-faint)">Free · No login required</span>
             </div>
 
@@ -1618,13 +1620,22 @@
 
           <div id="scan-loading" class="loading-state" style="display: none">
             <div class="loader"></div>
-            <p class="body-md" style="margin-top: var(--sp-6); font-weight: 600">
-              Running ATS simulation...
+            <p
+              id="scan-loading-title"
+              class="body-md"
+              style="margin-top: var(--sp-6); font-weight: 600"
+            >
+              Building your ATS-targeted workspace...
             </p>
-            <p class="body-sm" style="margin-top: var(--sp-2); max-width: 360px">
-              Simulating multiple parser engines, analyzing keywords, and checking formatting. This
-              usually takes under a minute.
+            <p
+              id="scan-loading-subtitle"
+              class="body-sm"
+              style="margin-top: var(--sp-2); max-width: 420px"
+            >
+              We fetch the job when possible, detect the hiring portal, and build a preview before
+              any export credit is required.
             </p>
+            <div id="scan-loading-context" class="scan-loading-context" style="display: none"></div>
             <div style="margin-top: var(--sp-8); width: 100%; max-width: 320px">
               <div class="skeleton skeleton-title" style="margin: 0 auto"></div>
               <div class="skeleton skeleton-text" style="width: 90%"></div>
@@ -1709,6 +1720,7 @@
                 </span>
               </div>
             </div>
+            <div id="results-context-strip" class="results-context-strip" style="display: none"></div>
             <!-- Tab Navigation -->
             <div
               class="results-tab-nav"
@@ -2094,7 +2106,7 @@
             <div class="results-tab-pane" id="tab-pdf-preview">
               <div class="pane-header" id="optimized-resume-header">
                 <p class="body-sm text-muted" style="margin-bottom: var(--sp-4)">
-                  Review the export version before you spend a credit.
+                  Review the portal-ready export before you spend a credit.
                 </p>
               </div>
               <!-- Shown during scan -->
@@ -2237,11 +2249,12 @@
       <section id="view-pricing" class="view">
         <div class="container text-center">
           <h1 class="headline animate-fade-up">
-            Choose credits only when you're ready to export.
+            Preview the portal-ready version before you spend a credit.
           </h1>
           <p class="body-md animate-fade-up" style="max-width: 640px; margin: 0 auto 1rem">
-            ATS scans, recruiter-view diagnostics, and AI rewrites stay <strong>free</strong>.
-            Credits are only used when you download an ATS-ready resume or cover letter.
+            ATS scans, recruiter-view diagnostics, job-link fetching, and AI rewrites stay
+            <strong>free</strong>. Credits are only used when you download the final resume or
+            cover letter.
           </p>
           <p class="body-sm animate-fade-up" style="opacity: 0.82; margin-bottom: 1.25rem">
             No subscription, no auto-renewal, and no card required to try the product first.

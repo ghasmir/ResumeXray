@@ -441,9 +441,9 @@ async function saveScan(userId, data) {
   const accessToken = userId ? null : uuidv4();
   const result = await pool.query(
     `INSERT INTO scans (user_id, resume_id, job_description, job_url, job_title, company_name,
-     parse_rate, format_health, match_rate, xray_data, format_issues, keyword_data, section_data,
-     recommendations, ai_suggestions, access_token)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+     ats_platform, job_context, parse_rate, format_health, match_rate, xray_data, format_issues,
+     keyword_data, section_data, recommendations, ai_suggestions, access_token, render_meta)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id`,
     [
       userId,
       data.resumeId || null,
@@ -451,6 +451,8 @@ async function saveScan(userId, data) {
       data.jobUrl || null,
       data.jobTitle || null,
       data.companyName || null,
+      data.atsPlatform || null,
+      JSON.stringify(data.jobContext || {}),
       data.parseRate || 0,
       data.formatHealth || 0,
       data.matchRate || null,
@@ -461,6 +463,7 @@ async function saveScan(userId, data) {
       JSON.stringify(data.recommendations || []),
       JSON.stringify(data.aiSuggestions || {}),
       accessToken,
+      JSON.stringify(data.renderMeta || {}),
     ]
   );
   return { scanId: result.rows[0].id, accessToken };
@@ -473,6 +476,8 @@ async function updateScan(scanId, data) {
     'job_url',
     'job_title',
     'company_name',
+    'ats_platform',
+    'job_context',
     'parse_rate',
     'format_health',
     'match_rate',
@@ -486,6 +491,7 @@ async function updateScan(scanId, data) {
     'keyword_plan',
     'optimized_resume_text',
     'cover_letter_text',
+    'render_meta',
   ];
   const fields = [];
   const values = [];
@@ -525,16 +531,18 @@ async function getScan(id, userId, accessToken = null) {
 
 async function updateScanWithOptimizations(
   scanId,
-  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform = null }
+  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform = null, jobContext = null, renderMeta = null }
 ) {
   await pool.query(
-    'UPDATE scans SET optimized_bullets = $1, keyword_plan = $2, optimized_resume_text = $3, cover_letter_text = $4, ats_platform = $5 WHERE id = $6',
+    'UPDATE scans SET optimized_bullets = $1, keyword_plan = $2, optimized_resume_text = $3, cover_letter_text = $4, ats_platform = $5, job_context = COALESCE($6, job_context), render_meta = COALESCE($7, render_meta) WHERE id = $8',
     [
       JSON.stringify(optimizedBullets || []),
       JSON.stringify(keywordPlan || []),
       optimizedResumeText || null,
       coverLetterText || null,
       atsPlatform,
+      jobContext ? JSON.stringify(jobContext) : null,
+      renderMeta ? JSON.stringify(renderMeta) : null,
       scanId,
     ]
   );
@@ -564,6 +572,8 @@ async function getFullScan(scanId, userId = null, accessToken = null) {
     'ai_suggestions',
     'optimized_bullets',
     'keyword_plan',
+    'job_context',
+    'render_meta',
   ];
   for (const col of jsonCols) {
     if (scan[col] && typeof scan[col] === 'string') {
@@ -704,8 +714,8 @@ async function deleteUserAccount(userId) {
 async function createScanSession(sessionId, data) {
   await pool.query(
     `
-    INSERT INTO scan_sessions (id, user_id, resume_text, resume_file_path, resume_mimetype, file_name, jd_text, job_url, job_title, company_name, credit_balance)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    INSERT INTO scan_sessions (id, user_id, resume_text, resume_file_path, resume_mimetype, file_name, jd_text, job_url, job_title, company_name, job_context, credit_balance)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
   `,
     [
       sessionId,
@@ -718,6 +728,7 @@ async function createScanSession(sessionId, data) {
       data.jobUrl || '',
       data.jobTitle || '',
       data.companyName || '',
+      JSON.stringify(data.jobContext || {}),
       data.creditBalance || 0,
     ]
   );

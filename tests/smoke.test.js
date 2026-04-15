@@ -8,13 +8,29 @@
  *   node --test tests/smoke.test.js
  *   npm test
  *
- * Requires the server to be running on PORT (default 3000).
+ * Boots a local server automatically unless TEST_URL is provided.
  */
 
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('path');
+const { spawn } = require('child_process');
 
-const BASE = process.env.TEST_URL || 'http://localhost:3000';
+let BASE = process.env.TEST_URL || '';
+let serverProcess = null;
+
+async function waitForServer(url, attempts = 50) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(`${url}/healthz`);
+      if (res.ok) return;
+    } catch {
+      /* retry */
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  throw new Error(`Server did not start at ${url}`);
+}
 
 async function get(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
@@ -23,6 +39,54 @@ async function get(path, options = {}) {
   });
   return res;
 }
+
+before(async () => {
+  if (BASE) return;
+
+  const port = 3300 + Math.floor(Math.random() * 200);
+  BASE = `http://127.0.0.1:${port}`;
+
+  serverProcess = spawn(process.execPath, ['server.js'], {
+    cwd: path.join(__dirname, '..'),
+    env: {
+      ...process.env,
+      PORT: String(port),
+      NODE_ENV: 'test',
+    },
+    stdio: 'ignore',
+  });
+  serverProcess.unref();
+
+  try {
+    await waitForServer(BASE);
+  } catch (error) {
+    if (serverProcess) serverProcess.kill('SIGTERM');
+    throw new Error(error.message);
+  }
+});
+
+after(async () => {
+  if (!serverProcess) return;
+  await new Promise(resolve => {
+    let resolved = false;
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      resolve();
+    };
+
+    serverProcess.once('exit', () => finish());
+    serverProcess.kill('SIGTERM');
+    setTimeout(() => {
+      try {
+        serverProcess.kill('SIGKILL');
+      } catch {
+        /* process already gone */
+      }
+      finish();
+    }, 600);
+  });
+});
 
 // ── Health Checks ──────────────────────────────────────────────────────────────
 
@@ -93,10 +157,10 @@ describe('API Error Handling', () => {
 // ── Auth Gates ─────────────────────────────────────────────────────────────────
 
 describe('Auth Gates', () => {
-  it('GET /me returns 200 (SPA serves index.html, auth checked client-side)', async () => {
-    const res = await get('/me');
+  it('GET /profile returns 200 (SPA serves index.html, auth checked client-side)', async () => {
+    const res = await get('/profile');
     assert.equal(res.status, 200);
-    // The actual auth gate is /user/dashboard which returns 401
+    // The actual authenticated data gate is /user/dashboard which returns 401
   });
 
   it('GET /user/dashboard returns 401 without session', async () => {

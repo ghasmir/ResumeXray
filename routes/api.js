@@ -5,7 +5,8 @@ const { apiLimiter, sanitizeInput } = require('../config/security');
 const { checkScanLimit } = require('../middleware/usage');
 const { analyzeResume } = require('../lib/analyzer');
 const parser = require('../lib/parser');
-const { processJobDescription } = require('../lib/jd-processor');
+const { normalizeJobContext, processJobDescription } = require('../lib/jd-processor');
+const { resolveRenderMeta, resolveScanJobContext } = require('../lib/render-service');
 const { validateResumeContent } = require('../lib/resume-validator');
 const db = require('../db/database');
 const log = require('../lib/logger');
@@ -43,19 +44,33 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
     let jobTitle = sanitizeInput(req.body.jobTitle || '');
     let companyName = sanitizeInput(req.body.companyName || '');
     let jobUrl = sanitizeInput(req.body.jobUrl || '');
-    let jdScrapeFailed = false;
+    let jobContext = normalizeJobContext({
+      jobUrl,
+      jobTitle,
+      companyName,
+      jdText: '',
+      jdSource: 'none',
+      scrapeStatus: jobUrl ? 'pending' : 'not_requested',
+    });
 
     const jdInput = sanitizeInput(req.body.jobDescription || '') || jobUrl || '';
     if (jdInput.trim()) {
-      try {
-        const jdResult = await processJobDescription(jdInput, jobTitle, jobUrl);
-        jdText = jdResult.jdText;
-        jobUrl = jdResult.jobUrl || jobUrl;
-        jobTitle = jdResult.jobTitle || jobTitle;
-      } catch (err) {
-        log.warn('JD extraction failed', { error: err.message });
-        jdScrapeFailed = true;
-      }
+      const jdResult = await processJobDescription(jdInput, jobTitle, jobUrl);
+      jdText = jdResult.jdText;
+      jobContext = jdResult.jobContext;
+      jobUrl = jobContext.jobUrl || jobUrl;
+      jobTitle = jobContext.jobTitle || jobTitle;
+      companyName = jobContext.companyName || companyName;
+    }
+
+    if (jobContext.jobUrl && !jobContext.jdText && ['blocked', 'failed'].includes(jobContext.scrapeStatus)) {
+      return res.status(400).json({
+        error:
+          jobContext.scrapeError ||
+          'We could not fetch that job listing automatically. Paste the job description text to continue.',
+        needsJobDescription: true,
+        jobContext,
+      });
     }
 
     const analysis = await analyzeResume(rawText, jdText);
@@ -79,6 +94,8 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
       jobUrl,
       jobTitle,
       companyName,
+      atsPlatform: jobContext.atsPlatform,
+      jobContext,
       parseRate: analysis.parseRate,
       formatHealth: analysis.formatHealth,
       matchRate: analysis.matchRate,
@@ -90,7 +107,16 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
       aiSuggestions: {
         biasShield: analysis.biasShield,
         aiShieldData: analysis.aiShieldData
-      }
+      },
+      renderMeta: {
+        renderStatus: 'pending',
+        renderAttempts: [],
+        renderTemplate: jobContext.templateProfile?.template || '',
+        renderDensity: jobContext.templateProfile?.defaultDensity || '',
+        renderError: '',
+        previewReady: false,
+        resumeTextSource: '',
+      },
     });
 
     const scanId = scanResult.scanId;
@@ -111,8 +137,12 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
       scanId,
       accessToken: accessToken || undefined,  // Only present for guest scans
       results: analysis,
+      jobContext,
       creditBalance,
-      warning: jdScrapeFailed ? 'Could not scrape the job URL — analysis was run without a job description.' : undefined
+      warning:
+        jobContext.jdSource === 'pasted_fallback' && jobContext.scrapeError
+          ? jobContext.scrapeError
+          : undefined,
     });
 
   } catch (err) {
@@ -141,6 +171,12 @@ router.get('/scan/:id', async (req, res) => {
 
     const analysis = {
       id: scan.id,
+      jobTitle: scan.job_title || null,
+      companyName: scan.company_name || null,
+      jobUrl: scan.job_url || null,
+      atsPlatform: scan.ats_platform || null,
+      jobContext: resolveScanJobContext(scan),
+      renderMeta: resolveRenderMeta(scan),
       parseRate: scan.parse_rate,
       formatHealth: scan.format_health,
       matchRate: scan.match_rate,

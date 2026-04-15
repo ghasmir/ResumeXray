@@ -130,6 +130,10 @@ function runMigrations(database) {
   // Add ats_platform column to scans
   migrate('v2_ats_platform', 'ALTER TABLE scans ADD COLUMN ats_platform TEXT');
 
+  // Persist normalized job and render contracts for results/preview/export reuse
+  migrate('v3_job_context', 'ALTER TABLE scans ADD COLUMN job_context TEXT');
+  migrate('v3_render_meta', 'ALTER TABLE scans ADD COLUMN render_meta TEXT');
+
   // Add email_hash column for PII-encrypted email lookup
   migrate('v2_email_hash', 'ALTER TABLE users ADD COLUMN email_hash TEXT UNIQUE');
 
@@ -226,12 +230,17 @@ function runMigrations(database) {
       job_url TEXT DEFAULT '',
       job_title TEXT DEFAULT '',
       company_name TEXT DEFAULT '',
+      job_context TEXT DEFAULT '{}',
       credit_balance INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
   database.exec(
     'CREATE INDEX IF NOT EXISTS idx_scan_sessions_created ON scan_sessions(created_at)'
+  );
+  migrate(
+    'v3_scan_sessions_job_context',
+    "ALTER TABLE scan_sessions ADD COLUMN job_context TEXT DEFAULT '{}'"
   );
 
   // ── Phase 6 §8.2: Stripe Events Idempotency Table ──────────────────────────
@@ -658,8 +667,9 @@ function saveScan(userId, data) {
   const result = getDb()
     .prepare(
       `INSERT INTO scans (user_id, resume_id, job_description, job_url, job_title, company_name,
-     parse_rate, format_health, match_rate, xray_data, format_issues, keyword_data, section_data, recommendations, ai_suggestions, access_token)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     ats_platform, job_context, parse_rate, format_health, match_rate, xray_data, format_issues,
+     keyword_data, section_data, recommendations, ai_suggestions, access_token, render_meta)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       userId,
@@ -668,6 +678,8 @@ function saveScan(userId, data) {
       data.jobUrl || null,
       data.jobTitle || null,
       data.companyName || null,
+      data.atsPlatform || null,
+      JSON.stringify(data.jobContext || {}),
       data.parseRate || 0,
       data.formatHealth || 0,
       data.matchRate || null,
@@ -677,7 +689,8 @@ function saveScan(userId, data) {
       JSON.stringify(data.sectionData || {}),
       JSON.stringify(data.recommendations || []),
       JSON.stringify(data.aiSuggestions || {}),
-      accessToken
+      accessToken,
+      JSON.stringify(data.renderMeta || {})
     );
 
   const scanId = result.lastInsertRowid;
@@ -691,6 +704,8 @@ function updateScan(scanId, data) {
     'job_url',
     'job_title',
     'company_name',
+    'ats_platform',
+    'job_context',
     'parse_rate',
     'format_health',
     'match_rate',
@@ -704,6 +719,7 @@ function updateScan(scanId, data) {
     'keyword_plan',
     'optimized_resume_text',
     'cover_letter_text',
+    'render_meta',
   ];
   const fields = [];
   const values = [];
@@ -753,13 +769,13 @@ function getScan(id, userId, accessToken = null) {
 
 function updateScanWithOptimizations(
   scanId,
-  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform }
+  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform, jobContext, renderMeta }
 ) {
   // H-9 Fix: atsPlatform is now persisted so the frontend can show
   // "Optimised for Greenhouse / Workday / etc."
   getDb()
     .prepare(
-      `UPDATE scans SET optimized_bullets = ?, keyword_plan = ?, optimized_resume_text = ?, cover_letter_text = ?, ats_platform = ? WHERE id = ?`
+      `UPDATE scans SET optimized_bullets = ?, keyword_plan = ?, optimized_resume_text = ?, cover_letter_text = ?, ats_platform = ?, job_context = COALESCE(?, job_context), render_meta = COALESCE(?, render_meta) WHERE id = ?`
     )
     .run(
       JSON.stringify(optimizedBullets || []),
@@ -767,6 +783,8 @@ function updateScanWithOptimizations(
       optimizedResumeText || null,
       coverLetterText || null,
       atsPlatform || null,
+      jobContext ? JSON.stringify(jobContext) : null,
+      renderMeta ? JSON.stringify(renderMeta) : null,
       scanId
     );
 }
@@ -793,6 +811,8 @@ function getFullScan(scanId, userId = null, accessToken = null) {
     'ai_suggestions',
     'optimized_bullets',
     'keyword_plan',
+    'job_context',
+    'render_meta',
   ];
   for (const col of jsonCols) {
     if (scan[col]) {
@@ -949,8 +969,8 @@ function createScanSession(sessionId, data) {
   const d = getDb();
   d.prepare(
     `
-    INSERT INTO scan_sessions (id, user_id, resume_text, resume_file_path, resume_mimetype, file_name, jd_text, job_url, job_title, company_name, credit_balance)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO scan_sessions (id, user_id, resume_text, resume_file_path, resume_mimetype, file_name, jd_text, job_url, job_title, company_name, job_context, credit_balance)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
   ).run(
     sessionId,
@@ -963,6 +983,7 @@ function createScanSession(sessionId, data) {
     data.jobUrl || '',
     data.jobTitle || '',
     data.companyName || '',
+    JSON.stringify(data.jobContext || {}),
     data.creditBalance || 0
   );
   return sessionId;

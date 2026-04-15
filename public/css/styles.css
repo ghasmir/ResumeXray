@@ -7040,6 +7040,86 @@ a svg {
   margin-left: auto;
 }
 
+.job-link-status {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.025);
+  animation: fade-slide-in 0.2s var(--ease-out);
+}
+
+.job-link-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.job-link-status-title {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.job-link-status-note {
+  margin-top: var(--sp-2);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.job-link-status-pills,
+.scan-loading-context {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.job-link-pill,
+.scan-loading-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.job-link-pill.is-success,
+.scan-loading-pill.is-success {
+  color: var(--green);
+  border-color: rgba(34, 197, 94, 0.24);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.job-link-pill.is-warning,
+.scan-loading-pill.is-warning {
+  color: var(--amber);
+  border-color: rgba(245, 158, 11, 0.24);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.job-link-pill.is-info,
+.scan-loading-pill.is-info {
+  color: var(--accent);
+  border-color: rgba(56, 189, 248, 0.24);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.scan-loading-context {
+  max-width: 520px;
+  margin-top: var(--sp-5);
+}
+
 /* ── Scan form footer ──────────────────────────────────────── */
 .scan-form-footer {
   display: flex;

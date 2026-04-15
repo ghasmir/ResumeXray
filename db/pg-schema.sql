@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS scans (
   job_title TEXT,
   company_name TEXT,
   ats_platform TEXT,                       -- Detected ATS: workday, greenhouse, lever, icims, etc.
+  job_context TEXT,
   parse_rate DOUBLE PRECISION,
   format_health DOUBLE PRECISION,
   match_rate DOUBLE PRECISION,
@@ -88,6 +89,7 @@ CREATE TABLE IF NOT EXISTS scans (
   keyword_plan TEXT,
   optimized_resume_text TEXT,
   cover_letter_text TEXT,
+  render_meta TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -144,6 +146,7 @@ CREATE TABLE IF NOT EXISTS scan_sessions (
   job_url TEXT DEFAULT '',
   job_title TEXT DEFAULT '',
   company_name TEXT DEFAULT '',
+  job_context TEXT DEFAULT '{}',
   credit_balance INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -211,6 +214,18 @@ EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
 DO $$ BEGIN
   ALTER TABLE scans ADD COLUMN IF NOT EXISTS ats_platform TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE scans ADD COLUMN IF NOT EXISTS job_context TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE scans ADD COLUMN IF NOT EXISTS render_meta TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE scan_sessions ADD COLUMN IF NOT EXISTS job_context TEXT DEFAULT '{}';
 EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
 -- Ensure credit_balance defaults to 0 (email users get 0 until verified; OAuth gets 1 on creation)

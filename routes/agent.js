@@ -19,16 +19,23 @@ const { upload, validateMagicBytes } = require('../middleware/upload');
 const { agentLimiter, downloadLimiter, sanitizeInput } = require('../config/security');
 const { checkExportCredit } = require('../middleware/usage');
 const parser = require('../lib/parser');
-const { processJobDescription } = require('../lib/jd-processor');
+const {
+  hydrateAtsProfile,
+  normalizeJobContext,
+  processJobDescription,
+} = require('../lib/jd-processor');
 const { validateResumeContent } = require('../lib/resume-validator');
 const { runAgentPipeline } = require('../lib/agent-pipeline');
 const {
   generateDOCX,
-  generatePDF,
-  validatePDF,
   renderHtmlToPdf,
 } = require('../lib/resume-builder');
 const { parseCoverLetter } = require('../lib/cover-letter-parser');
+const {
+  renderResumePdf,
+  resolveResumeText,
+  resolveScanJobContext,
+} = require('../lib/render-service');
 const { renderTemplate } = require('../lib/template-renderer');
 const db = require('../db/database');
 const log = require('../lib/logger');
@@ -36,14 +43,38 @@ const log = require('../lib/logger');
 // §9.5: Track active SSE connections per user for concurrent stream limiting
 const activeStreams = new Map(); // userId|ip → Set<res>
 
-// In-process ATS profile cache: sessionId → atsProfile
-// Lives only between POST /start and GET /stream (seconds). Auto-expires after 15min.
-const atsProfileCache = new Map();
-
 // Helper: parse and validate scanId from URL params
 function parseScanId(raw) {
   const id = parseInt(raw, 10);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function readJobContext(rawJobContext, fallback = {}) {
+  if (!rawJobContext) return normalizeJobContext(fallback);
+  if (typeof rawJobContext === 'object') return normalizeJobContext(rawJobContext);
+  try {
+    return normalizeJobContext(JSON.parse(rawJobContext));
+  } catch {
+    return normalizeJobContext(fallback);
+  }
+}
+
+function buildSessionJobContext(dbSession) {
+  return readJobContext(dbSession.job_context, {
+    jobUrl: dbSession.job_url,
+    jobTitle: dbSession.job_title,
+    companyName: dbSession.company_name,
+    jdText: dbSession.jd_text,
+    atsPlatform: dbSession.ats_platform || '',
+  });
+}
+
+function jobContextNeedsManualPaste(jobContext) {
+  return (
+    !!jobContext.jobUrl &&
+    !jobContext.jdText &&
+    ['blocked', 'failed'].includes(jobContext.scrapeStatus)
+  );
 }
 
 // ── Session + Upload Storage (Phase 3: DB Sessions + Disk Uploads) ────────────
@@ -81,6 +112,34 @@ setInterval(
 
 // ── POST /agent/start — Upload + parse, return sessionId ──────────────────────
 
+router.get('/job-context', agentLimiter, async (req, res) => {
+  try {
+    const jobUrl = sanitizeInput(String(req.query.jobUrl || ''));
+    const jobDescription = sanitizeInput(String(req.query.jobDescription || ''));
+
+    if (!jobUrl && !jobDescription) {
+      return res.status(400).json({ error: 'Job URL or pasted JD is required.' });
+    }
+
+    if (jobUrl && jobUrl.length > 2048) {
+      return res.status(400).json({ error: 'Job URL is too long (max 2048 characters).' });
+    }
+
+    const jdResult = await processJobDescription(jobDescription || jobUrl, '', jobUrl);
+    const jobContext = jdResult.jobContext;
+
+    return res.json({
+      success: true,
+      jobContext,
+      needsJobDescription: jobContextNeedsManualPaste(jobContext),
+      canProceed: !!jobContext.jdText || !jobContext.jobUrl,
+    });
+  } catch (err) {
+    log.warn('Job context preflight failed', { error: err.message });
+    return res.status(400).json({ error: err.message || 'Unable to inspect that job link.' });
+  }
+});
+
 router.post('/start', agentLimiter, upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) {
@@ -114,7 +173,15 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     let jdText = '';
     let jobUrl = req.body.jobUrl || '';
     let jobTitle = '';
-    let atsProfileTemp = null; // Populated if JD provided
+    let companyName = sanitizeInput(req.body.companyName || '');
+    let jobContext = normalizeJobContext({
+      jobUrl,
+      jobTitle,
+      companyName,
+      jdText: '',
+      jdSource: 'none',
+      scrapeStatus: jobUrl ? 'pending' : 'not_requested',
+    });
     const jdInput = req.body.jobDescription || jobUrl || '';
 
     if (jobUrl && jobUrl.length > 2048) {
@@ -127,15 +194,22 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     }
 
     if (jdInput.trim()) {
-      try {
-        const jdResult = await processJobDescription(jdInput, '', jobUrl);
-        jdText = jdResult.jdText;
-        jobUrl = jdResult.jobUrl || jobUrl;
-        jobTitle = jdResult.jobTitle || '';
-        atsProfileTemp = jdResult.atsProfile;
-      } catch (err) {
-        return res.status(400).json({ error: err.message });
-      }
+      const jdResult = await processJobDescription(jdInput, '', jobUrl);
+      jdText = jdResult.jdText;
+      jobUrl = jdResult.jobUrl || jobUrl;
+      jobTitle = jdResult.jobTitle || '';
+      companyName = jdResult.companyName || companyName;
+      jobContext = jdResult.jobContext;
+    }
+
+    if (jobContextNeedsManualPaste(jobContext)) {
+      return res.status(400).json({
+        error:
+          jobContext.scrapeError ||
+          'We could not fetch that job listing automatically. Paste the job description text to continue.',
+        needsJobDescription: true,
+        jobContext,
+      });
     }
 
     // Guest scan limit (2 free scans per IP per day)
@@ -156,13 +230,6 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
 
     const sessionId = uuidv4();
 
-    // Cache atsProfile keyed by sessionId (in-process Map, lives seconds until /stream reads it)
-    if (atsProfileTemp) {
-      atsProfileCache.set(sessionId, atsProfileTemp);
-      // Auto-expire after 15 minutes so the Map never leaks memory
-      setTimeout(() => atsProfileCache.delete(sessionId), 15 * 60 * 1000);
-    }
-
     // Phase 3 #12: Write buffer to disk instead of keeping in memory
     // Sanitize filename to prevent path traversal
     const safeName = req.file.originalname.replace(/[^a-z0-9._-]/gi, '_').substring(0, 100);
@@ -176,9 +243,10 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
       resumeMimetype: req.file.mimetype,
       fileName: req.file.originalname,
       jdText: sanitizeInput(jdText),
-      jobUrl: sanitizeInput(jobUrl),
-      jobTitle: sanitizeInput(jobTitle),
-      companyName: sanitizeInput(req.body.companyName || ''),
+      jobUrl: jobContext.jobUrl || sanitizeInput(jobUrl),
+      jobTitle: jobContext.jobTitle || sanitizeInput(jobTitle),
+      companyName: jobContext.companyName || companyName,
+      jobContext,
       userId: req.user ? req.user.id : null,
       creditBalance,
     });
@@ -192,7 +260,7 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
       req.session.guestSessionIds.push(sessionId);
     }
 
-    res.json({ success: true, sessionId, creditBalance });
+    res.json({ success: true, sessionId, creditBalance, jobContext });
   } catch (err) {
     log.error('Agent start error', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Failed to start analysis.' });
@@ -230,22 +298,25 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
   }
 
   // Map DB column names → camelCase for pipeline compatibility
-  // Also read atsProfile from the in-process cache (stored during /start)
+  const jobContext = buildSessionJobContext(dbSession);
   const session = {
     resumeText: dbSession.resume_text,
     resumeFilePath: dbSession.resume_file_path,
     resumeMimetype: dbSession.resume_mimetype,
     fileName: dbSession.file_name,
-    jdText: dbSession.jd_text,
-    jobUrl: dbSession.job_url,
-    jobTitle: dbSession.job_title,
-    companyName: dbSession.company_name,
+    jdText: jobContext.jdText || dbSession.jd_text,
+    jobUrl: jobContext.jobUrl || dbSession.job_url,
+    jobTitle: jobContext.jobTitle || dbSession.job_title,
+    companyName: jobContext.companyName || dbSession.company_name,
+    jobContext,
     userId: dbSession.user_id,
     creditBalance: dbSession.credit_balance,
-    atsProfile: atsProfileCache.get(req.params.sessionId) || null,
+    atsProfile: hydrateAtsProfile({
+      name: jobContext.atsPlatform,
+      displayName: jobContext.atsDisplayName,
+      templateProfile: jobContext.templateProfile,
+    }),
   };
-  // Clean up cache entry now that stream has consumed it
-  atsProfileCache.delete(req.params.sessionId);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -331,6 +402,12 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
     async emitInit(scanId) {
       await sseWrite('init', { scanId });
     },
+    async emitJobContext(jobContextValue) {
+      await sseWrite('jobContext', jobContextValue);
+    },
+    async emitRenderProfile(renderProfile) {
+      await sseWrite('renderProfile', renderProfile);
+    },
     async emitComplete(scanId) {
       const creditBalance = session.userId ? await db.getCreditBalance(session.userId) : 0;
       const canDownloadClean = creditBalance >= 1;
@@ -342,6 +419,8 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
         isWatermarked: !canDownloadClean,
         resumeText: session.resumeText,
         hasCoverLetter: true,
+        previewReady: true,
+        jobContext: session.jobContext,
         accessToken: accessToken || null, // For guest scan preview URLs (IDOR protection)
       });
     },
@@ -403,6 +482,8 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
     jobUrl: session.jobUrl,
     jobTitle: session.jobTitle,
     companyName: session.companyName,
+    atsPlatform: session.jobContext.atsPlatform,
+    jobContext: session.jobContext,
     parseRate: 0,
     formatHealth: 0,
     matchRate: 0,
@@ -412,6 +493,15 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
     sectionData: {},
     recommendations: [],
     aiSuggestions: null,
+    renderMeta: {
+      renderStatus: 'pending',
+      renderAttempts: [],
+      renderTemplate: session.jobContext.templateProfile?.template || '',
+      renderDensity: session.jobContext.templateProfile?.defaultDensity || '',
+      renderError: '',
+      previewReady: false,
+      resumeTextSource: '',
+    },
   });
 
   const scanId = scanResult.scanId;
@@ -435,13 +525,22 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
   log.info('Scan created', { scanId, userId: session.userId });
 
   // Let the frontend know our persistent ID
-  emitter.emitInit(scanId);
+  await emitter.emitInit(scanId);
+  await emitter.emitJobContext(session.jobContext);
+  await emitter.emitRenderProfile({
+    template: session.jobContext.templateProfile?.template || 'modern',
+    density: session.jobContext.templateProfile?.defaultDensity || 'standard',
+    atsPlatform: session.jobContext.atsPlatform,
+    atsDisplayName: session.jobContext.atsDisplayName,
+    previewStatus: 'pending',
+  });
 
   try {
     const results = await runAgentPipeline(session.resumeText, session.jdText, emitter, {
       maxBulletRewrites,
       limitKeywords: 5,
       atsProfile: session.atsProfile,
+      jobContext: session.jobContext,
     });
 
     if (aborted) return;
@@ -452,6 +551,12 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
     }
 
     await db.updateScan(scanId, {
+      jobDescription: session.jdText,
+      jobUrl: session.jobUrl,
+      jobTitle: session.jobTitle,
+      companyName: session.companyName,
+      atsPlatform: session.jobContext.atsPlatform,
+      jobContext: session.jobContext,
       parseRate: results.parseRate,
       formatHealth: results.formatHealth,
       matchRate: results.matchRate,
@@ -472,6 +577,7 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
       optimizedResumeText: results.optimizedResumeText,
       coverLetterText: results.coverLetter || null,
       atsPlatform: results.atsProfile?.name || null,
+      jobContext: session.jobContext,
     });
 
     // v3: No credit deduction for AI rewrites — they're free (sandbox mode)
@@ -541,21 +647,10 @@ router.get('/preview/:scanId', async (req, res) => {
       }
     }
 
-    const resumeText = scan.optimized_resume_text || '';
-    const sectionData = scan.section_data || {};
-    const optimizedBullets = scan.optimized_bullets || [];
-    const keywordPlan = scan.keyword_plan || [];
-
-    const density = req.query.density || 'standard';
-    const VALID_TEMPLATES = ['modern', 'classic', 'minimal'];
-    const template = VALID_TEMPLATES.includes(req.query.template) ? req.query.template : 'modern';
-
-    // Always enforce watermark for the free preview
-    const buffer = await generatePDF(resumeText, sectionData, optimizedBullets, keywordPlan, {
-      watermark: true,
-      density,
-      template,
-      jobUrl: scan.job_url || '',
+    const { buffer, renderMeta } = await renderResumePdf(scan, { watermark: true });
+    await db.updateScan(scanId, {
+      jobContext: resolveScanJobContext(scan),
+      renderMeta,
     });
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -563,6 +658,15 @@ router.get('/preview/:scanId', async (req, res) => {
     res.setHeader('Content-Disposition', `inline; filename="optimized-preview.pdf"`);
     res.send(buffer);
   } catch (err) {
+    const scanId = parseScanId(req.params.scanId);
+    if (scanId && err.renderMeta) {
+      try {
+        await db.updateScan(scanId, { renderMeta: err.renderMeta });
+      } catch {
+        /* ignore preview metadata persistence errors */
+      }
+    }
+
     log.error('Preview error', { error: err.message, stack: err.stack, scanId: req.params.scanId });
 
     // Fallback: serve an in-iframe HTML error page (NOT the resume HTML — that breaks the iframe)
@@ -585,7 +689,7 @@ router.get('/preview/:scanId', async (req, res) => {
             <line x1="12" y1="9" x2="12.01" y2="9"/>
           </svg>
           <h3>PDF Preview Unavailable</h3>
-          <p>The renderer is starting up. Refresh in a moment, or download the DOCX version — it's identical quality.</p>
+          <p>${sanitizeInput(err.message || 'The renderer could not build a readable preview for this scan just yet.')}</p>
         </div>
       </body></html>
     `);
@@ -764,7 +868,7 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
 
     const format = req.query.format || 'docx';
     const exportType = req.query.type || 'resume'; // 'resume' or 'cover_letter'
-    const resumeText = scan.optimized_resume_text || '';
+    const { resumeText } = resolveResumeText(scan);
     const sectionData = scan.section_data || {};
     const optimizedBullets = scan.optimized_bullets || [];
     const keywordPlan = scan.keyword_plan || [];
@@ -789,10 +893,6 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
       }
       // result.alreadyProcessed = credit was already deducted on a prior identical request → serve clean
     }
-
-    const density = req.query.density || 'standard';
-    const VALID_TEMPLATES = ['modern', 'classic', 'minimal'];
-    const template = VALID_TEMPLATES.includes(req.query.template) ? req.query.template : 'modern';
 
     if (exportType === 'cover_letter') {
       // Export cover letter
@@ -854,20 +954,13 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
 
     // Export resume
     if (format === 'pdf') {
-      const buffer = await generatePDF(resumeText, sectionData, optimizedBullets, keywordPlan, {
+      const { buffer, renderMeta } = await renderResumePdf(scan, {
         watermark: req.isWatermarked,
-        density,
-        template,
-        jobUrl: scan.job_url || '',
       });
-
-      // Self-test: validate the generated PDF has a readable text layer
-      if (!req.isWatermarked) {
-        const validation = await validatePDF(buffer, resumeText.split('\n')[0] || '');
-        if (!validation.valid) {
-          log.warn('PDF validation warning', { error: validation.error });
-        }
-      }
+      await db.updateScan(scanId, {
+        jobContext: resolveScanJobContext(scan),
+        renderMeta,
+      });
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(
@@ -893,6 +986,14 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
       await db.recordWatermarkedDownload(req.user.id, scanId, format, 'resume');
     }
   } catch (err) {
+    const scanId = parseScanId(req.params.scanId);
+    if (scanId && err.renderMeta) {
+      try {
+        await db.updateScan(scanId, { renderMeta: err.renderMeta });
+      } catch {
+        /* ignore render metadata persistence errors */
+      }
+    }
     log.error('Download error', { error: err.message, scanId: req.params.scanId });
     res.status(500).json({ error: 'Failed to generate resume file.' });
   }

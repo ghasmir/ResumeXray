@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS scans (
   job_title TEXT,
   company_name TEXT,
   ats_platform TEXT,
+  job_context TEXT,
   parse_rate REAL,
   format_health REAL,
   match_rate REAL,
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS scans (
   keyword_plan TEXT,
   optimized_resume_text TEXT,
   cover_letter_text TEXT,
+  render_meta TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
