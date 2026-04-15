@@ -1283,6 +1283,7 @@ function updateResultsContextStrip(scanOrContext = null) {
     strip.style.display = 'none';
     strip.innerHTML = '';
     if (pdfHeading) pdfHeading.textContent = 'ATS-Optimized Resume';
+    updateResultsWorkflowHints(scanOrContext);
     return;
   }
 
@@ -1311,6 +1312,55 @@ function updateResultsContextStrip(scanOrContext = null) {
       <span class="results-context-value">${esc(getJobSourceLabel(jobContext))}</span>
     </div>
   `);
+  updateResultsWorkflowHints(scanOrContext);
+}
+
+function updateResultsWorkflowHints(scanOrContext = null) {
+  const jobContext = getJobContext(scanOrContext);
+  const scan = scanOrContext && typeof scanOrContext === 'object' ? scanOrContext : currentScan;
+  const hasTargetJob = scanHasTargetJob(scan || currentScan, jobContext);
+  const portalLabel = jobContext.atsDisplayName || 'Targeted ATS';
+  const companyLabel = jobContext.companyName || 'the target role';
+
+  const setText = (id, text) => {
+    const node = el(id);
+    if (node) node.textContent = text;
+  };
+
+  setText('tab-meta-diagnosis', hasTargetJob ? `${portalLabel} rules` : 'Structural pass');
+  setText('tab-meta-recruiter', hasTargetJob ? 'Search visibility' : 'Parser coverage');
+  setText('tab-meta-cover-letter', hasTargetJob ? `For ${companyLabel}` : 'Needs target job');
+  setText('tab-meta-pdf', hasTargetJob ? 'Preview before pay' : 'Structure preview');
+
+  setText(
+    'results-pane-note-diagnosis',
+    hasTargetJob
+      ? `Fix the highest-impact blockers first, then confirm the resume still reads cleanly for ${portalLabel}.`
+      : 'Use this pass to improve parser reliability and resume structure before you aim at a specific role.'
+  );
+  setText(
+    'results-pane-note-recruiter',
+    hasTargetJob
+      ? 'Check which fields stay searchable before you trust the recruiter-facing result.'
+      : 'Check which fields the parser can already read before you add job-specific targeting.'
+  );
+  setText(
+    'results-pane-note-cover-letter',
+    hasTargetJob
+      ? `Turn this scan into a role-aware note for ${companyLabel}.`
+      : 'Add a target job link or pasted description to generate a usable cover letter.'
+  );
+  setText(
+    'results-pane-note-pdf',
+    hasTargetJob
+      ? `Review the ${portalLabel}-ready export before you spend a credit.`
+      : 'Inspect the structural preview here, then rerun with a target job before you export.'
+  );
+
+  const coverLetterBtn = el('btn-tab-cover-letter');
+  const pdfBtn = el('btn-tab-pdf');
+  if (coverLetterBtn) coverLetterBtn.classList.toggle('is-limited', !hasTargetJob);
+  if (pdfBtn) pdfBtn.classList.toggle('is-limited', !hasTargetJob);
 }
 
 function setupCompanyDetection() {

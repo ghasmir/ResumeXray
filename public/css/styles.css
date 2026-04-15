@@ -909,8 +909,8 @@ a:hover {
 /* ── Hero ──────────────────────────────────────────────────── */
 .hero {
   text-align: center;
-  padding: var(--sp-24) var(--sp-6) var(--sp-16);
-  max-width: 720px;
+  padding: var(--sp-20) var(--sp-6) var(--sp-12);
+  max-width: 980px;
   margin: 0 auto;
 }
 .hero-badge {
@@ -940,7 +940,7 @@ a:hover {
   color: var(--text-secondary);
   line-height: 1.7;
   margin-bottom: var(--sp-10);
-  max-width: 540px;
+  max-width: 700px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -953,6 +953,44 @@ a:hover {
 .hero-note {
   font-size: 0.875rem;
   color: var(--text-secondary);
+}
+.hero-proof-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+.hero-proof-card {
+  text-align: left;
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+    radial-gradient(circle at top right, rgba(99, 91, 255, 0.1), transparent 52%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.hero-proof-card strong {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  margin-bottom: 0.35rem;
+  line-height: 1.35;
+}
+.hero-proof-card span:last-child {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.hero-proof-kicker {
+  display: inline-flex;
+  margin-bottom: 0.6rem;
+  color: #a5b4fc;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* ── Social Proof Stats ───────────────────────────────────── */
@@ -1025,6 +1063,12 @@ a:hover {
 }
 
 @media (max-width: 640px) {
+  .hero {
+    padding-top: var(--sp-16);
+  }
+  .hero-proof-strip {
+    grid-template-columns: 1fr;
+  }
   .social-proof-stats {
     flex-wrap: wrap;
     gap: var(--sp-4);
@@ -3777,8 +3821,8 @@ select:focus:not(:focus-visible) {
 }
 .results-tab-btn {
   flex: 1;
-  padding: 12px 16px;
-  min-height: 48px;
+  padding: 12px 14px;
+  min-height: 56px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -3788,11 +3832,34 @@ select:focus:not(:focus-visible) {
   border-radius: var(--radius-md);
   transition: all var(--duration-fast) var(--ease);
   font-family: inherit;
-  text-align: center;
-  white-space: nowrap;
+  text-align: left;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+}
+.results-tab-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.results-tab-copy > span:first-child {
+  line-height: 1.2;
+}
+.results-tab-meta {
+  font-size: 0.66rem;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+.results-tab-btn.active .results-tab-meta {
+  opacity: 0.88;
+}
+.results-tab-btn.is-limited .results-tab-meta {
+  color: var(--amber);
+  opacity: 0.98;
 }
 .results-tab-btn:hover {
   color: var(--text-primary);
@@ -4788,10 +4855,16 @@ a svg {
   .results-tab-btn {
     font-size: 0.78rem;
     padding: 12px 8px;
-    min-height: 48px;
+    min-height: 60px;
     white-space: normal;
-    text-align: center;
+    text-align: left;
     line-height: 1.2;
+  }
+  .results-tab-copy {
+    gap: 3px;
+  }
+  .results-tab-meta {
+    font-size: 0.62rem;
   }
 
   /* Reduce tab pane padding on mobile */

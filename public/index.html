@@ -523,17 +523,34 @@
         <div class="hero">
           <div class="hero-badge animate-fade-up">BUILT AROUND REAL ATS PARSING PATTERNS</div>
           <h1 class="hero-title animate-fade-up">
-            See What ATS<br /><span class="gradient-text">Really Sees</span>
+            Paste One Job Link.<br /><span class="gradient-text">Preview the Portal-Ready Resume.</span>
           </h1>
           <p class="hero-sub animate-fade-up" style="animation-delay: 0.05s">
-            Upload your resume, paste a job link, and let ResumeXray fetch the role, detect the
-            hiring portal, and show which fixes matter before you apply.
+            Upload your resume once, let ResumeXray fetch the company and job details, detect the
+            hiring portal, and rebuild a cleaner resume before you spend a credit on export.
           </p>
           <div class="hero-actions animate-fade-up" style="animation-delay: 0.1s">
             <button class="btn btn-primary btn-lg" data-action="navigate" data-path="/scan">
-              Analyze My Resume
+              Build My ATS-Ready Resume
             </button>
-            <span class="hero-note">Quick first pass · No card needed · Free ATS scan</span>
+            <span class="hero-note">2 free previews/day · Job link in · Export only when ready</span>
+          </div>
+          <div class="hero-proof-strip animate-fade-up" style="animation-delay: 0.14s">
+            <div class="hero-proof-card">
+              <span class="hero-proof-kicker">Auto-fetch</span>
+              <strong>Role, company, and JD</strong>
+              <span>We pull the job context when the portal allows it.</span>
+            </div>
+            <div class="hero-proof-card">
+              <span class="hero-proof-kicker">Portal-aware</span>
+              <strong>Workday, Lever, Greenhouse, more</strong>
+              <span>The output is shaped for the hiring system you are applying through.</span>
+            </div>
+            <div class="hero-proof-card">
+              <span class="hero-proof-kicker">Preview first</span>
+              <strong>See the result before paying</strong>
+              <span>Credits are only used when you export the final resume or cover letter.</span>
+            </div>
           </div>
         </div>
 
@@ -578,8 +595,8 @@
               </div>
               <h3>Upload Resume</h3>
               <p>
-                PDF or DOCX. We extract every character and keep the source resume intact so the
-                export can be rebuilt cleanly.
+                Upload a PDF or DOCX once. We preserve the source resume so the output can be
+                rebuilt cleanly instead of patched by hand.
               </p>
             </div>
             <div class="step-card animate-fade-up" style="animation-delay: 0.1s">
@@ -593,7 +610,7 @@
               <h3>Fetch the Target Job</h3>
               <p>
                 Add the job link and we fetch the role, company, and portal context when the site
-                allows it. If it blocks us, we clearly fall back to pasted JD text.
+                allows it. If it blocks us, we guide you into a clean pasted-JD fallback.
               </p>
             </div>
             <div class="step-card animate-fade-up" style="animation-delay: 0.2s">
@@ -606,8 +623,8 @@
               </div>
               <h3>Preview Before You Export</h3>
               <p>
-                We rebuild the resume and cover letter for the detected portal, then show the
-                preview before any export credit is required.
+                We rebuild the resume for the detected portal, surface recruiter-facing issues, and
+                let you preview the result before any export credit is required.
               </p>
             </div>
           </div>
@@ -1750,7 +1767,10 @@
                   <path d="M9 11l3 3L22 4" />
                   <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
                 </svg>
-                <span>ATS Diagnosis</span>
+                <span class="results-tab-copy">
+                  <span>ATS Diagnosis</span>
+                  <span class="results-tab-meta" id="tab-meta-diagnosis">Structural blockers</span>
+                </span>
               </button>
               <button
                 class="results-tab-btn"
@@ -1773,7 +1793,10 @@
                   <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
                 </svg>
-                <span>Recruiter View</span>
+                <span class="results-tab-copy">
+                  <span>Recruiter View</span>
+                  <span class="results-tab-meta" id="tab-meta-recruiter">Search visibility</span>
+                </span>
               </button>
               <button
                 class="results-tab-btn"
@@ -1798,7 +1821,10 @@
                   />
                   <polyline points="22,6 12,13 2,6" />
                 </svg>
-                <span>Cover Letter</span>
+                <span class="results-tab-copy">
+                  <span>Cover Letter</span>
+                  <span class="results-tab-meta" id="tab-meta-cover-letter">Needs target job</span>
+                </span>
               </button>
               <button
                 class="results-tab-btn"
@@ -1821,7 +1847,10 @@
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
-                <span>Export Preview</span>
+                <span class="results-tab-copy">
+                  <span>Export Preview</span>
+                  <span class="results-tab-meta" id="tab-meta-pdf">Preview before pay</span>
+                </span>
               </button>
             </div>
 
@@ -1855,7 +1884,11 @@
             <div class="results-tab-pane active" id="tab-diagnosis">
               <div class="pane-header">
                 <h2 class="pane-title" style="margin-bottom: var(--sp-2)">ATS Diagnosis</h2>
-                <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
+                <p
+                  class="body-sm text-muted"
+                  id="results-pane-note-diagnosis"
+                  style="margin-bottom: var(--sp-6)"
+                >
                   Fix the biggest blockers first.
                 </p>
               </div>
@@ -2016,7 +2049,11 @@
             <div class="results-tab-pane" id="tab-recruiter-agent">
               <div class="pane-header">
                 <h2 class="pane-title" style="margin-bottom: var(--sp-2)">Recruiter Visibility</h2>
-                <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
+                <p
+                  class="body-sm text-muted"
+                  id="results-pane-note-recruiter"
+                  style="margin-bottom: var(--sp-6)"
+                >
                   Check which fields stay searchable.
                 </p>
               </div>
@@ -2046,7 +2083,11 @@
             <div class="results-tab-pane" id="tab-cover-letter">
               <div class="pane-header">
                 <h2 class="pane-title" style="margin-bottom: var(--sp-2)">AI Cover Letter</h2>
-                <p class="body-sm text-muted" style="margin-bottom: var(--sp-6)">
+                <p
+                  class="body-sm text-muted"
+                  id="results-pane-note-cover-letter"
+                  style="margin-bottom: var(--sp-6)"
+                >
                   Turn the scan into a send-ready note for this role.
                 </p>
               </div>
@@ -2107,7 +2148,11 @@
             <!-- TAB 4: PDF Preview -->
             <div class="results-tab-pane" id="tab-pdf-preview">
               <div class="pane-header" id="optimized-resume-header">
-                <p class="body-sm text-muted" style="margin-bottom: var(--sp-4)">
+                <p
+                  class="body-sm text-muted"
+                  id="results-pane-note-pdf"
+                  style="margin-bottom: var(--sp-4)"
+                >
                   Review the portal-ready export before you spend a credit.
                 </p>
               </div>
