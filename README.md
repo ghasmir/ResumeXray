@@ -18,7 +18,7 @@ ResumeXray is a production-grade career tool that reverse-engineers ATS parsers 
 | **Backend** | Node.js 22 LTS, Express 4, PM2 Cluster |
 | **Database** | SQLite (dev) / PostgreSQL via Supabase (prod) |
 | **Auth** | Passport.js (Google, GitHub, LinkedIn OAuth + email/password) |
-| **Frontend** | Vanilla JS SPA, CSS (Obsidian design system) |
+| **Frontend** | Vanilla JS SPA served from `public/` |
 | **AI** | Google Gemini / OpenAI (dual-provider) |
 | **Payments** | Stripe Checkout (credit packs) |
 | **Reverse Proxy** | Caddy (auto-TLS, HSTS preload) |
@@ -43,6 +43,16 @@ npm run dev
 ```
 
 The app starts at `http://localhost:3000`. Database schema is applied automatically on first boot.
+There is no separate frontend bundler anymore; the live SPA is served directly from `public/`.
+
+### Frontend Source Of Truth
+
+- `public/index.html` is the SPA shell and route view markup
+- `public/js/app.js` is the active client application logic
+- `public/css/styles.css` is the active stylesheet
+- `server.js` serves the SPA directly from `public/`
+
+The previous modular `src/` frontend was removed to avoid split ownership. If we ever revisit a migration, it should happen in a dedicated branch with an explicit contract and rollout plan.
 
 ### Required Environment Variables
 
@@ -140,7 +150,7 @@ Internet → Cloudflare (WAF/CDN) → Caddy (TLS/HSTS) → PM2 (2 workers) → E
 ├── lib/                   # Business logic (parser, analyzer, LLM, mailer)
 ├── middleware/             # Auth, CSRF, upload, usage tracking
 ├── routes/                # API, auth, billing, AI, agent, user
-├── public/                # SPA frontend
+├── public/                # Active SPA frontend (HTML, CSS, JS)
 ├── Caddyfile              # Reverse proxy config
 └── ecosystem.config.js    # PM2 cluster config
 ```

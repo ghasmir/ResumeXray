@@ -1,5 +1,7 @@
 # ResumeXray Frontend Audit
 
+> Historical note: this audit captures the repo state before the frontend ownership decision was finalized. The inactive modular `src/` frontend and Vite pipeline were later removed after choosing the server-served SPA in `public/` as the single frontend source of truth.
+
 Date: 2026-04-15
 
 ## Summary

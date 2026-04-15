@@ -9,15 +9,15 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "npm run dev:server",
     "dev:server": "node --watch server.js",
-    "dev:client": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
+    "build": "npm run syntax",
+    "preview": "npm run start",
     "prod": "pm2 start ecosystem.config.js --env production",
     "reload": "pm2 reload ecosystem.config.js",
     "logs": "pm2 logs resumexray --lines 100",
-    "syntax": "node -c server.js && node -c routes/agent.js && node -c routes/auth.js && node -c routes/billing.js && node -c routes/ai.js && node -c routes/api.js && node -c routes/user.js && node -c db/database.js && node -c db/pg-database.js",
+    "syntax": "npm run syntax:frontend && node -c server.js && node -c routes/agent.js && node -c routes/auth.js && node -c routes/billing.js && node -c routes/ai.js && node -c routes/api.js && node -c routes/user.js && node -c db/database.js && node -c db/pg-database.js",
+    "syntax:frontend": "node -c public/js/app.js",
     "healthz": "curl -sf http://localhost:3000/healthz || exit 1",
     "test": "node --test tests/smoke.test.js",
     "test:ci": "node --test --test-reporter spec tests/smoke.test.js",
@@ -26,8 +26,8 @@
     "postinstall": "npx playwright install chromium",
     "lint": "eslint . --ext .js,.mjs --ignore-pattern 'node_modules/**' --ignore-pattern 'dist/**' --ignore-pattern 'public/js/app.js' --ignore-pattern 'public/js/purify.min.js'",
     "lint:fix": "eslint . --ext .js,.mjs --fix --ignore-pattern 'node_modules/**' --ignore-pattern 'dist/**' --ignore-pattern 'public/js/app.js' --ignore-pattern 'public/js/purify.min.js'",
-    "format": "prettier --write \"{src,routes,lib,db,middleware,config}/**/*.{js,mjs,css,html}\" \"server.js\" \"*.js\"",
-    "format:check": "prettier --check \"{src,routes,lib,db,middleware,config}/**/*.{js,mjs,css,html}\" \"server.js\" \"*.js\""
+    "format": "prettier --write \"{public,routes,lib,db,middleware,config}/**/*.{js,mjs,css,html}\" \"server.js\" \"*.js\"",
+    "format:check": "prettier --check \"{public,routes,lib,db,middleware,config}/**/*.{js,mjs,css,html}\" \"server.js\" \"*.js\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -69,16 +69,12 @@
     "uuid": "^10.0.0"
   },
   "devDependencies": {
-    "vite": "^5.4.11",
-    "vite-plugin-pwa": "^0.20.5",
+    "cypress": "^13.15.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.31.0",
-    "prettier": "^3.3.3",
-    "concurrently": "^9.0.1",
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
-    "cypress": "^13.15.0",
-    "workbox-window": "^7.1.0"
+    "prettier": "^3.3.3"
   }
 }
