@@ -181,11 +181,8 @@ body.pdf-tight .bullet-list li {
 }
 
 .entry-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8pt;
+  display: block;
+  margin-bottom: 2pt;
 }
 
 .entry-title {
@@ -207,10 +204,11 @@ body.pdf-tight .bullet-list li {
 }
 
 .entry-dates {
+  display: block;
+  margin-top: 2pt;
   font-size: 9.5pt;
   color: #555;
-  white-space: nowrap;
-  flex-shrink: 0;
+  white-space: normal;
 }
 
 /* ── Bullet Lists ───────────────────────────────────────────────────────── */

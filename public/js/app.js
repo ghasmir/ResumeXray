@@ -14,6 +14,16 @@ let currentJobContext = null;
 let currentRenderProfile = null;
 let jobContextProbeController = null;
 
+function clearPdfPreviewObjectUrl(previewFrame) {
+  if (!previewFrame?.dataset?.previewObjectUrl) return;
+  try {
+    URL.revokeObjectURL(previewFrame.dataset.previewObjectUrl);
+  } catch {
+    /* ignore stale object URLs */
+  }
+  delete previewFrame.dataset.previewObjectUrl;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS (Performance & Accessibility)
 // ═══════════════════════════════════════════════════════════════
@@ -937,7 +947,10 @@ function setupPdfPreviewControls() {
   if (openTabBtn) {
     openTabBtn.addEventListener('click', () => {
       const previewFrame = el('pdf-preview-frame');
-      const url = previewFrame?.dataset.previewUrl || previewFrame?.src;
+      const url =
+        previewFrame?.dataset.previewUrl ||
+        previewFrame?.dataset.previewObjectUrl ||
+        previewFrame?.src;
       if (url && url !== 'about:blank') {
         window.open(url, '_blank', 'noopener');
       }
@@ -1701,6 +1714,15 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
   currentRenderProfile = null;
   updateResultsContextStrip(currentJobContext);
   updateResultsWorkspaceHeader({ scan: { jobContext: currentJobContext }, source: 'live' });
+  const previewFrame = el('pdf-preview-frame');
+  if (previewFrame) {
+    if (previewFrame._previewAbortController) {
+      previewFrame._previewAbortController.abort();
+    }
+    clearPdfPreviewObjectUrl(previewFrame);
+    previewFrame.src = 'about:blank';
+    previewFrame.style.opacity = '1';
+  }
 
   // Nudge guests to convert — single CTA at the bottom of agent timeline only
   // (additional paywalls are overlaid on the score gauges, Cover Letter tab, etc.)
@@ -1717,6 +1739,7 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
   let sseRetryCount = 0;
   const SSE_MAX_RETRIES = 3;
   const SSE_BASE_DELAY = 1000; // 1s, 2s, 4s (exponential backoff)
+  let sseTerminalState = null;
 
   // Unified SSE connection function with reconnection
   function connectSSE(sessionId) {
@@ -1746,11 +1769,18 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
             .read()
             .then(({ done, value }) => {
               if (done) {
-                // Stream ended — check if we have partial results to show
+                if (sseTerminalState === 'complete' || sseTerminalState === 'error') {
+                  agentSource = null;
+                  return;
+                }
+
+                // Stream ended before a terminal event — reconnect first, then fall back.
                 const timeline = el('agent-timeline');
                 const hasResults = timeline && timeline.children.length > 0;
 
-                if (hasResults) {
+                if (sseRetryCount < SSE_MAX_RETRIES) {
+                  scheduleReconnect(sessionId);
+                } else if (hasResults) {
                   // We have partial results, show them with a warning
                   showToast('Analysis completed with partial results.', 'warning', {
                     duration: 6000,
@@ -1771,9 +1801,6 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
                     if (errorBlock) errorBlock.style.display = 'block';
                     if (dashboard) dashboard.style.display = 'none';
                   }
-                } else if (sseRetryCount < SSE_MAX_RETRIES) {
-                  // No results yet, try to reconnect
-                  scheduleReconnect(sessionId);
                 } else {
                   // No results and out of retries - show error state
                   const initBlock = el('results-initializing');
@@ -1898,6 +1925,7 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
             announceToScreenReader(`Completed step ${data.step}: ${data.name}`);
           }
           if (data.status === 'error') {
+            sseTerminalState = 'error';
             agentSource = null;
             finalizeAgentUI(data);
           }
@@ -1973,6 +2001,7 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
         break;
 
       case 'complete':
+        sseTerminalState = 'complete';
         agentSource = null;
         if (data.resumeText) agentResumeText = data.resumeText;
         persistCurrentScanToken(data.accessToken || '');
@@ -1994,6 +2023,7 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
         break;
 
       case 'error':
+        sseTerminalState = 'error';
         agentSource = null;
         // Hide loading state and restore the upload form so the user can retry
         const loadingEl = el('scan-loading');
@@ -2787,11 +2817,20 @@ function getSelectedDensity() {
   return 'standard';
 }
 
-function reloadPdfPreview(scanId) {
+async function reloadPdfPreview(scanId) {
   const previewFrame = el('pdf-preview-frame');
   if (!previewFrame) return;
   const resolvedScanId = Number.parseInt(String(scanId || getActiveScanId() || ''), 10);
   const container = previewFrame.parentElement;
+
+  if (previewFrame._previewAbortController) {
+    previewFrame._previewAbortController.abort();
+  }
+  const previewController = new AbortController();
+  previewFrame._previewAbortController = previewController;
+  const requestKey = `${resolvedScanId || 'invalid'}-${Date.now()}`;
+  previewFrame.dataset.previewRequestKey = requestKey;
+  clearPdfPreviewObjectUrl(previewFrame);
 
   if (!Number.isInteger(resolvedScanId) || resolvedScanId <= 0) {
     if (container) {
@@ -2841,13 +2880,22 @@ function reloadPdfPreview(scanId) {
   previewFrame.style.opacity = '0';
 
   // Build the preview URL with proper token
-  let url = `/api/agent/preview/${resolvedScanId}?t=${Date.now()}${currentScanTokenQuery()}`;
+  const url = `/api/agent/preview/${resolvedScanId}?t=${Date.now()}${currentScanTokenQuery()}`;
   previewFrame.dataset.previewUrl = url;
+  previewFrame.src = 'about:blank';
+
+  const removeExistingError = () => {
+    const existingError = container?.querySelector('.pdf-error-message');
+    if (existingError) existingError.remove();
+  };
 
   // Handle iframe load errors
-  const handleError = () => {
+  const handleError = message => {
+    if (previewFrame.dataset.previewRequestKey !== requestKey) return;
     if (skeleton) skeleton.style.display = 'none';
     previewFrame.style.opacity = '1';
+    clearPdfPreviewObjectUrl(previewFrame);
+    previewFrame.src = 'about:blank';
     // Show error message inside the preview container
     const errorDiv = document.createElement('div');
     errorDiv.className = 'pdf-error-message';
@@ -2855,60 +2903,31 @@ function reloadPdfPreview(scanId) {
     errorDiv.innerHTML = safeHtml(`
       <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
       <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
-      <p class="body-sm">Unable to load the PDF preview. The file may still be processing or there was an error.</p>
-      <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="reloadPdfPreview('${scanId}')">Retry</button>
+      <p class="body-sm">${esc(message || 'Unable to load the PDF preview. The file may still be processing or there was an error.')}</p>
+      <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="reloadPdfPreview('${resolvedScanId}')">Retry</button>
     `);
     if (container) {
       // Remove any existing error messages
-      const existingError = container.querySelector('.pdf-error-message');
-      if (existingError) existingError.remove();
+      removeExistingError();
       container.appendChild(errorDiv);
     }
   };
 
-  // Set up load handler
-  const handleLoad = () => {
-    let embeddedError = '';
-    try {
-      const frameDoc = previewFrame.contentDocument;
-      const frameText = frameDoc?.body?.textContent?.trim() || '';
-      const contentType = frameDoc?.contentType || '';
-
-      if (
-        (contentType && contentType.includes('json')) ||
-        (frameText.startsWith('{') && frameText.includes('"error"'))
-      ) {
-        const payload = JSON.parse(frameText);
-        embeddedError = payload.error || 'Unable to load the PDF preview.';
-      }
-    } catch (err) {
-      embeddedError = embeddedError || '';
-    }
-
-    if (embeddedError) {
-      if (skeleton) skeleton.style.display = 'none';
-      previewFrame.style.opacity = '1';
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'pdf-error-message';
-      errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
-      errorDiv.innerHTML = safeHtml(`
-        <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
-        <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
-        <p class="body-sm">${esc(embeddedError)}</p>
-        <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="reloadPdfPreview('${resolvedScanId}')">Retry</button>
-      `);
-      const existingError = container?.querySelector('.pdf-error-message');
-      if (existingError) existingError.remove();
-      if (container) container.appendChild(errorDiv);
-      previewFrame.src = 'about:blank';
-      return;
-    }
-
+  const revealPreview = () => {
+    if (previewFrame.dataset.previewRequestKey !== requestKey) return;
     previewFrame.style.opacity = '1';
     if (skeleton) skeleton.style.display = 'none';
-    const existingError = container?.querySelector('.pdf-error-message');
-    if (existingError) existingError.remove();
+    removeExistingError();
     adaptPdfFrameSize(previewFrame);
+  };
+
+  const handleLoad = () => {
+    if (previewFrame.dataset.previewRequestKey !== requestKey) return;
+    if (previewFrame.src === 'about:blank') {
+      handleError('Preview did not initialize correctly. Please try again.');
+      return;
+    }
+    revealPreview();
   };
 
   // Remove old event listeners to prevent duplicates
@@ -2917,10 +2936,10 @@ function reloadPdfPreview(scanId) {
 
   // Store handlers for cleanup
   previewFrame._loadHandler = handleLoad;
-  previewFrame._errorHandler = handleError;
+  previewFrame._errorHandler = () => handleError('Unable to display the generated PDF preview.');
 
   previewFrame.addEventListener('load', handleLoad);
-  previewFrame.addEventListener('error', handleError);
+  previewFrame.addEventListener('error', previewFrame._errorHandler);
 
   // Bind a resize handler once per frame to adjust height on viewport changes
   if (!previewFrame._pdfrsBound) {
@@ -2930,8 +2949,61 @@ function reloadPdfPreview(scanId) {
     previewFrame._pdfrsResizeHandler = resizeHandler;
   }
 
-  // Set the iframe source
-  previewFrame.src = url;
+  try {
+    const response = await fetch(url, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/pdf' },
+      signal: previewController.signal,
+    });
+    if (previewFrame.dataset.previewRequestKey !== requestKey) return;
+
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    if (!response.ok || !contentType.includes('application/pdf')) {
+      const bodyText = await response.text().catch(() => '');
+      let errorMessage = 'Unable to load the PDF preview right now.';
+      if (contentType.includes('application/json')) {
+        try {
+          const payload = JSON.parse(bodyText);
+          errorMessage = payload.error || errorMessage;
+        } catch {
+          /* keep fallback */
+        }
+      } else if (bodyText) {
+        const match = bodyText.match(/<p[^>]*>(.*?)<\/p>/i);
+        if (match) {
+          const parser = document.createElement('div');
+          parser.innerHTML = match[1];
+          errorMessage = parser.textContent?.trim() || errorMessage;
+        }
+      }
+      handleError(errorMessage);
+      return;
+    }
+
+    const blob = await response.blob();
+    if (!blob || blob.size === 0) {
+      handleError('The preview file was empty. Please regenerate this scan.');
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    if (previewFrame.dataset.previewRequestKey !== requestKey) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+
+    previewFrame.dataset.previewObjectUrl = objectUrl;
+    previewFrame.src = objectUrl;
+    window.setTimeout(() => {
+      if (previewFrame.dataset.previewRequestKey !== requestKey) return;
+      if (previewFrame.src === objectUrl) {
+        revealPreview();
+      }
+    }, 1200);
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    handleError(error?.message || 'Unable to load the PDF preview right now.');
+  }
 }
 
 async function downloadOptimized(format) {

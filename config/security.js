@@ -49,6 +49,7 @@ function configureHelmet() {
     ],
     frameSrc: [
       "'self'",
+      "blob:",
       "https://js.stripe.com",
       "https://hooks.stripe.com",
       "https://accounts.google.com",
