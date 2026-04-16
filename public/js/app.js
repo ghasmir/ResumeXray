@@ -1306,15 +1306,11 @@ function updateResultsContextStrip(scanOrContext = null) {
       : 'ATS-Optimized Resume';
   }
 
-  strip.style.display = 'flex';
+  strip.style.display = 'grid';
   strip.innerHTML = safeHtml(`
     <div class="results-context-card">
-      <span class="results-context-label">Role</span>
-      <span class="results-context-value">${esc(jobContext.jobTitle || 'General resume review')}</span>
-    </div>
-    <div class="results-context-card">
       <span class="results-context-label">Company</span>
-      <span class="results-context-value">${esc(jobContext.companyName || 'Not resolved')}</span>
+      <span class="results-context-value">${esc(jobContext.companyName || 'Target company pending')}</span>
     </div>
     <div class="results-context-card">
       <span class="results-context-label">Portal</span>
@@ -2457,44 +2453,48 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
   );
   const readinessScore =
     parseRate !== null && formatHealth !== null ? Math.round((parseRate + formatHealth) / 2) : null;
+  const roleTitle = decodeHtml(jobContext.jobTitle || scan?.job_title || '');
 
-  titleEl.textContent = scanTitle;
+  titleEl.textContent =
+    roleTitle && roleTitle.toLowerCase() !== 'no job description' ? roleTitle : scanTitle;
   bodyEl.textContent = hasJobContext
     ? jobContext.atsDisplayName
-      ? `We resolved the role, company, and portal context for this application. Use the tabs below to tighten parser reliability, recruiter visibility, and export confidence for ${jobContext.atsDisplayName}.`
-      : 'Use the tabs below to tighten parser reliability, recruiter visibility, and export confidence for this role.'
+      ? `Role, company, and portal context are locked in. Use the workflow below to tighten parser coverage, recruiter visibility, and export quality for ${jobContext.atsDisplayName}.`
+      : 'The job context is in place. Use the workflow below to tighten parser coverage, recruiter visibility, and export quality.'
     : 'This is a resume-only structural review. Add a target job link or paste the job description to unlock portal detection, match analysis, and a usable cover letter.';
 
   if (scan && !hasJobContext) {
     statusEl.textContent = 'Target job required';
+    statusEl.dataset.state = 'needs-target';
   } else if (readinessScore !== null && readinessScore >= 80) {
-    statusEl.textContent = 'Ready for final review';
+    statusEl.textContent = 'Ready for export review';
+    statusEl.dataset.state = 'ready';
   } else if (readinessScore !== null && readinessScore >= 65) {
-    statusEl.textContent = 'One more pass recommended';
+    statusEl.textContent = 'One more polish pass';
+    statusEl.dataset.state = 'review';
   } else if (scan) {
-    statusEl.textContent = 'Diagnosis in progress';
+    statusEl.textContent = 'Still needs cleanup';
+    statusEl.dataset.state = 'progress';
   } else {
     statusEl.textContent = 'Awaiting analysis';
+    statusEl.dataset.state = 'idle';
   }
 
   if (scan) {
-    const timeLabel =
-      scan.created_at ? timeAgo(scan.created_at) : source === 'history' ? 'saved scan' : 'live scan';
     const contextParts = [
-      !hasJobContext
-        ? source === 'history'
-          ? 'Saved structural review'
-          : 'Live structural review'
-        : source === 'history'
-          ? 'Saved scan'
-          : 'Live workspace',
-      jobContext.companyName || null,
+      source === 'history' ? 'Saved scan' : 'Live workspace',
+      hasJobContext
+        ? jobContext.atsDisplayName
+          ? `${jobContext.atsDisplayName} targeted`
+          : 'Targeted review'
+        : 'Structural review',
       hasJobContext && matchRate !== null ? `${Math.round(matchRate)}% match` : null,
-      timeLabel,
     ].filter(Boolean);
     contextEl.textContent = contextParts.join(' · ');
+    contextEl.dataset.state = hasJobContext ? 'targeted' : 'structural';
   } else {
     contextEl.textContent = 'Resume review';
+    contextEl.dataset.state = 'idle';
   }
 }
 
@@ -2578,43 +2578,7 @@ async function finalizeAgentUI(data) {
           updateResultsSummary({ scores: fullData, scan: fullData });
           updateResultsWorkspaceHeader({ scan: fullData, source: 'live' });
 
-          // Populate Recruiter View
-          const xray = fullData.xrayData || {};
-          const recBody = el('agent-recruiter-rows');
-          if (recBody && typeof buildRecruiterRows === 'function') {
-            const rowsHtml = buildRecruiterRows(
-              xray.fieldAccuracy || {},
-              xray.extractedFields || {}
-            );
-            if (rowsHtml && rowsHtml.trim().length > 0) {
-              recBody.innerHTML = safeHtml(rowsHtml);
-            }
-          }
-
-          // Populate Search Visibility
-          const kwVisibility = el('agent-search-visibility');
-          const keywords = fullData.keywordData || {};
-          const matched = keywords.matched || [];
-          const missing = keywords.missing || [];
-          if (kwVisibility && (matched.length > 0 || missing.length > 0)) {
-            kwVisibility.innerHTML = safeHtml(`
-              <div class="card" style="background:var(--bg-card-subtle); padding:var(--sp-6); border:1px solid rgba(255,255,255,0.05)">
-                <h4 style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px;margin-right:4px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Search Visibility Analysis
-                </h4>
-                <div class="keyword-list">
-                  ${matched
-                    .slice(0, 15)
-                    .map(k => `<span class="keyword-tag matched">✓ ${esc(k.term || k)}</span>`)
-                    .join('')}
-                  ${missing
-                    .slice(0, 15)
-                    .map(k => `<span class="keyword-tag missing">✗ ${esc(k.term || k)}</span>`)
-                    .join('')}
-                </div>
-              </div>
-            `);
-          }
+          renderRecruiterVisibility(fullData.xrayData || {}, fullData.keywordData || {});
 
           // Populate Cover Letter
           if (fullData.coverLetterText) {
@@ -3205,57 +3169,8 @@ function setupAgentHistoricalView(data) {
     renderAgentHistoricalTimeline(data);
   }
 
-  // 6. Populate Recruiter View (Field Extraction)
-  const xray = data.xrayData || {};
-  const recBody = el('agent-recruiter-rows');
-  if (recBody) {
-    const rowsHtml =
-      typeof buildRecruiterRows === 'function'
-        ? buildRecruiterRows(xray.fieldAccuracy || {}, xray.extractedFields || {})
-        : '';
-
-    if (rowsHtml && rowsHtml.trim().length > 0) {
-      recBody.innerHTML = safeHtml(rowsHtml);
-    } else {
-      recBody.innerHTML =
-        safeHtml(`<tr><td colspan="3" style="text-align:center; padding:4rem; color:var(--text-muted)">
-        <div style="display:flex;justify-content:center;margin-bottom:1.5rem; opacity:0.5">${uiIcon('archive', { size: 48, stroke: 1.5 })}</div>
-        <h4 style="color:var(--text-main)">Parser data unavailable</h4>
-        <p class="body-sm" style="margin-top:0.5rem">This legacy scan record only contains the final scores.</p>
-        <p class="body-xs" style="margin-top:1rem; opacity:0.6">Run a new scan to see live extraction and keywords.</p>
-      </td></tr>`);
-    }
-  }
-
-  // 7. Search Visibility Summary
-  const kwVisibility = el('agent-search-visibility');
-  if (kwVisibility) {
-    const keywords = data.keywordData || {};
-    const matched = keywords.matched || [];
-    const missing = keywords.missing || [];
-    if (matched.length > 0 || missing.length > 0) {
-      kwVisibility.innerHTML = safeHtml(`
-        <div class="card" style="background:var(--bg-card-subtle); padding:var(--sp-6); border:1px solid rgba(255,255,255,0.05)">
-          <h4 style="margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem">
-            ${uiIcon('search', { size: 20, stroke: 2 })} Search Visibility Analysis
-          </h4>
-          <p class="body-xs text-muted" style="margin-bottom:1.5rem">These keywords were found in your resume based on the job description:</p>
-          <div class="keyword-list">
-            ${matched
-              .slice(0, 15)
-              .map(k => `<span class="keyword-tag matched">✓ ${esc(k.term || k)}</span>`)
-              .join('')}
-            ${missing
-              .slice(0, 15)
-              .map(k => `<span class="keyword-tag missing">✗ ${esc(k.term || k)}</span>`)
-              .join('')}
-          </div>
-        </div>
-      `);
-    } else {
-      kwVisibility.innerHTML = '';
-    }
-  }
+  // 6. Populate Recruiter View + Search Visibility
+  renderRecruiterVisibility(data.xrayData || {}, data.keywordData || {});
 
   // 7b. Populate Cover Letter (if available from historical data)
   if (data.coverLetterText) {
@@ -4252,6 +4167,77 @@ function normalizeRecruiterFieldValue(value) {
     .trim();
 }
 
+function formatRecruiterFieldName(fieldName) {
+  const normalized = String(fieldName || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ');
+  const aliases = {
+    name: 'Name',
+    email: 'Email',
+    phone: 'Phone',
+    'phone number': 'Phone',
+    linkedin: 'LinkedIn',
+    'linkedin url': 'LinkedIn URL',
+    summary: 'Summary',
+    experience: 'Experience',
+    education: 'Education',
+    skills: 'Skills',
+    location: 'Location',
+    address: 'Location',
+    portfolio: 'Portfolio',
+    website: 'Website',
+  };
+  if (aliases[normalized]) return aliases[normalized];
+  return normalized.replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function getRecruiterFieldEntries(fieldAccuracy = {}, extractedFields = {}) {
+  const fields =
+    Object.keys(fieldAccuracy).length > 0
+      ? Object.keys(fieldAccuracy)
+      : Object.keys(extractedFields);
+  const priority = [
+    'name',
+    'email',
+    'phone',
+    'location',
+    'linkedin',
+    'portfolio',
+    'summary',
+    'experience',
+    'education',
+    'skills',
+  ];
+
+  const scoreField = fieldName => {
+    const normalized = String(fieldName || '').toLowerCase();
+    const index = priority.findIndex(key => normalized.includes(key));
+    return index === -1 ? priority.length + 1 : index;
+  };
+
+  return fields
+    .slice()
+    .sort((left, right) => {
+      const scoreDiff = scoreField(left) - scoreField(right);
+      if (scoreDiff !== 0) return scoreDiff;
+      return formatRecruiterFieldName(left).localeCompare(formatRecruiterFieldName(right));
+    })
+    .map(fieldName => {
+      const info = fieldAccuracy[fieldName] || {};
+      const rawValue = info.value || extractedFields[fieldName] || '';
+      const status = info.status || (rawValue ? 'success' : 'missing');
+      const isMissing = !rawValue || String(rawValue).includes('[Parser could not extract');
+
+      return {
+        fieldName,
+        label: formatRecruiterFieldName(fieldName),
+        status: isMissing ? 'missing' : status,
+        rawValue,
+      };
+    });
+}
+
 function summarizeRecruiterField(fieldName, rawValue) {
   const cleaned = normalizeRecruiterFieldValue(rawValue);
   if (!cleaned) return null;
@@ -4297,19 +4283,13 @@ function summarizeRecruiterField(fieldName, rawValue) {
 }
 
 function buildRecruiterRows(fieldAccuracy, extractedFields) {
-  // Use either the accuracy map or the raw extraction keys
-  const fields =
-    Object.keys(fieldAccuracy).length > 0
-      ? Object.keys(fieldAccuracy)
-      : Object.keys(extractedFields);
-
-  if (fields.length === 0) {
-    return `<tr><td colspan="3" style="text-align:center;padding:4rem;color:var(--text-muted)">
-      <div style="display:flex;justify-content:center;margin-bottom:1.5rem;opacity:0.5">${uiIcon('archive', { size: 48, stroke: 1.5 })}</div>
-      <h4 style="color:var(--text-main)">Parser data unavailable</h4>
-      <p class="body-sm" style="margin-top:0.5rem">This scan record does not contain structured parser data.</p>
-      <p class="body-xs" style="margin-top:1rem; opacity:0.6">Try running a new scan to see live extraction.</p>
-    </td></tr>`;
+  const entries = getRecruiterFieldEntries(fieldAccuracy, extractedFields);
+  if (entries.length === 0) {
+    return `<div class="recruiter-empty-state">
+      <div class="recruiter-empty-icon">${uiIcon('archive', { size: 40, stroke: 1.5 })}</div>
+      <h4>Parser data unavailable</h4>
+      <p>This scan record does not contain structured recruiter field data yet.</p>
+    </div>`;
   }
 
   const isGuest = !currentUser;
@@ -4342,41 +4322,139 @@ function buildRecruiterRows(fieldAccuracy, extractedFields) {
     return value;
   }
 
-  return fields
-    .map(fieldName => {
-      const info = fieldAccuracy[fieldName] || {};
-      const status = info.status || (extractedFields[fieldName] ? 'success' : 'missing');
-      const rawValue = info.value || extractedFields[fieldName] || '';
-
-      const isMissing = !rawValue || rawValue.includes('[Parser could not extract');
-      const summary = isMissing
-        ? null
-        : summarizeRecruiterField(fieldName, maskValue(fieldName, String(rawValue)));
-
-      // Polished status pills
-      const statusClass =
-        status === 'success'
-          ? 'status-found'
-          : status === 'warning'
-            ? 'status-partial'
-            : 'status-missing';
+  return entries
+    .map(entry => {
+      const maskedValue = maskValue(entry.fieldName, String(entry.rawValue || ''));
+      const summary = entry.rawValue
+        ? summarizeRecruiterField(entry.fieldName, maskedValue)
+        : null;
       const statusLabel =
-        status === 'success' ? 'Captured' : status === 'warning' ? 'Partial' : 'Missing';
-      const tdClass = isMissing ? 'field-missing' : 'field-found';
-      const displayVal = isMissing
-        ? '<em style="opacity:0.72">Parser could not map this field to a recruiter-searchable value.</em>'
-        : `
-          <div class="field-preview-main">${esc(summary.title)}</div>
-          <div class="field-preview-meta">${esc(summary.detail)}</div>
-        `;
+        entry.status === 'success' ? 'Captured' : entry.status === 'warning' ? 'Partial' : 'Missing';
+      const toneClass =
+        entry.status === 'success'
+          ? 'is-found'
+          : entry.status === 'warning'
+            ? 'is-partial'
+            : 'is-missing';
 
-      return `<tr>
-      <td class="field-name">${esc(fieldName)}</td>
-      <td class="${tdClass}">${displayVal}</td>
-      <td><span class="${statusClass}">${esc(statusLabel)}</span></td>
-    </tr>`;
+      return `<article class="recruiter-signal-card ${toneClass}">
+        <div class="recruiter-signal-header">
+          <div class="recruiter-signal-copy">
+            <span class="recruiter-signal-label">${esc(entry.label)}</span>
+            <h3 class="recruiter-signal-title">${
+              summary ? esc(summary.title) : 'No recruiter-searchable value mapped yet'
+            }</h3>
+          </div>
+          <span class="recruiter-signal-status">${esc(statusLabel)}</span>
+        </div>
+        <p class="recruiter-signal-detail">${
+          summary
+            ? esc(summary.detail)
+            : 'This field is missing or inconsistent enough that the parser cannot trust it for recruiter search.'
+        }</p>
+      </article>`;
     })
     .join('');
+}
+
+function buildRecruiterOverview(fieldAccuracy = {}, extractedFields = {}) {
+  const entries = getRecruiterFieldEntries(fieldAccuracy, extractedFields);
+  if (!entries.length) {
+    return `<div class="recruiter-overview-empty">No recruiter field map yet</div>`;
+  }
+
+  const foundCount = entries.filter(entry => entry.status === 'success').length;
+  const partialCount = entries.filter(entry => entry.status === 'warning').length;
+  const missingCount = entries.length - foundCount - partialCount;
+
+  return `
+    <div class="recruiter-overview-stat is-found">
+      <span class="recruiter-overview-label">Captured</span>
+      <strong class="recruiter-overview-value">${foundCount}</strong>
+    </div>
+    <div class="recruiter-overview-stat is-partial">
+      <span class="recruiter-overview-label">Partial</span>
+      <strong class="recruiter-overview-value">${partialCount}</strong>
+    </div>
+    <div class="recruiter-overview-stat is-missing">
+      <span class="recruiter-overview-label">Missing</span>
+      <strong class="recruiter-overview-value">${missingCount}</strong>
+    </div>
+  `;
+}
+
+function renderSearchVisibilitySummary(keywordData = {}) {
+  const matched = (keywordData.matched || []).slice(0, 14);
+  const missing = (keywordData.missing || []).slice(0, 14);
+  if (!matched.length && !missing.length) return '';
+
+  return `
+    <section class="search-visibility-card">
+      <div class="search-visibility-header">
+        <div>
+          <div class="search-visibility-kicker">Keyword Signals</div>
+          <h3 class="search-visibility-title">Search Visibility Analysis</h3>
+          <p class="search-visibility-body">These terms are helping or hurting recruiter search coverage for this role.</p>
+        </div>
+        <div class="search-visibility-stats">
+          <div class="search-visibility-stat is-matched">
+            <span class="search-visibility-stat-label">Matched</span>
+            <strong>${matched.length}</strong>
+          </div>
+          <div class="search-visibility-stat is-missing">
+            <span class="search-visibility-stat-label">Missing</span>
+            <strong>${missing.length}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="search-visibility-grid">
+        <section class="search-visibility-section">
+          <h4 class="search-visibility-section-title">Helping search visibility</h4>
+          <div class="keyword-list">
+            ${
+              matched.length
+                ? matched
+                    .map(keyword => `<span class="keyword-tag matched">${esc(keyword.term || keyword)}</span>`)
+                    .join('')
+                : '<span class="search-visibility-empty">No strong keyword matches yet.</span>'
+            }
+          </div>
+        </section>
+        <section class="search-visibility-section">
+          <h4 class="search-visibility-section-title">Still missing from the resume</h4>
+          <div class="keyword-list">
+            ${
+              missing.length
+                ? missing
+                    .map(keyword => `<span class="keyword-tag missing">${esc(keyword.term || keyword)}</span>`)
+                    .join('')
+                : '<span class="search-visibility-empty">No major missing keywords in this snapshot.</span>'
+            }
+          </div>
+        </section>
+      </div>
+    </section>
+  `;
+}
+
+function renderRecruiterVisibility(xrayData = {}, keywordData = {}) {
+  const fieldAccuracy = xrayData.fieldAccuracy || {};
+  const extractedFields = xrayData.extractedFields || {};
+  const recruiterOverview = el('agent-recruiter-overview');
+  const recruiterRows = el('agent-recruiter-rows');
+  const searchVisibility = el('agent-search-visibility');
+
+  if (recruiterOverview) {
+    recruiterOverview.innerHTML = safeHtml(buildRecruiterOverview(fieldAccuracy, extractedFields));
+  }
+
+  if (recruiterRows) {
+    recruiterRows.innerHTML = safeHtml(buildRecruiterRows(fieldAccuracy, extractedFields));
+  }
+
+  if (searchVisibility) {
+    searchVisibility.innerHTML = safeHtml(renderSearchVisibilitySummary(keywordData));
+  }
 }
 
 // ── AI Bullet Fixer ────────────────────────────────────────────

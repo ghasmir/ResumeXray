@@ -42,6 +42,7 @@ The repository currently has one active frontend and one active backend.
 - `/Users/ghasmir/Documents/agents/ats-resume-checker/public/index.html`
 - `/Users/ghasmir/Documents/agents/ats-resume-checker/public/js/app.js`
 - `/Users/ghasmir/Documents/agents/ats-resume-checker/public/css/styles.css`
+- `/Users/ghasmir/Documents/agents/ats-resume-checker/public/css/app-surfaces.css`
 
 ### Active backend
 
@@ -964,7 +965,7 @@ It mirrors the same persistence surface as `db/database.js`.
 
 ## 15. Frontend Architecture
 
-The frontend is a single-page application inside `public/index.html`, driven by `public/js/app.js`.
+The frontend is a single-page application inside `public/index.html`, driven by `public/js/app.js`, with styling split between the base system in `public/css/styles.css` and the newer premium app-surface layer in `public/css/app-surfaces.css`.
 
 ## 15.1 `public/index.html`
 
@@ -999,9 +1000,24 @@ Major view IDs:
 Major results panes:
 
 - `tab-diagnosis`
-- `tab-recruiter-view`
+- `tab-recruiter-agent`
 - `tab-cover-letter`
 - `tab-pdf-preview`
+
+Important results workspace substructures:
+
+- `results-masthead`
+  role-first workspace header with readiness and context pills
+- `results-context-strip`
+  integrated company / portal / source rail rendered inside the masthead copy area
+- `results-summary-strip`
+  top-priority, recruiter-visibility, and export-readiness cards
+- `agent-recruiter-overview`
+  recruiter field health counters for captured / partial / missing signals
+- `agent-recruiter-rows`
+  recruiter-facing field review grid rendered from structured parser output
+- `agent-search-visibility`
+  matched vs missing keyword signal panel for recruiter/search coverage
 
 ## 15.2 `public/js/app.js`
 
@@ -1116,8 +1132,13 @@ Major function groups:
 ### Recruiter view and bullet fixing
 
 - `normalizeRecruiterFieldValue(value)`
+- `formatRecruiterFieldName(fieldName)`
+- `getRecruiterFieldEntries(fieldAccuracy, extractedFields)`
 - `summarizeRecruiterField(fieldName, rawValue)`
 - `buildRecruiterRows(fieldAccuracy, extractedFields)`
+- `buildRecruiterOverview(fieldAccuracy, extractedFields)`
+- `renderSearchVisibilitySummary(keywordData)`
+- `renderRecruiterVisibility(xrayData, keywordData)`
 - `fixBullet(btn)`
 - `applyFixMetric(fixIndex)`
 
@@ -1155,6 +1176,21 @@ This is the active stylesheet for:
 - responsive behavior
 
 The file is still monolithic, though some app-surface separation work has started elsewhere.
+
+## 15.4 `public/css/app-surfaces.css`
+
+This stylesheet contains newer premium-surface overrides and component-level styling for:
+
+- results masthead and context rail
+- recruiter visibility banner, counters, review cards, and keyword signal panel
+- profile momentum surfaces
+- PDF focus-view overlays and toolbar refinements
+- other newer app-surface components that intentionally sit above the older base stylesheet
+
+The active results workspace now depends on both CSS files:
+
+- `styles.css` for tokens, layout primitives, shared component classes, and legacy responsive rules
+- `app-surfaces.css` for higher-level visual hierarchy and premium surface presentation
 
 ## 16. Frontend/Backend Contracts
 
@@ -1259,7 +1295,7 @@ These are useful for focused debugging but are not all in the default CI test co
 ## 20. Current Known Risks and Maintenance Notes
 
 1. `public/js/app.js` is still very large and centralizes most client logic in one file.
-2. `public/css/styles.css` is still monolithic.
+2. `public/css/styles.css` is still monolithic, even though `public/css/app-surfaces.css` now carries part of the newer app-surface layer.
 3. Resume PDF quality is improved but still sensitive to malformed or poorly structured source resumes.
 4. Cover-letter quality is materially better but still dependent on upstream LLM/provider behavior.
 5. Dual deployment stories exist in repo docs and config; maintainers must be clear which target is authoritative in a given environment.
@@ -1348,6 +1384,7 @@ This appendix lists the first-party code and config files that matter to maintai
 - `public/index.html`
 - `public/js/app.js`
 - `public/css/styles.css`
+- `public/css/app-surfaces.css`
 - `public/robots.txt`
 - `public/sitemap.xml`
 - `public/offline.html`

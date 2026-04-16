@@ -264,7 +264,7 @@
     <link rel="dns-prefetch" href="https://api.stripe.com" />
 
     <link rel="stylesheet" href="/css/styles.css?v=3.6" />
-    <link rel="stylesheet" href="/css/app-surfaces.css?v=1.0" />
+    <link rel="stylesheet" href="/css/app-surfaces.css?v=1.1" />
     <link
       rel="icon"
       type="image/svg+xml"
@@ -1733,6 +1733,7 @@
                   Diagnose blockers, check recruiter visibility, and confirm export readiness from
                   one workspace.
                 </p>
+                <div id="results-context-strip" class="results-context-strip" style="display: none"></div>
               </div>
               <div class="results-masthead-meta">
                 <span class="results-masthead-pill" id="results-masthead-status">
@@ -1743,7 +1744,6 @@
                 </span>
               </div>
             </div>
-            <div id="results-context-strip" class="results-context-strip" style="display: none"></div>
             <!-- Tab Navigation -->
             <div
               class="results-tab-nav"
@@ -2061,22 +2061,22 @@
                   Check which fields stay searchable.
                 </p>
               </div>
-              <div
-                class="recruiter-table-wrapper card"
-                style="background: var(--bg-card); padding: var(--sp-4)"
-              >
-                <table class="recruiter-table">
-                  <thead>
-                    <tr>
-                      <th>ATS Field</th>
-                      <th>Extracted Value</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody id="agent-recruiter-rows">
+              <div class="recruiter-review-shell">
+                <div class="recruiter-review-banner">
+                  <div class="recruiter-review-copy">
+                    <div class="recruiter-review-kicker">Searchable Profile Snapshot</div>
+                    <p class="recruiter-review-body">
+                      This is the recruiter-facing readout of your resume. Clean, complete fields
+                      improve search visibility before anyone opens the full document.
+                    </p>
+                  </div>
+                  <div id="agent-recruiter-overview" class="recruiter-overview">
                     <!-- Injected by JS -->
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+                <div id="agent-recruiter-rows" class="recruiter-review-grid">
+                  <!-- Injected by JS -->
+                </div>
               </div>
               <div id="agent-search-visibility" style="margin-top: var(--sp-6)">
                 <!-- Summary keywords -->
@@ -3126,6 +3126,6 @@
     <!-- Phase 6 §4.10: Self-hosted DOMPurify for innerHTML XSS defense -->
     <script src="/js/purify.min.js"></script>
     <!-- Main application SPA — source of truth frontend -->
-    <script src="/js/app.js?v=3.7" defer></script>
+    <script src="/js/app.js?v=3.8" defer></script>
   </body>
 </html>
