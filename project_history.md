@@ -122,7 +122,7 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 - **Legacy Frontend Drift**: Removed the inactive modular `src/` frontend path, dropped `vite.config.js` and stale TS build artifacts, and eliminated the repo ambiguity around which client was actually live.
 - **Visual Inconsistencies**: Cleaned up mismatched tone in pricing, auth, scan, and results surfaces, including casual labels and other UI moments that undercut the premium presentation.
 
-## Timeline: 2026-04-16 (Current)
+## Timeline: 2026-04-16
 **Focus:** Core Flow Rescue, Export Reliability, and Landing Cohesion
 
 **Implemented (Added):**
@@ -139,3 +139,20 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 - **Redis Degradation Path**: Hardened Redis fallback so transient Upstash timeouts stop stalling normal page requests and degrade to local behavior faster.
 - **Landing Feature Strip Mismatch**: Restyled the landing-page feature/proof strip so it now matches the premium glass-card language used elsewhere on the marketing site instead of appearing like a disconnected mono-dashboard widget.
 - **Results Workspace Chrome Bloat**: Folded the job-context strip into the results masthead, simplified the workspace status language, removed repeated context noise, and redesigned the recruiter visibility tab from a raw debug-style table into a structured review grid with a clearer keyword signal panel.
+
+## Timeline: 2026-04-17 (Current)
+**Focus:** CSP Verification Closure, Local Runtime Recovery, Frontend Modularization, and Documentation Hygiene
+
+**Implemented (Added):**
+- **Phase 1 CSP Closure**: Removed the remaining inline `onclick` handlers from the live SPA runtime and routed those interactions through centralized `data-*` event delegation inside `public/js/app.js`, keeping the frontend aligned with the strict CSP policy already enforced in `config/security.js`.
+- **Native Module Recovery Path**: Re-verified the local SQLite runtime under a newer Node ABI by rebuilding `better-sqlite3`, restoring local server boot and the main smoke/core verification path without needing to wipe `node_modules` or regenerate the lockfile.
+- **Verified Local Boot Path**: Confirmed a clean local startup flow using the documented Redis-free fallback path (`UPSTASH_REDIS_URL=`), with healthy `/healthz` and `/readyz` responses while SQLite remained the active local datastore.
+- **Phase 2 Frontend Extraction**: Started the native-ES-module "strangler fig" split by pulling shared UI helpers into `public/js/modules/ui-helpers.mjs` and PDF preview behavior into `public/js/modules/pdf-preview.mjs`, while preserving `public/js/app.js` as the stable orchestration layer.
+- **Frontend Verification Path**: Re-verified the extracted frontend path with `npm run syntax:frontend`, `npm test`, a clean local boot, and a browser smoke confirming the SPA initialized successfully after loading the new dynamic imports.
+- **Docs Maintenance**: Updated `README.md` and `TECHNICAL_DOCUMENTATION.md` with the verified `better-sqlite3` rebuild recovery step, the recommended local boot command when Upstash is intentionally disabled, and the new frontend module ownership boundaries.
+
+**Removed / Fixed:**
+- **Blocked Smoke Suite**: Eliminated the `better-sqlite3` ABI mismatch that had been preventing the smoke suite from spawning a local server, returning `npm test` to a fully green state (`21/21` passing).
+- **Inline Handler Drift**: Closed the last known gap between runtime behavior and the configured CSP by replacing inline preview retry, copy, and metric-apply interactions with delegated listeners.
+- **Frontend Regression Surface**: Reduced the highest-risk share of the SPA monolith by extracting toast/sanitization helpers and PDF preview control logic into isolated modules without forcing a full client rewrite.
+- **Undocumented Local Setup Debt**: Removed ambiguity around how to recover from native-module breakage after a Node runtime change by documenting the exact rebuild-first recovery sequence that worked in practice.

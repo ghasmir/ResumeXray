@@ -41,6 +41,8 @@ The repository currently has one active frontend and one active backend.
 
 - `/Users/ghasmir/Documents/agents/ats-resume-checker/public/index.html`
 - `/Users/ghasmir/Documents/agents/ats-resume-checker/public/js/app.js`
+- `/Users/ghasmir/Documents/agents/ats-resume-checker/public/js/modules/ui-helpers.mjs`
+- `/Users/ghasmir/Documents/agents/ats-resume-checker/public/js/modules/pdf-preview.mjs`
 - `/Users/ghasmir/Documents/agents/ats-resume-checker/public/css/styles.css`
 - `/Users/ghasmir/Documents/agents/ats-resume-checker/public/css/app-surfaces.css`
 
@@ -112,9 +114,10 @@ The application boots in this order:
 ### 5.1 Guest or user opens the app
 
 1. `server.js` serves `public/index.html`.
-2. `public/js/app.js` runs on `DOMContentLoaded`.
-3. `fetchUser()` requests `/user/me`.
-4. The SPA router initializes and navigates based on current path and auth state.
+2. `public/js/app.js` loads the shared frontend modules from `public/js/modules/`.
+3. On `DOMContentLoaded`, the SPA waits for those module imports before booting the UI.
+4. `fetchUser()` requests `/user/me`.
+5. The SPA router initializes and navigates based on current path and auth state.
 
 ### 5.2 User authentication
 
@@ -158,7 +161,7 @@ sequenceDiagram
 ### 5.4 User previews export
 
 1. Frontend switches to Export Preview tab.
-2. `reloadPdfPreview()` fetches `/api/agent/preview/:scanId`.
+2. `reloadPdfPreview()` delegates preview state/control work to `public/js/modules/pdf-preview.mjs` and fetches `/api/agent/preview/:scanId`.
 3. `routes/agent.js` calls `renderResumePdf()` in `lib/render-service.js`.
 4. `renderResumePdf()` chooses the resume text source, ATS profile, template, and density, then calls `generatePDF()` in `lib/resume-builder.js`.
 5. The backend returns a PDF buffer.
@@ -965,7 +968,7 @@ It mirrors the same persistence surface as `db/database.js`.
 
 ## 15. Frontend Architecture
 
-The frontend is a single-page application inside `public/index.html`, driven by `public/js/app.js`, with styling split between the base system in `public/css/styles.css` and the newer premium app-surface layer in `public/css/app-surfaces.css`.
+The frontend is a single-page application inside `public/index.html`, coordinated by `public/js/app.js`, with an initial native-ES-module extraction in `public/js/modules/` and styling split between the base system in `public/css/styles.css` and the newer premium app-surface layer in `public/css/app-surfaces.css`.
 
 ## 15.1 `public/index.html`
 
@@ -1021,7 +1024,7 @@ Important results workspace substructures:
 
 ## 15.2 `public/js/app.js`
 
-This file is the entire active SPA runtime. It handles:
+This file is the primary SPA orchestrator and boot/runtime shell. It handles:
 
 - auth bootstrap
 - router and page titles
@@ -1032,7 +1035,7 @@ This file is the entire active SPA runtime. It handles:
 - dashboard/profile/pricing rendering
 - preview/download helpers
 - cover letter preview logic
-- toast/notification system
+- module bootstrapping for extracted frontend concerns
 - cookie consent UI
 
 Major function groups:
@@ -1055,6 +1058,13 @@ Major function groups:
 - `safeHtml(html)`
 - `truncate(str, len)`
 - `formatFileSize(bytes)`
+
+### Extracted runtime modules
+
+- `public/js/modules/ui-helpers.mjs`
+  Owns shared DOM helpers, inline SVG icons, ARIA announcements, toast rendering, clipboard copy, escaping, HTML decoding, and DOMPurify-backed sanitization helpers.
+- `public/js/modules/pdf-preview.mjs`
+  Owns the PDF preview controller, shared preview state, focus-mode toggles, toolbar controls, blob-backed iframe loading, retry UI, and responsive preview sizing.
 
 ### Auth and routing
 
@@ -1268,6 +1278,13 @@ Important operational nuance:
 - the repo supports both a Railway-style direct Node deploy and a PM2/Caddy production topology
 - Redis is preferred in clustered deployments for shared rate-limiting and render-slot coordination
 
+### Local environment recovery notes
+
+- `better-sqlite3` is a native dependency. If the local Node ABI changes, the fastest recovery path is `npm rebuild better-sqlite3`.
+- This recovery path was re-verified on 2026-04-17: after rebuilding `better-sqlite3`, the default `npm test` suite returned to green without needing a lockfile reset or full reinstall.
+- For clean local boot verification, setting `UPSTASH_REDIS_URL=` forces the app onto the documented in-memory fallback path and avoids requiring a live Upstash connection during startup.
+- Phase 2 frontend modularization was also verified on 2026-04-17 with `npm run syntax:frontend`, `npm test`, a clean local boot, and a browser smoke that confirmed the SPA initialized after the new dynamic imports loaded.
+
 ## 19. Test Strategy
 
 ### Automated tests currently in the main npm test path
@@ -1294,12 +1311,13 @@ These are useful for focused debugging but are not all in the default CI test co
 
 ## 20. Current Known Risks and Maintenance Notes
 
-1. `public/js/app.js` is still very large and centralizes most client logic in one file.
+1. `public/js/app.js` is still large even after the initial extraction of shared UI helpers and PDF preview logic into `public/js/modules/*`.
 2. `public/css/styles.css` is still monolithic, even though `public/css/app-surfaces.css` now carries part of the newer app-surface layer.
 3. Resume PDF quality is improved but still sensitive to malformed or poorly structured source resumes.
 4. Cover-letter quality is materially better but still dependent on upstream LLM/provider behavior.
 5. Dual deployment stories exist in repo docs and config; maintainers must be clear which target is authoritative in a given environment.
 6. Redis is optional in local/dev but strongly preferred in clustered production.
+7. When `UPSTASH_REDIS_URL` is configured locally, the Redis-backed rate limiter store can emit transient startup promise rejections before the connection settles; the clean local verification path currently blanks that variable and uses the in-memory fallback instead.
 
 ## 21. File Inventory Appendix
 

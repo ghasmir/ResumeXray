@@ -17,7 +17,7 @@
     "reload": "pm2 reload ecosystem.config.js",
     "logs": "pm2 logs resumexray --lines 100",
     "syntax": "npm run syntax:frontend && node -c server.js && node -c routes/agent.js && node -c routes/auth.js && node -c routes/billing.js && node -c routes/ai.js && node -c routes/api.js && node -c routes/user.js && node -c db/database.js && node -c db/pg-database.js",
-    "syntax:frontend": "node -c public/js/app.js",
+    "syntax:frontend": "node -c public/js/app.js && node -c public/js/modules/ui-helpers.mjs && node -c public/js/modules/pdf-preview.mjs",
     "healthz": "curl -sf http://localhost:3000/healthz || exit 1",
     "test": "node --test tests/smoke.test.js tests/core-flow.test.js",
     "test:ci": "node --test --test-reporter spec tests/smoke.test.js tests/core-flow.test.js",

@@ -45,14 +45,32 @@ npm run dev
 The app starts at `http://localhost:3000`. Database schema is applied automatically on first boot.
 There is no separate frontend bundler anymore; the live SPA is served directly from `public/`.
 
+### Local Troubleshooting
+
+- If you switch Node versions and hit a native-module error from `better-sqlite3`, run:
+
+```bash
+npm rebuild better-sqlite3
+```
+
+- If you want a clean local boot without depending on Upstash, blank the Redis URL so the app falls back to the in-memory limiter store:
+
+```bash
+UPSTASH_REDIS_URL= npm run dev
+```
+
 ### Frontend Source Of Truth
 
 - `public/index.html` is the SPA shell and route view markup
-- `public/js/app.js` is the active client application logic
+- `public/js/app.js` is the active SPA coordinator, boot path, and feature orchestrator
+- `public/js/modules/ui-helpers.mjs` owns shared UI helpers like toasts, sanitization, escaping, and copy helpers
+- `public/js/modules/pdf-preview.mjs` owns PDF preview state, controls, and iframe/blob preview loading
 - `public/css/styles.css` is the active stylesheet
 - `server.js` serves the SPA directly from `public/`
 
 The previous modular `src/` frontend was removed to avoid split ownership. If we ever revisit a migration, it should happen in a dedicated branch with an explicit contract and rollout plan.
+
+This frontend now uses a small native-ES-module "strangler fig" split inside `public/js/modules/` while keeping `public/js/app.js` as the stable orchestration layer. `npm run syntax:frontend` verifies both the main SPA file and the extracted modules.
 
 ### Required Environment Variables
 

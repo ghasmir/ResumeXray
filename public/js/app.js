@@ -8,11 +8,33 @@ let currentScan = null;
 let lastJobInput = '';
 let loadResultsToken = 0; // Cancellation token for loadResults retries
 let userFetchPromise = null; // Request deduplication for fetchUser
-let pdfPreviewMode = window.innerWidth < 768 ? 'detailed' : 'standard';
-let pdfPreviewFocusMode = false;
+const pdfPreviewState = {
+  mode: window.innerWidth < 768 ? 'detailed' : 'standard',
+  focusMode: false,
+};
 let currentJobContext = null;
 let currentRenderProfile = null;
 let jobContextProbeController = null;
+let uiHelpers = null;
+let pdfPreviewController = null;
+
+const frontendModulesReady = Promise.all([
+  import('/js/modules/ui-helpers.mjs'),
+  import('/js/modules/pdf-preview.mjs'),
+])
+  .then(([uiModule, pdfPreviewModule]) => {
+    uiHelpers = uiModule;
+    pdfPreviewController = pdfPreviewModule.createPdfPreviewController({
+      state: pdfPreviewState,
+      clearPdfPreviewObjectUrl,
+      getActiveScanId,
+      currentScanTokenQuery,
+    });
+  })
+  .catch(error => {
+    console.error('Failed to load frontend modules', error);
+    throw error;
+  });
 
 function clearPdfPreviewObjectUrl(previewFrame) {
   if (!previewFrame?.dataset?.previewObjectUrl) return;
@@ -38,39 +60,14 @@ function debounce(fn, ms) {
 }
 
 function uiIcon(name, { size = 18, stroke = 2 } = {}) {
-  const icons = {
-    lock: '<rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />',
-    file: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />',
-    search:
-      '<circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />',
-    mail: '<rect x="2" y="4" width="20" height="16" rx="2" /><polyline points="22,6 12,13 2,6" />',
-    spark: '<path d="M12 2l2.3 5.4L20 10l-5.7 2.6L12 18l-2.3-5.4L4 10l5.7-2.6L12 2z" />',
-    warning:
-      '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />',
-    chart: '<path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" />',
-    copy: '<rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />',
-    archive:
-      '<path d="M22 12h-6l-2 3H10l-2-3H2" /><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z" />',
-    check: '<polyline points="20 6 9 17 4 12" />',
-    dot: '<circle cx="12" cy="12" r="3" />',
-  };
-
-  return `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round">${icons[name] || ''}</svg>`;
+  return uiHelpers?.uiIcon(name, { size, stroke }) || '';
 }
 
 // Screen reader announcement helper for accessibility
 function announceToScreenReader(message, priority = 'polite') {
-  const announcer = el('sr-announcer');
-  if (!announcer) return;
-
-  // Clear previous announcement to ensure new one is read
-  announcer.textContent = '';
-
-  // Use setTimeout to ensure the clear has taken effect
-  setTimeout(() => {
-    announcer.setAttribute('aria-live', priority);
-    announcer.textContent = message;
-  }, 100);
+  if (uiHelpers) {
+    uiHelpers.announceToScreenReader(message, priority);
+  }
 }
 
 // Client-side error telemetry — sends to /api/client-error
@@ -178,6 +175,7 @@ function scoreBadge(score, label) {
 
 // ── Bootstrap ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  await frontendModulesReady;
   await fetchUser();
   setupRouter();
   setupGlobalDelegation();
@@ -296,7 +294,7 @@ function updateNavCredits(balance) {
 }
 
 function el(id) {
-  return document.getElementById(id);
+  return uiHelpers?.el(id) || document.getElementById(id);
 }
 
 // Null-safe element wrapper — silently no-ops when element doesn't exist.
@@ -748,6 +746,12 @@ function setupGlobalDelegation() {
       else if (action === 'checkout') startCheckout(actionBtn.dataset.plan);
       else if (action === 'manage-billing') openBillingPortal();
       else if (action === 'fix-bullet') fixBullet(actionBtn);
+      else if (action === 'reload-pdf-preview' && actionBtn.dataset.scanId)
+        reloadPdfPreview(actionBtn.dataset.scanId);
+      else if (action === 'apply-fix-metric') {
+        const fixIndex = parseInt(actionBtn.dataset.fixIndex || '', 10);
+        if (Number.isInteger(fixIndex)) applyFixMetric(fixIndex);
+      }
       return;
     }
 
@@ -829,7 +833,7 @@ function setupGlobalDelegation() {
 }
 
 function switchTab(tabId) {
-  if (tabId !== 'tab-pdf-preview' && tabId !== 'pdf-preview' && pdfPreviewFocusMode) {
+  if (tabId !== 'tab-pdf-preview' && tabId !== 'pdf-preview' && pdfPreviewState.focusMode) {
     setPdfPreviewFocusMode(false);
   }
 
@@ -933,82 +937,15 @@ function switchTab(tabId) {
 }
 
 function setupPdfPreviewControls() {
-  const standardBtn = el('pdf-view-standard');
-  const detailedBtn = el('pdf-view-detailed');
-  const openTabBtn = el('pdf-open-new-tab');
-  const fullscreenBtn = el('pdf-toggle-fullscreen');
-
-  if (standardBtn) {
-    standardBtn.addEventListener('click', () => setPdfPreviewMode('standard'));
-  }
-  if (detailedBtn) {
-    detailedBtn.addEventListener('click', () => setPdfPreviewMode('detailed'));
-  }
-  if (openTabBtn) {
-    openTabBtn.addEventListener('click', () => {
-      const previewFrame = el('pdf-preview-frame');
-      const url =
-        previewFrame?.dataset.previewUrl ||
-        previewFrame?.dataset.previewObjectUrl ||
-        previewFrame?.src;
-      if (url && url !== 'about:blank') {
-        window.open(url, '_blank', 'noopener');
-      }
-    });
-  }
-  if (fullscreenBtn) {
-    fullscreenBtn.addEventListener('click', () => {
-      setPdfPreviewFocusMode(!pdfPreviewFocusMode);
-    });
-  }
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && pdfPreviewFocusMode) {
-      setPdfPreviewFocusMode(false);
-    }
-  });
-
-  setPdfPreviewMode(pdfPreviewMode);
+  pdfPreviewController?.setupControls();
 }
 
 function setPdfPreviewMode(mode) {
-  pdfPreviewMode = mode;
-  const container = document.querySelector('.pdf-preview-container');
-  const previewFrame = el('pdf-preview-frame');
-  const standardBtn = el('pdf-view-standard');
-  const detailedBtn = el('pdf-view-detailed');
-
-  if (container) {
-    container.classList.toggle('is-detailed', mode === 'detailed');
-  }
-  if (previewFrame) {
-    const viewportFactor = pdfPreviewFocusMode ? 0.9 : mode === 'detailed' ? 0.84 : 0.62;
-    const maxHeight = pdfPreviewFocusMode ? 1400 : mode === 'detailed' ? 1200 : 900;
-    const height = Math.max(320, Math.min(maxHeight, window.innerHeight * viewportFactor));
-    previewFrame.style.height = height + 'px';
-    previewFrame.style.width = '100%';
-  }
-  if (standardBtn) standardBtn.classList.toggle('active', mode === 'standard');
-  if (detailedBtn) detailedBtn.classList.toggle('active', mode === 'detailed');
+  pdfPreviewController?.setMode(mode);
 }
 
 function setPdfPreviewFocusMode(active) {
-  pdfPreviewFocusMode = active;
-  const viewerOverlay = el('pdf-viewer-overlay');
-  const focusBtn = el('pdf-toggle-fullscreen');
-
-  if (viewerOverlay) {
-    viewerOverlay.classList.toggle('is-focus-mode', active);
-  }
-  document.body.classList.toggle('pdf-focus-mode', active);
-  if (focusBtn) {
-    focusBtn.textContent = active ? 'Exit Focus View' : 'Focus View';
-  }
-  if (active && window.innerWidth < 768) {
-    setPdfPreviewMode('detailed');
-  } else {
-    setPdfPreviewMode(pdfPreviewMode);
-  }
+  pdfPreviewController?.setFocusMode(active);
 }
 
 // ── Company detection from URL ─────────────────────────────────
@@ -2782,192 +2719,7 @@ function getSelectedDensity() {
 }
 
 async function reloadPdfPreview(scanId) {
-  const previewFrame = el('pdf-preview-frame');
-  if (!previewFrame) return;
-  const resolvedScanId = Number.parseInt(String(scanId || getActiveScanId() || ''), 10);
-  const container = previewFrame.parentElement;
-
-  if (previewFrame._previewAbortController) {
-    previewFrame._previewAbortController.abort();
-  }
-  const previewController = new AbortController();
-  previewFrame._previewAbortController = previewController;
-  const requestKey = `${resolvedScanId || 'invalid'}-${Date.now()}`;
-  previewFrame.dataset.previewRequestKey = requestKey;
-  clearPdfPreviewObjectUrl(previewFrame);
-
-  if (!Number.isInteger(resolvedScanId) || resolvedScanId <= 0) {
-    if (container) {
-      const existingError = container.querySelector('.pdf-error-message');
-      if (existingError) existingError.remove();
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'pdf-error-message';
-      errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
-      errorDiv.innerHTML = safeHtml(`
-        <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
-        <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
-        <p class="body-sm">We could not resolve this scan preview. Start a new targeted scan and try again.</p>
-      `);
-      container.appendChild(errorDiv);
-    }
-    previewFrame.src = 'about:blank';
-    previewFrame.style.opacity = '1';
-    return;
-  }
-
-  // Apply an initial responsive height and width for the PDF preview frame
-  function adaptPdfFrameSize(frame) {
-    if (!frame) return;
-    const viewportFactor = pdfPreviewMode === 'detailed' ? 0.84 : 0.62;
-    const maxHeight = pdfPreviewMode === 'detailed' ? 1200 : 900;
-    const h = Math.max(320, Math.min(maxHeight, window.innerHeight * viewportFactor));
-    frame.style.height = h + 'px';
-    frame.style.width = '100%';
-  }
-
-  adaptPdfFrameSize(previewFrame);
-
-  // Show loading skeleton while iframe renders
-  setPdfPreviewMode(pdfPreviewMode);
-  let skeleton = container?.querySelector('.preview-skeleton');
-  if (!skeleton && container) {
-    skeleton = document.createElement('div');
-    skeleton.className = 'preview-skeleton';
-    skeleton.innerHTML = safeHtml(
-      '<div class="loader"></div><p class="body-sm text-muted" style="margin-top:var(--sp-3)">Rendering preview…</p>'
-    );
-    skeleton.style.cssText =
-      'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;';
-    container.insertBefore(skeleton, previewFrame);
-  }
-  if (skeleton) skeleton.style.display = 'flex';
-  previewFrame.style.opacity = '0';
-
-  // Build the preview URL with proper token
-  const url = `/api/agent/preview/${resolvedScanId}?t=${Date.now()}${currentScanTokenQuery()}`;
-  previewFrame.dataset.previewUrl = url;
-  previewFrame.src = 'about:blank';
-
-  const removeExistingError = () => {
-    const existingError = container?.querySelector('.pdf-error-message');
-    if (existingError) existingError.remove();
-  };
-
-  // Handle iframe load errors
-  const handleError = message => {
-    if (previewFrame.dataset.previewRequestKey !== requestKey) return;
-    if (skeleton) skeleton.style.display = 'none';
-    previewFrame.style.opacity = '1';
-    clearPdfPreviewObjectUrl(previewFrame);
-    previewFrame.src = 'about:blank';
-    // Show error message inside the preview container
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'pdf-error-message';
-    errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
-    errorDiv.innerHTML = safeHtml(`
-      <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
-      <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
-      <p class="body-sm">${esc(message || 'Unable to load the PDF preview. The file may still be processing or there was an error.')}</p>
-      <button class="btn btn-primary btn-sm" style="margin-top:1rem" onclick="reloadPdfPreview('${resolvedScanId}')">Retry</button>
-    `);
-    if (container) {
-      // Remove any existing error messages
-      removeExistingError();
-      container.appendChild(errorDiv);
-    }
-  };
-
-  const revealPreview = () => {
-    if (previewFrame.dataset.previewRequestKey !== requestKey) return;
-    previewFrame.style.opacity = '1';
-    if (skeleton) skeleton.style.display = 'none';
-    removeExistingError();
-    adaptPdfFrameSize(previewFrame);
-  };
-
-  const handleLoad = () => {
-    if (previewFrame.dataset.previewRequestKey !== requestKey) return;
-    if (previewFrame.src === 'about:blank') {
-      handleError('Preview did not initialize correctly. Please try again.');
-      return;
-    }
-    revealPreview();
-  };
-
-  // Remove old event listeners to prevent duplicates
-  previewFrame.removeEventListener('load', previewFrame._loadHandler);
-  previewFrame.removeEventListener('error', previewFrame._errorHandler);
-
-  // Store handlers for cleanup
-  previewFrame._loadHandler = handleLoad;
-  previewFrame._errorHandler = () => handleError('Unable to display the generated PDF preview.');
-
-  previewFrame.addEventListener('load', handleLoad);
-  previewFrame.addEventListener('error', previewFrame._errorHandler);
-
-  // Bind a resize handler once per frame to adjust height on viewport changes
-  if (!previewFrame._pdfrsBound) {
-    const resizeHandler = () => adaptPdfFrameSize(previewFrame);
-    window.addEventListener('resize', resizeHandler);
-    previewFrame._pdfrsBound = true;
-    previewFrame._pdfrsResizeHandler = resizeHandler;
-  }
-
-  try {
-    const response = await fetch(url, {
-      credentials: 'same-origin',
-      headers: { Accept: 'application/pdf' },
-      signal: previewController.signal,
-    });
-    if (previewFrame.dataset.previewRequestKey !== requestKey) return;
-
-    const contentType = (response.headers.get('content-type') || '').toLowerCase();
-    if (!response.ok || !contentType.includes('application/pdf')) {
-      const bodyText = await response.text().catch(() => '');
-      let errorMessage = 'Unable to load the PDF preview right now.';
-      if (contentType.includes('application/json')) {
-        try {
-          const payload = JSON.parse(bodyText);
-          errorMessage = payload.error || errorMessage;
-        } catch {
-          /* keep fallback */
-        }
-      } else if (bodyText) {
-        const match = bodyText.match(/<p[^>]*>(.*?)<\/p>/i);
-        if (match) {
-          const parser = document.createElement('div');
-          parser.innerHTML = match[1];
-          errorMessage = parser.textContent?.trim() || errorMessage;
-        }
-      }
-      handleError(errorMessage);
-      return;
-    }
-
-    const blob = await response.blob();
-    if (!blob || blob.size === 0) {
-      handleError('The preview file was empty. Please regenerate this scan.');
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(blob);
-    if (previewFrame.dataset.previewRequestKey !== requestKey) {
-      URL.revokeObjectURL(objectUrl);
-      return;
-    }
-
-    previewFrame.dataset.previewObjectUrl = objectUrl;
-    previewFrame.src = objectUrl;
-    window.setTimeout(() => {
-      if (previewFrame.dataset.previewRequestKey !== requestKey) return;
-      if (previewFrame.src === objectUrl) {
-        revealPreview();
-      }
-    }, 1200);
-  } catch (error) {
-    if (error?.name === 'AbortError') return;
-    handleError(error?.message || 'Unable to load the PDF preview right now.');
-  }
+  return pdfPreviewController?.reloadPreview(scanId);
 }
 
 async function downloadOptimized(format) {
@@ -4502,7 +4254,7 @@ async function fixBullet(btn) {
         <span class="badge badge-purple">${esc(data.targetKeyword || 'General')}</span>
         <span class="badge badge-blue">${esc(data.method || 'CAR Formula')}</span>
         <span class="badge badge-green">Clarity Pass</span>
-        <button class="btn-copy" onclick="copyToClipboard('${esc(data.rewritten.replace(/'/g, "\\'"))}', this)">${uiIcon('copy', { size: 14, stroke: 2 })} Copy</button>
+        <button class="btn-copy" data-copy-text="${esc(data.rewritten)}">${uiIcon('copy', { size: 14, stroke: 2 })} Copy</button>
       </div>
       ${
         data.needsMetric && data.metricPrompt
@@ -4515,7 +4267,7 @@ async function fixBullet(btn) {
         <p class="metric-prompt-question">${esc(data.metricPrompt)}</p>
         <div class="metric-prompt-input-row">
           <input type="text" class="metric-prompt-input" placeholder="e.g., reduced by 40%" id="fix-metric-${idx}" />
-          <button class="btn btn-sm btn-primary" onclick="applyFixMetric(${idx})">Apply</button>
+          <button class="btn btn-sm btn-primary" data-action="apply-fix-metric" data-fix-index="${esc(String(idx))}">Apply</button>
         </div>
       </div>`
           : ''
@@ -4744,159 +4496,21 @@ function setupMobileMenu() {
 }
 
 function showToast(message, type = 'info', options = {}) {
-  const container = el('toast-container');
-  if (!container) return;
-
-  const duration = options.duration || (type === 'error' ? 6000 : 4000);
-  const dismissible = options.dismissible !== false;
-
-  // Screen reader announcement for better accessibility
-  announceToScreenReader(message, type);
-
-  // Persist errors to notification log for reference
-  if (type === 'error') {
-    addToNotificationLog(message, type);
-  }
-
-  // SVG icon library — crisp inline SVGs, no emoji
-  const icons = {
-    success:
-      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-    error:
-      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
-    warning:
-      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-    info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
-  };
-
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-  toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
-  toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
-
-  // Construct inner HTML
-  toast.innerHTML = safeHtml(`
-    <span class="toast-icon">${icons[type] || icons.info}</span>
-    <span class="toast-message">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
-    ${dismissible ? '<button class="toast-dismiss" aria-label="Dismiss notification">&times;</button>' : ''}
-    <div class="toast-timer"><div class="toast-timer-bar" style="animation-duration:${duration}ms"></div></div>
-  `);
-
-  container.appendChild(toast);
-
-  // Dismiss button handler
-  if (dismissible) {
-    toast.querySelector('.toast-dismiss').addEventListener('click', () => dismissToast(toast));
-  }
-
-  // Auto-dismiss
-  const timeout = setTimeout(() => dismissToast(toast), duration);
-
-  // Pause timer on hover
-  toast.addEventListener('mouseenter', () => {
-    clearTimeout(timeout);
-    const bar = toast.querySelector('.toast-timer-bar');
-    if (bar) bar.style.animationPlayState = 'paused';
-  });
-  toast.addEventListener('mouseleave', () => {
-    const bar = toast.querySelector('.toast-timer-bar');
-    if (bar) bar.style.animationPlayState = 'running';
-    // Resume auto-dismiss (remaining time approximated)
-    setTimeout(() => dismissToast(toast), 2000);
-  });
-
-  // Dismiss toast with Escape key (accessibility)
-  // Store on the toast so dismissToast() can clean it up regardless of how toast is dismissed
-  function onEscapeDismiss(e) {
-    if (e.key === 'Escape') dismissToast(toast);
-  }
-  toast._onEscapeDismiss = onEscapeDismiss;
-  document.addEventListener('keydown', onEscapeDismiss);
-
-  // Limit to 5 visible toasts
-  while (container.children.length > 5) {
-    dismissToast(container.firstElementChild);
-  }
-}
-
-// Helper function to announce messages to screen readers
-function announceToScreenReader(message, type = 'info') {
-  // Create or get the screen reader announcer element
-  let announcer = document.getElementById('sr-announcer');
-  if (!announcer) {
-    announcer = document.createElement('div');
-    announcer.id = 'sr-announcer';
-    announcer.className = 'visually-hidden';
-    announcer.setAttribute('aria-live', 'polite');
-    announcer.setAttribute('aria-atomic', 'true');
-    document.body.appendChild(announcer);
-  }
-
-  // Clear previous content and announce new message
-  announcer.textContent = '';
-  // Small delay to ensure screen reader picks up the change
-  setTimeout(() => {
-    announcer.textContent = message;
-  }, 100);
-}
-
-// Helper function to add errors to a persistent notification log
-function addToNotificationLog(message, type) {
-  let logContainer = document.getElementById('notification-log');
-  if (!logContainer) {
-    logContainer = document.createElement('div');
-    logContainer.id = 'notification-log';
-    logContainer.className = 'notification-log visually-hidden';
-    logContainer.setAttribute('aria-label', 'Notification history');
-    document.body.appendChild(logContainer);
-  }
-
-  const entry = document.createElement('div');
-  entry.className = `notification-log-entry notification-log-entry--${type}`;
-  entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
-  logContainer.appendChild(entry);
-
-  // Keep only last 20 entries
-  while (logContainer.children.length > 20) {
-    logContainer.removeChild(logContainer.firstChild);
+  if (uiHelpers) {
+    uiHelpers.showToast(message, type, options);
   }
 }
 
 function dismissToast(toast) {
-  if (!toast || toast._dismissing) return;
-  toast._dismissing = true;
-  // Always clean up the Escape listener, regardless of how toast was dismissed
-  if (toast._onEscapeDismiss) {
-    document.removeEventListener('keydown', toast._onEscapeDismiss);
-    toast._onEscapeDismiss = null;
-  }
-  toast.style.opacity = '0';
-  toast.style.transform = 'translateX(24px) scale(0.95)';
-  toast.style.maxHeight = '0';
-  toast.style.marginBottom = '0';
-  toast.style.padding = '0';
-  setTimeout(() => toast.remove(), 280);
+  return uiHelpers?.dismissToast(toast);
 }
 
 function copyToClipboard(text, btn) {
-  navigator.clipboard
-    .writeText(text)
-    .then(() => {
-      const originalText = btn.innerHTML;
-      btn.innerHTML = '✓ Copied';
-      btn.classList.add('copied');
-      setTimeout(() => {
-        btn.innerHTML = originalText;
-        btn.classList.remove('copied');
-      }, 2000);
-      showToast('Copied to clipboard!', 'success');
-    })
-    .catch(() => {
-      showToast('Unable to copy — try selecting the text manually.', 'warning');
-    });
+  return uiHelpers?.copyToClipboard(text, btn);
 }
 
 function esc(str) {
+  if (uiHelpers) return uiHelpers.esc(str);
   if (typeof str !== 'string') str = String(str || '');
   return str
     .replace(/&/g, '&amp;')
@@ -4909,6 +4523,7 @@ function esc(str) {
 // Decode HTML entities stored in DB (e.g. &amp; → &, &amp;amp; → &amp;)
 // Uses a detached textarea so no XSS risk — value is text, not innerHTML
 function decodeHtml(str) {
+  if (uiHelpers) return uiHelpers.decodeHtml(str);
   if (!str || typeof str !== 'string') return str || '';
   const t = document.createElement('textarea');
   t.innerHTML = str;
@@ -4918,12 +4533,14 @@ function decodeHtml(str) {
 // DOMPurify safety net for innerHTML — belt-and-braces defense.
 // Use safeHtml() for any innerHTML that includes dynamic content.
 function safeHtml(html) {
-  if (typeof DOMPurify !== 'undefined')
-    return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  if (uiHelpers) return uiHelpers.safeHtml(html);
+  if (typeof window.DOMPurify !== 'undefined')
+    return window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
   return html; // Fallback if DOMPurify fails to load — esc() already escapes
 }
 
 function truncate(str, len) {
+  if (uiHelpers) return uiHelpers.truncate(str, len);
   if (!str) return '';
   return str.length > len ? str.substring(0, len) + '…' : str;
 }
