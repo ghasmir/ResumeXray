@@ -3328,11 +3328,9 @@ function updateDashboardFocus(data, user) {
   const targetEl = el('dash-focus-target');
   const targetSubEl = el('dash-focus-target-sub');
   const jobsCountEl = el('dash-jobs-count');
-  const resumesCountEl = el('dash-resumes-count');
   const momentumEl = el('dash-momentum-note');
 
   if (jobsCountEl) jobsCountEl.textContent = String(jobs.length);
-  if (resumesCountEl) resumesCountEl.textContent = String(resumes.length);
 
   const latestTitle = latest ? getDashboardScanTitle(latest) : 'No recent target yet';
 
@@ -3348,8 +3346,6 @@ function updateDashboardFocus(data, user) {
       momentumEl.textContent = 'Build one strong scan first, then export when the recruiter view looks clean.';
     } else if (jobs.length > 0) {
       momentumEl.textContent = `You have ${jobs.length} saved job link${jobs.length === 1 ? '' : 's'} feeding future scan decisions.`;
-    } else if (resumes.length > 0) {
-      momentumEl.textContent = `You already have ${resumes.length} saved resume${resumes.length === 1 ? '' : 's'} to compare against future targets.`;
     } else {
       momentumEl.textContent = 'Run one more job-specific scan to build a stronger benchmark before exporting.';
     }
@@ -3441,7 +3437,6 @@ function updateDashboardJourney(data, user) {
     `${matchRate}% match`,
     `${parseRate}% parse`,
     jobs.length ? `${jobs.length} saved job${jobs.length === 1 ? '' : 's'}` : null,
-    resumes.length ? `${resumes.length} saved resume${resumes.length === 1 ? '' : 's'}` : null,
   ].filter(Boolean);
   winMetaEl.textContent = metaParts.join(' · ');
 }
