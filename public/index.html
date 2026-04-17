@@ -1778,32 +1778,6 @@
               </button>
               <button
                 class="results-tab-btn"
-                data-tab="tab-pdf-preview"
-                id="btn-tab-pdf"
-                role="tab"
-                aria-selected="false"
-                aria-controls="tab-pdf-preview"
-              >
-                <svg
-                  class="tab-icon"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  aria-hidden="true"
-                >
-                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                </svg>
-                <span class="results-tab-copy">
-                  <span>Export Preview</span>
-                  <span class="results-tab-meta" id="tab-meta-pdf">Preview before pay</span>
-                </span>
-              </button>
-              <button
-                class="results-tab-btn"
                 data-tab="tab-recruiter-agent"
                 id="btn-tab-recruiter"
                 role="tab"
@@ -1826,6 +1800,32 @@
                 <span class="results-tab-copy">
                   <span>Recruiter View</span>
                   <span class="results-tab-meta" id="tab-meta-recruiter">Search visibility</span>
+                </span>
+              </button>
+              <button
+                class="results-tab-btn"
+                data-tab="tab-pdf-preview"
+                id="btn-tab-pdf"
+                role="tab"
+                aria-selected="false"
+                aria-controls="tab-pdf-preview"
+              >
+                <svg
+                  class="tab-icon"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span class="results-tab-copy">
+                  <span>Export Preview</span>
+                  <span class="results-tab-meta" id="tab-meta-pdf">Preview before pay</span>
                 </span>
               </button>
               <button
@@ -2049,7 +2049,41 @@
               </div>
             </div>
 
-            <!-- TAB 2: Export Preview -->
+            <!-- TAB 2: Recruiter View -->
+            <div class="results-tab-pane" id="tab-recruiter-agent">
+              <div class="pane-header">
+                <h2 class="pane-title" style="margin-bottom: var(--sp-2)">Recruiter Visibility</h2>
+                <p
+                  class="body-sm text-muted"
+                  id="results-pane-note-recruiter"
+                  style="margin-bottom: var(--sp-6)"
+                >
+                  Check which fields stay searchable.
+                </p>
+              </div>
+              <div class="recruiter-review-shell">
+                <div class="recruiter-review-banner">
+                  <div class="recruiter-review-copy">
+                    <div class="recruiter-review-kicker">Searchable Profile Snapshot</div>
+                    <p class="recruiter-review-body">
+                      This is the recruiter-facing readout of your resume. Clean, complete fields
+                      improve search visibility before anyone opens the full document.
+                    </p>
+                  </div>
+                  <div id="agent-recruiter-overview" class="recruiter-overview">
+                    <!-- Injected by JS -->
+                  </div>
+                </div>
+                <div id="agent-recruiter-rows" class="recruiter-review-grid">
+                  <!-- Injected by JS -->
+                </div>
+              </div>
+              <div id="agent-search-visibility" style="margin-top: var(--sp-6)">
+                <!-- Summary keywords -->
+              </div>
+            </div>
+
+            <!-- TAB 3: Export Preview -->
             <div class="results-tab-pane" id="tab-pdf-preview">
               <div class="pane-header" id="optimized-resume-header">
                 <p
@@ -2190,40 +2224,6 @@
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            <!-- TAB 3: Recruiter View -->
-            <div class="results-tab-pane" id="tab-recruiter-agent">
-              <div class="pane-header">
-                <h2 class="pane-title" style="margin-bottom: var(--sp-2)">Recruiter Visibility</h2>
-                <p
-                  class="body-sm text-muted"
-                  id="results-pane-note-recruiter"
-                  style="margin-bottom: var(--sp-6)"
-                >
-                  Check which fields stay searchable.
-                </p>
-              </div>
-              <div class="recruiter-review-shell">
-                <div class="recruiter-review-banner">
-                  <div class="recruiter-review-copy">
-                    <div class="recruiter-review-kicker">Searchable Profile Snapshot</div>
-                    <p class="recruiter-review-body">
-                      This is the recruiter-facing readout of your resume. Clean, complete fields
-                      improve search visibility before anyone opens the full document.
-                    </p>
-                  </div>
-                  <div id="agent-recruiter-overview" class="recruiter-overview">
-                    <!-- Injected by JS -->
-                  </div>
-                </div>
-                <div id="agent-recruiter-rows" class="recruiter-review-grid">
-                  <!-- Injected by JS -->
-                </div>
-              </div>
-              <div id="agent-search-visibility" style="margin-top: var(--sp-6)">
-                <!-- Summary keywords -->
               </div>
             </div>
 
