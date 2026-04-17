@@ -2049,107 +2049,7 @@
               </div>
             </div>
 
-            <!-- TAB 2: Recruiter View -->
-            <div class="results-tab-pane" id="tab-recruiter-agent">
-              <div class="pane-header">
-                <h2 class="pane-title" style="margin-bottom: var(--sp-2)">Recruiter Visibility</h2>
-                <p
-                  class="body-sm text-muted"
-                  id="results-pane-note-recruiter"
-                  style="margin-bottom: var(--sp-6)"
-                >
-                  Check which fields stay searchable.
-                </p>
-              </div>
-              <div class="recruiter-review-shell">
-                <div class="recruiter-review-banner">
-                  <div class="recruiter-review-copy">
-                    <div class="recruiter-review-kicker">Searchable Profile Snapshot</div>
-                    <p class="recruiter-review-body">
-                      This is the recruiter-facing readout of your resume. Clean, complete fields
-                      improve search visibility before anyone opens the full document.
-                    </p>
-                  </div>
-                  <div id="agent-recruiter-overview" class="recruiter-overview">
-                    <!-- Injected by JS -->
-                  </div>
-                </div>
-                <div id="agent-recruiter-rows" class="recruiter-review-grid">
-                  <!-- Injected by JS -->
-                </div>
-              </div>
-              <div id="agent-search-visibility" style="margin-top: var(--sp-6)">
-                <!-- Summary keywords -->
-              </div>
-            </div>
-
-            <!-- TAB 3: Cover Letter -->
-            <div class="results-tab-pane" id="tab-cover-letter">
-              <div class="pane-header">
-                <h2 class="pane-title" style="margin-bottom: var(--sp-2)">AI Cover Letter</h2>
-                <p
-                  class="body-sm text-muted"
-                  id="results-pane-note-cover-letter"
-                  style="margin-bottom: var(--sp-6)"
-                >
-                  Turn the scan into a send-ready note for this role.
-                </p>
-              </div>
-              <div id="cover-letter-content" class="cover-letter-container">
-                <div
-                  id="cover-letter-stream"
-                  class="agent-stream-text"
-                  style="
-                    min-height: 300px;
-                    white-space: pre-wrap;
-                    font-family: var(--font-serif);
-                    line-height: 1.6;
-                    font-size: 1.05rem;
-                    padding: var(--sp-8);
-                  "
-                >
-                  <div class="cover-letter-placeholder">
-                    <div style="margin-bottom: 1rem; opacity: 0.4">
-                      <svg
-                        aria-hidden="true"
-                        width="48"
-                        height="48"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      >
-                        <rect x="2" y="4" width="20" height="16" rx="2" />
-                        <polyline points="22,4 12,13 2,4" />
-                      </svg>
-                    </div>
-                    <h4>Generating your cover letter...</h4>
-                    <p class="body-sm text-muted" style="margin-top: 0.5rem">
-                      Your personalized cover letter will appear here once the AI analysis
-                      completes.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div id="cover-letter-actions" class="agent-download-bar" style="display: none">
-                <div class="download-bar-inner">
-                  <div class="download-bar-text">
-                    <strong>Export cover letter</strong>
-                    <span class="body-sm">Matches your export layout &middot; 1 credit</span>
-                  </div>
-                  <div class="download-bar-actions">
-                    <button class="btn btn-primary" id="download-cover-letter-pdf">
-                      Download PDF
-                    </button>
-                    <button class="btn btn-secondary btn-sm" id="download-cover-letter-docx">
-                      DOCX
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- TAB 4: PDF Preview -->
+            <!-- TAB 2: Export Preview -->
             <div class="results-tab-pane" id="tab-pdf-preview">
               <div class="pane-header" id="optimized-resume-header">
                 <p
@@ -2292,6 +2192,107 @@
                 </div>
               </div>
             </div>
+
+            <!-- TAB 3: Recruiter View -->
+            <div class="results-tab-pane" id="tab-recruiter-agent">
+              <div class="pane-header">
+                <h2 class="pane-title" style="margin-bottom: var(--sp-2)">Recruiter Visibility</h2>
+                <p
+                  class="body-sm text-muted"
+                  id="results-pane-note-recruiter"
+                  style="margin-bottom: var(--sp-6)"
+                >
+                  Check which fields stay searchable.
+                </p>
+              </div>
+              <div class="recruiter-review-shell">
+                <div class="recruiter-review-banner">
+                  <div class="recruiter-review-copy">
+                    <div class="recruiter-review-kicker">Searchable Profile Snapshot</div>
+                    <p class="recruiter-review-body">
+                      This is the recruiter-facing readout of your resume. Clean, complete fields
+                      improve search visibility before anyone opens the full document.
+                    </p>
+                  </div>
+                  <div id="agent-recruiter-overview" class="recruiter-overview">
+                    <!-- Injected by JS -->
+                  </div>
+                </div>
+                <div id="agent-recruiter-rows" class="recruiter-review-grid">
+                  <!-- Injected by JS -->
+                </div>
+              </div>
+              <div id="agent-search-visibility" style="margin-top: var(--sp-6)">
+                <!-- Summary keywords -->
+              </div>
+            </div>
+
+            <!-- TAB 4: Cover Letter -->
+            <div class="results-tab-pane" id="tab-cover-letter">
+              <div class="pane-header">
+                <h2 class="pane-title" style="margin-bottom: var(--sp-2)">AI Cover Letter</h2>
+                <p
+                  class="body-sm text-muted"
+                  id="results-pane-note-cover-letter"
+                  style="margin-bottom: var(--sp-6)"
+                >
+                  Turn the scan into a send-ready note for this role.
+                </p>
+              </div>
+              <div id="cover-letter-content" class="cover-letter-container">
+                <div
+                  id="cover-letter-stream"
+                  class="agent-stream-text"
+                  style="
+                    min-height: 300px;
+                    white-space: pre-wrap;
+                    font-family: var(--font-serif);
+                    line-height: 1.6;
+                    font-size: 1.05rem;
+                    padding: var(--sp-8);
+                  "
+                >
+                  <div class="cover-letter-placeholder">
+                    <div style="margin-bottom: 1rem; opacity: 0.4">
+                      <svg
+                        aria-hidden="true"
+                        width="48"
+                        height="48"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      >
+                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                        <polyline points="22,4 12,13 2,4" />
+                      </svg>
+                    </div>
+                    <h4>Generating your cover letter...</h4>
+                    <p class="body-sm text-muted" style="margin-top: 0.5rem">
+                      Your personalized cover letter will appear here once the AI analysis
+                      completes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div id="cover-letter-actions" class="agent-download-bar" style="display: none">
+                <div class="download-bar-inner">
+                  <div class="download-bar-text">
+                    <strong>Export cover letter</strong>
+                    <span class="body-sm">Matches your export layout &middot; 1 credit</span>
+                  </div>
+                  <div class="download-bar-actions">
+                    <button class="btn btn-primary" id="download-cover-letter-pdf">
+                      Download PDF
+                    </button>
+                    <button class="btn btn-secondary btn-sm" id="download-cover-letter-docx">
+                      DOCX
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
