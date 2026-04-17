@@ -533,7 +533,7 @@ High-level steps:
 5. score ATS/readiness
 6. extract and match keywords
 7. generate recommendations
-8. optionally rewrite bullets
+8. optionally rewrite bullets (stored independently, applied later to structured nodes, never flat text)
 9. generate keyword plan
 10. generate cover letter when JD exists
 11. emit progress/tokens/scores to SSE
@@ -750,12 +750,13 @@ Functions:
 
 Pipeline summary:
 
-1. apply optimized bullet rewrites
-2. sanitize text for ATS-safe rendering
-3. normalize dates and symbols
-4. parse sections heuristically
-5. recover cleaner header/contact/summary fields
-6. trim content toward a one-page bias
+1. parse sections heuristically
+2. recover cleaner header/contact/summary fields
+3. structure flat lines into nested template-friendly objects
+4. apply optimized bullet rewrites directly to structured nodes
+5. sanitize text for ATS-safe rendering
+6. normalize dates and symbols
+7. trim content toward a one-page bias
 7. render Handlebars HTML template
 8. use Playwright to generate PDF
 9. validate text layer and page bounds

@@ -150,9 +150,20 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 - **Phase 2 Frontend Extraction**: Started the native-ES-module "strangler fig" split by pulling shared UI helpers into `public/js/modules/ui-helpers.mjs` and PDF preview behavior into `public/js/modules/pdf-preview.mjs`, while preserving `public/js/app.js` as the stable orchestration layer.
 - **Frontend Verification Path**: Re-verified the extracted frontend path with `npm run syntax:frontend`, `npm test`, a clean local boot, and a browser smoke confirming the SPA initialized successfully after loading the new dynamic imports.
 - **Docs Maintenance**: Updated `README.md` and `TECHNICAL_DOCUMENTATION.md` with the verified `better-sqlite3` rebuild recovery step, the recommended local boot command when Upstash is intentionally disabled, and the new frontend module ownership boundaries.
+- **Document Pipeline Stabilization**: Rebuilt the fundamental document generation flow. Transitioned from a fragile flat-text pre-parse string replacement process into a robust `parse → structure → surgically rewrite objects` model. Upgraded `generateDOCX()` to consume structural nodes directly, eliminating text gap-shifts and formatting corruption permanently.
+- **Results UX Refinement**: Corrected the Results Interface Tab progression to match true linear feedback logic: ATS Diagnosis → Recruiter View → Export Preview → Cover Letter. Allowed sandboxed scripts/popups in the PDF preview iframe so users can fully expand generated drafts.
 
 **Removed / Fixed:**
 - **Blocked Smoke Suite**: Eliminated the `better-sqlite3` ABI mismatch that had been preventing the smoke suite from spawning a local server, returning `npm test` to a fully green state (`21/21` passing).
 - **Inline Handler Drift**: Closed the last known gap between runtime behavior and the configured CSP by replacing inline preview retry, copy, and metric-apply interactions with delegated listeners.
 - **Frontend Regression Surface**: Reduced the highest-risk share of the SPA monolith by extracting toast/sanitization helpers and PDF preview control logic into isolated modules without forcing a full client rewrite.
 - **Undocumented Local Setup Debt**: Removed ambiguity around how to recover from native-module breakage after a Node runtime change by documenting the exact rebuild-first recovery sequence that worked in practice.
+- **UX Misdirection / Saved Resumes Rollback**: Permanently removed the dashboard "Your Resumes" workspace and its associated dynamic state indicators ("saved resumes", "future targets"). Consolidated the value-proposition strictly around the immediate "Diagnose & Fix" linear pipeline, eliminating confusing file-picker drop-offs.
+- **Stale Claims**: Scrubbed lingering "Upload once, tailor many" claims across the static text, standardizing completely around one-time job targeting.
+
+**Workstream Methodology & Multi-Model Collaboration:**
+This comprehensive remediation phase was successfully executed through a synchronized, multi-agent AI effort:
+- **Audit & Discovery**: Initiated by a severe Codex and infrastructure budget audit.
+- **Strategic Blueprint**: A foundational mitigation roadmap was originally proposed by Gemini, identifying the need for database state resilience.
+- **Implementation Design**: The raw plan was subsequently enhanced and corrected through collaborative input (involving Claude 3 Opus and Sonnet intelligence layers), culminating in the hardened `implementation_plan.md`. This plan pivoted away from Gemini's suggested database migration and instead correctly identified the root cause in the render pipeline (flat-text string replacement vs structured node injection).
+- **Execution**: The final rollout was systematically executed step-by-step, validating the infrastructure (Oracle Cloud A1 requirement), strictly structuring the parsing logic, and actively collaborating with the user's ongoing UX feedback to delete the conflicting "Saved Resumes" UI dynamically.
