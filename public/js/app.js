@@ -3169,6 +3169,9 @@ async function renderDashboard() {
     updateDashboardFocus(data, user);
     updateDashboardJourney(data, user);
 
+    // Render resume workspace
+    renderResumeWorkspace(data.resumes || []);
+
     // Update Last Score Card
     if (data.scans?.length > 0) {
       const last = data.scans[0];
@@ -3364,6 +3367,49 @@ function updateDashboardFocus(data, user) {
     btnEl.setAttribute('data-action', 'navigate');
     btnEl.setAttribute('data-path', recommendation.path);
   }
+}
+
+/**
+ * Render saved resumes in the dashboard workspace.
+ */
+function renderResumeWorkspace(resumes) {
+  const container = el('dash-resumes-list');
+  if (!container) return;
+
+  if (!resumes || resumes.length === 0) {
+    container.innerHTML = safeHtml(`
+      <div class="empty-state card bento-glass text-center" style="padding:2rem">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3;margin:0 auto 0.75rem">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <p style="font-weight:600;margin-bottom:0.4rem">No resumes uploaded yet</p>
+        <p class="body-sm" style="opacity:0.7;margin-bottom:1rem">Upload your first resume during a scan and it will appear here for re-use.</p>
+        <button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Start a Scan →</button>
+      </div>`);
+    return;
+  }
+
+  container.innerHTML = safeHtml(resumes.map(r => {
+    const name = esc(r.name || r.file_name || 'Resume');
+    const type = esc((r.file_type || 'pdf').toUpperCase());
+    const sizeKb = r.file_size ? Math.round(r.file_size / 1024) : 0;
+    const date = r.created_at ? timeAgo(r.created_at) : '';
+    return `
+      <div class="card bento-glass dash-resume-card" style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;margin-bottom:0.5rem">
+        <div style="flex-shrink:0;width:36px;height:36px;border-radius:8px;background:var(--surface-2);display:flex;align-items:center;justify-content:center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0.6">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          </svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${name}">${name}</div>
+          <div class="body-xs text-muted">${type} · ${sizeKb}KB${date ? ' · ' + date : ''}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan" style="flex-shrink:0">
+          Use for Scan
+        </button>
+      </div>`;
+  }).join(''));
 }
 
 function updateDashboardJourney(data, user) {

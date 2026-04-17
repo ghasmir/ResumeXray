@@ -1544,7 +1544,7 @@
                   Target Job
                 </div>
                 <div class="job-details-hint" id="job-details-hint">
-                  Upload once. Then add a job link so we can fetch the role, detect the hiring
+                  Add a job link so we can fetch the role, detect the hiring
                   portal, and optimize for the right ATS flow automatically.
                 </div>
 
@@ -1778,6 +1778,32 @@
               </button>
               <button
                 class="results-tab-btn"
+                data-tab="tab-pdf-preview"
+                id="btn-tab-pdf"
+                role="tab"
+                aria-selected="false"
+                aria-controls="tab-pdf-preview"
+              >
+                <svg
+                  class="tab-icon"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span class="results-tab-copy">
+                  <span>Export Preview</span>
+                  <span class="results-tab-meta" id="tab-meta-pdf">Preview before pay</span>
+                </span>
+              </button>
+              <button
+                class="results-tab-btn"
                 data-tab="tab-recruiter-agent"
                 id="btn-tab-recruiter"
                 role="tab"
@@ -1828,32 +1854,6 @@
                 <span class="results-tab-copy">
                   <span>Cover Letter</span>
                   <span class="results-tab-meta" id="tab-meta-cover-letter">Needs target job</span>
-                </span>
-              </button>
-              <button
-                class="results-tab-btn"
-                data-tab="tab-pdf-preview"
-                id="btn-tab-pdf"
-                role="tab"
-                aria-selected="false"
-                aria-controls="tab-pdf-preview"
-              >
-                <svg
-                  class="tab-icon"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  aria-hidden="true"
-                >
-                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                </svg>
-                <span class="results-tab-copy">
-                  <span>Export Preview</span>
-                  <span class="results-tab-meta" id="tab-meta-pdf">Preview before pay</span>
                 </span>
               </button>
             </div>
@@ -2242,7 +2242,7 @@
                     class="pdf-preview-frame"
                     src="about:blank"
                     title="Resume PDF preview"
-                    sandbox="allow-same-origin allow-downloads"
+                    sandbox="allow-same-origin allow-downloads allow-scripts allow-popups"
                   ></iframe>
                 </div>
 
@@ -2621,13 +2621,13 @@
               class="bento-card bento-glass card-ai animate-fade-up"
               style="animation-delay: 0.05s"
             >
-              <div class="bento-label">RESUMES SCANNED</div>
+              <div class="bento-label">SCANS COMPLETED</div>
               <div class="bento-stat" id="stat-resumes-bento">0</div>
               <div class="progress-bar-bg">
                 <div id="progress-resumes" class="progress-bar-fill accent-purple"></div>
               </div>
               <p class="body-xs text-muted" style="margin-top: 0.75rem">
-                Total resumes you've analyzed
+                Total scans completed across all resumes
               </p>
             </div>
 
@@ -2662,6 +2662,36 @@
               </div>
             </div>
           </div>
+
+          <div class="dash-section-divider"></div>
+          <div class="dash-section-header">
+            <div class="dash-section-header-left">
+              <div class="dash-section-icon">
+                <svg
+                  aria-hidden="true"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              </div>
+              <div>
+                <h2 class="dash-section-title">Your Resumes</h2>
+                <p class="dash-section-sub">
+                  Uploaded resumes — re-scan against different roles without re-uploading.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div id="dash-resumes-list"></div>
 
           <div class="dash-section-divider"></div>
           <div class="dash-section-header">
