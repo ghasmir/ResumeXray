@@ -262,6 +262,9 @@
     <!-- §4.8: Self-hosted fonts loaded via CSS @font-face — no external CDN -->
     <!-- §1.5: Preconnect to Stripe API only (the only allowed third-party) -->
     <link rel="dns-prefetch" href="https://api.stripe.com" />
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+    <!-- PDF.js: canvas-based renderer — prevents native browser PDF toolbar from appearing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs" type="module"></script>
 
     <link rel="stylesheet" href="/css/styles.css?v=3.6" />
     <link rel="stylesheet" href="/css/app-surfaces.css?v=1.1" />
@@ -2140,17 +2143,6 @@
                   </div>
                   <div class="pdf-toolbar-controls">
                     <div class="pdf-control-group">
-                      <span class="pdf-control-label">Preview</span>
-                      <div class="pdf-pill-group">
-                        <button type="button" class="pdf-pill active" id="pdf-view-standard">
-                          Standard
-                        </button>
-                        <button type="button" class="pdf-pill" id="pdf-view-detailed">
-                          Detailed
-                        </button>
-                      </div>
-                    </div>
-                    <div class="pdf-control-group">
                       <span class="pdf-control-label">Format</span>
                       <div class="pdf-pill-group">
                         <button
@@ -2181,9 +2173,6 @@
                     </div>
                     <div class="pdf-control-divider"></div>
                     <div class="pdf-control-group">
-                      <button type="button" class="btn btn-ghost btn-sm" id="pdf-open-new-tab">
-                        Open Full Preview
-                      </button>
                       <button
                         type="button"
                         class="btn btn-ghost btn-sm"
@@ -2200,19 +2189,26 @@
                 </div>
 
                 <div class="pdf-preview-container">
-                  <iframe
-                    id="pdf-preview-frame"
-                    class="pdf-preview-frame"
-                    src="about:blank"
-                    title="Resume PDF preview"
-                  ></iframe>
+                  <!-- PDF.js renders pages here as <canvas> elements — no native browser toolbar -->
+                  <div
+                    id="pdf-canvas-container"
+                    class="pdf-canvas-container"
+                    role="document"
+                    aria-label="Resume preview"
+                  ></div>
                 </div>
 
                 <!-- Download Bar -->
                 <div id="agent-download-bar" class="agent-download-bar">
                   <div class="download-bar-inner">
                     <div class="download-bar-text">
-                      <strong>Download your optimized resume</strong>
+                      <div class="download-bar-lock-row">
+                        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--accent);flex-shrink:0">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0110 0v4"/>
+                        </svg>
+                        <span class="download-bar-lock-label">1 credit removes watermark &amp; unlocks your file</span>
+                      </div>
                       <div
                         style="
                           display: flex;

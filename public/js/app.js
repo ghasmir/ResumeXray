@@ -37,14 +37,12 @@ const frontendModulesReady = Promise.all([
     throw error;
   });
 
-function clearPdfPreviewObjectUrl(previewFrame) {
-  if (!previewFrame?.dataset?.previewObjectUrl) return;
-  try {
-    URL.revokeObjectURL(previewFrame.dataset.previewObjectUrl);
-  } catch {
-    /* ignore stale object URLs */
-  }
-  delete previewFrame.dataset.previewObjectUrl;
+// Clears the PDF canvas container. The pdfjs document is destroyed inside
+// pdf-preview.mjs before each reload — this just resets visual state.
+function clearPdfPreviewObjectUrl(_previewFrame) {
+  // Legacy parameter kept for API compat — canvas container is in the DOM as #pdf-canvas-container
+  const container = document.getElementById('pdf-canvas-container');
+  if (container) container.innerHTML = '';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -880,7 +878,6 @@ function switchTab(tabId) {
 
   // Trigger lazy-loading for PDF if switched to that tab
   if (tabId === 'tab-pdf-preview' || tabId === 'pdf-preview') {
-    const previewFrame = el('pdf-preview-frame');
     const bar = el('agent-download-bar');
     const scanId = getActiveScanId();
 
@@ -1798,15 +1795,8 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
   syncTemplateSelectionUI();
   updateResultsContextStrip(currentJobContext);
   updateResultsWorkspaceHeader({ scan: { jobContext: currentJobContext }, source: 'live' });
-  const previewFrame = el('pdf-preview-frame');
-  if (previewFrame) {
-    if (previewFrame._previewAbortController) {
-      previewFrame._previewAbortController.abort();
-    }
-    clearPdfPreviewObjectUrl(previewFrame);
-    previewFrame.src = 'about:blank';
-    previewFrame.style.opacity = '1';
-  }
+  // Clear PDF canvas container (pdfjs doc is destroyed inside pdf-preview.mjs on next reload)
+  clearPdfPreviewObjectUrl(null);
 
   // Nudge guests to convert — single CTA at the bottom of agent timeline only
   // (additional paywalls are overlaid on the score gauges, Cover Letter tab, etc.)
@@ -3172,7 +3162,6 @@ function setupAgentHistoricalView(data) {
     (data.optimizedBullets && data.optimizedBullets.length > 0)
   );
   const renderMeta = data.renderMeta || {};
-  const previewFrame = el('pdf-preview-frame');
 
   if (isAgentScan && scanId) {
     // Use reloadPdfPreview for proper loading skeleton, error handling, and sizing

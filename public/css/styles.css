@@ -4562,18 +4562,7 @@ body.modal-open {
 .pdf-preview-container {
   flex: 1;
   position: relative;
-  background: transparent;
-}
-
-.preview-iframe,
-.pdf-preview-frame {
-  width: 100%;
-  height: 100%;
-  border: none;
-  border-radius: 0;
-  background: #fff;
-  display: block;
-  min-height: 400px;
+  background: #f0f0f0;
 }
 
 /* ── Mobile PDF scaling ─────────────────────────────────────────
@@ -4581,22 +4570,8 @@ body.modal-open {
     document feels native to mobile instead of like a desktop canvas.
     ──────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .pdf-preview-container {
-    overflow: hidden;
-    min-height: clamp(360px, 70vh, 820px);
-  }
-
-  .pdf-preview-frame {
-    width: 100% !important;
-    min-width: 0;
-    height: clamp(420px, 72vh, 860px) !important;
-    min-height: clamp(420px, 72vh, 860px);
-    border: none;
-    border-radius: 0;
-  }
-
-  .pdf-preview-container::after {
-    display: none;
+  #pdf-canvas-container {
+    max-height: min(70vh, 760px);
   }
 }
 
@@ -4620,6 +4595,25 @@ body.modal-open {
   flex-direction: column;
   height: 100%;
 }
+
+/* Wrapper card around the canvas scroll area */
+.pdf-preview-container {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.15),
+    0 1px 4px rgba(0, 0, 0, 0.1);
+  margin: var(--sp-4) 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  background: #f0f0f0;
+}
+
+/* Default canvas container height — JS overrides this dynamically */
+#pdf-canvas-container {
+  max-height: min(75vh, 960px);
+}
+
 
 /* Adjust agent scores layout for left pane */
 #tab-diagnosis .agent-scores {
@@ -5613,11 +5607,27 @@ a svg {
 /* ─── 12. DOWNLOAD BAR PREMIUM ─────────────────────────────── */
 
 .agent-download-bar {
-  background: rgba(9, 9, 11, 0.85);
+  background: rgba(9, 9, 11, 0.9);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-top: 1px solid rgba(99, 91, 255, 0.2);
   box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* Download bar lock row — value-wall CTA */
+.download-bar-lock-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--sp-1);
+}
+
+.download-bar-lock-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  text-transform: uppercase;
 }
 
 /* ─── 13. PDF TOOLBAR PREMIUM ──────────────────────────────── */
@@ -5740,35 +5750,49 @@ a svg {
   border-left-color: transparent;
 }
 
-/* ── PDF Preview Container — Premium Document Viewer ───────── */
-.pdf-preview-container {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.15),
-    0 1px 4px rgba(0, 0, 0, 0.1);
-  margin: var(--sp-4) 0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  position: relative;
+/* ── PDF Canvas Container — replaces iframe; prevents native browser toolbar ─── */
+.pdf-canvas-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #f0f0f0;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+  scroll-behavior: smooth;
+  /* Prevent iOS bounce / pull-to-refresh interfering with scroll */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.pdf-page-wrapper {
+  width: 100%;
+  max-width: 860px;
   background: #fff;
-  transition: all var(--duration-normal) var(--ease);
-}
-
-.pdf-preview-frame {
-  border: none !important;
-  display: block;
-  transition: height var(--duration-normal) var(--ease);
-}
-
-.pdf-preview-container.is-detailed {
   box-shadow:
-    0 18px 48px rgba(0, 0, 0, 0.22),
-    0 1px 4px rgba(0, 0, 0, 0.12);
+    0 2px 8px rgba(0,0,0,0.12),
+    0 0 0 1px rgba(0,0,0,0.04);
+  border-radius: 2px;
+  overflow: hidden;
+  line-height: 0; /* remove inline gap below canvas */
 }
 
-.pdf-preview-container.is-detailed .pdf-preview-frame {
-  min-height: min(96vh, 1200px) !important;
-  height: min(96vh, 1200px) !important;
+.pdf-page-canvas {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+  /* Prevent context-menu from offering a 'save image' shortcut */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Mobile: tighter padding */
+@media (max-width: 600px) {
+  .pdf-canvas-container {
+    padding: var(--sp-2);
+    gap: var(--sp-2);
+  }
 }
 
 /* Mobile: stack controls */

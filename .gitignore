@@ -43,3 +43,6 @@ backups/
 
 # Temp uploads
 tmp_uploads/
+
+# Generated artifacts
+output/

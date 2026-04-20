@@ -1,14 +1,58 @@
 import { el, esc, safeHtml, uiIcon } from './ui-helpers.mjs';
 
-function applyPdfFrameSize(frame, state) {
-  if (!frame) return;
-  const viewportFactor = state.focusMode ? 0.9 : state.mode === 'detailed' ? 0.84 : 0.62;
-  const maxHeight = state.focusMode ? 1400 : state.mode === 'detailed' ? 1200 : 900;
-  const height = Math.max(320, Math.min(maxHeight, window.innerHeight * viewportFactor));
-  frame.style.height = `${height}px`;
-  frame.style.width = '100%';
+// ── PDF.js bootstrap ─────────────────────────────────────────────
+// PDF.js is loaded as a <script type="module"> from the CDN in index.html.
+// We access it via the global `pdfjsLib` it exposes.
+// The worker URL must match the CDN version exactly.
+const PDFJS_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155';
+
+function getPdfjsLib() {
+  return window.pdfjsLib || null;
 }
 
+function ensurePdfjsWorker() {
+  const lib = getPdfjsLib();
+  if (!lib) return false;
+  if (!lib.GlobalWorkerOptions.workerSrc) {
+    lib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}/pdf.worker.min.mjs`;
+  }
+  return true;
+}
+
+// ── Canvas-per-page renderer ─────────────────────────────────────
+async function renderPdfPages(pdfDoc, container, devicePixelRatio = 1) {
+  container.innerHTML = '';
+
+  const totalPages = pdfDoc.numPages;
+  const scale = Math.min(devicePixelRatio, 2) * 1.2; // crisp but not too heavy
+
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    const page = await pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+
+    const pageWrapper = document.createElement('div');
+    pageWrapper.className = 'pdf-page-wrapper';
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'pdf-page-canvas';
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    // CSS width = natural paper width so it fills container
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
+    canvas.style.display = 'block';
+    // Prevent context-menu "Save image as" from offering the PDF page as a PNG download
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    pageWrapper.appendChild(canvas);
+    container.appendChild(pageWrapper);
+  }
+}
+
+// ── Main controller factory ──────────────────────────────────────
 export function createPdfPreviewController({
   state,
   clearPdfPreviewObjectUrl,
@@ -20,210 +64,95 @@ export function createPdfPreviewController({
     throw new Error('PDF preview controller requires shared state.');
   }
 
-  function setMode(mode) {
-    state.mode = mode;
-    const container = document.querySelector('.pdf-preview-container');
-    const previewFrame = el('pdf-preview-frame');
-    const standardBtn = el('pdf-view-standard');
-    const detailedBtn = el('pdf-view-detailed');
+  // Internal pdfjs document reference for cleanup
+  let _currentPdfDoc = null;
 
-    if (container) {
-      container.classList.toggle('is-detailed', mode === 'detailed');
-    }
-    if (previewFrame) {
-      applyPdfFrameSize(previewFrame, state);
-    }
-    if (standardBtn) standardBtn.classList.toggle('active', mode === 'standard');
-    if (detailedBtn) detailedBtn.classList.toggle('active', mode === 'detailed');
+  function applyCanvasContainerSize(container) {
+    if (!container) return;
+    const viewportFactor = state.focusMode ? 0.9 : 0.75;
+    const maxH = state.focusMode ? 1400 : 1100;
+    const height = Math.max(420, Math.min(maxH, window.innerHeight * viewportFactor));
+    container.style.maxHeight = `${height}px`;
   }
 
   function setFocusMode(active) {
     state.focusMode = active;
     const viewerOverlay = el('pdf-viewer-overlay');
     const focusBtn = el('pdf-toggle-fullscreen');
+    const container = el('pdf-canvas-container');
 
-    if (viewerOverlay) {
-      viewerOverlay.classList.toggle('is-focus-mode', active);
-    }
+    if (viewerOverlay) viewerOverlay.classList.toggle('is-focus-mode', active);
     document.body.classList.toggle('pdf-focus-mode', active);
-    if (focusBtn) {
-      focusBtn.textContent = active ? 'Exit Focus View' : 'Focus View';
-    }
-    if (active && window.innerWidth < 768) {
-      setMode('detailed');
-    } else {
-      setMode(state.mode);
-    }
+    if (focusBtn) focusBtn.textContent = active ? 'Exit Focus View' : 'Focus View';
+    applyCanvasContainerSize(container);
   }
 
   function setupControls() {
     if (state.controlsInitialized) {
-      setMode(state.mode);
+      applyCanvasContainerSize(el('pdf-canvas-container'));
       return;
     }
     state.controlsInitialized = true;
 
-    const standardBtn = el('pdf-view-standard');
-    const detailedBtn = el('pdf-view-detailed');
-    const openTabBtn = el('pdf-open-new-tab');
     const fullscreenBtn = el('pdf-toggle-fullscreen');
-
-    standardBtn?.addEventListener('click', () => setMode('standard'));
-    detailedBtn?.addEventListener('click', () => setMode('detailed'));
-
-    openTabBtn?.addEventListener('click', () => {
-      const previewFrame = el('pdf-preview-frame');
-      const url =
-        previewFrame?.dataset.previewUrl ||
-        previewFrame?.dataset.previewObjectUrl ||
-        previewFrame?.src;
-      if (url && url !== 'about:blank') {
-        window.open(url, '_blank', 'noopener');
-      }
-    });
-
-    fullscreenBtn?.addEventListener('click', () => {
-      setFocusMode(!state.focusMode);
-    });
+    fullscreenBtn?.addEventListener('click', () => setFocusMode(!state.focusMode));
 
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && state.focusMode) {
-        setFocusMode(false);
-      }
+      if (event.key === 'Escape' && state.focusMode) setFocusMode(false);
     });
 
-    setMode(state.mode);
+    window.addEventListener('resize', () => {
+      applyCanvasContainerSize(el('pdf-canvas-container'));
+    });
+
+    applyCanvasContainerSize(el('pdf-canvas-container'));
   }
 
+  // No-op setMode — kept for API compatibility with app.js callers
+  function setMode(_mode) {}
+
   async function reloadPreview(scanId) {
-    const previewFrame = el('pdf-preview-frame');
-    if (!previewFrame) return;
+    const container = el('pdf-canvas-container');
+    if (!container) return;
 
     const resolvedScanId = Number.parseInt(String(scanId || getActiveScanId() || ''), 10);
-    const container = previewFrame.parentElement;
 
-    if (previewFrame._previewAbortController) {
-      previewFrame._previewAbortController.abort();
+    // Abort any in-flight request
+    if (reloadPreview._abortController) {
+      reloadPreview._abortController.abort();
     }
-    const previewController = new AbortController();
-    previewFrame._previewAbortController = previewController;
-    const requestKey = `${resolvedScanId || 'invalid'}-${Date.now()}`;
-    previewFrame.dataset.previewRequestKey = requestKey;
-    clearPdfPreviewObjectUrl(previewFrame);
+    const abortController = new AbortController();
+    reloadPreview._abortController = abortController;
 
+    const requestKey = `${resolvedScanId || 'invalid'}-${Date.now()}`;
+    container.dataset.previewRequestKey = requestKey;
+
+    // Tear down previous pdfjs doc to free memory
+    if (_currentPdfDoc) {
+      try { _currentPdfDoc.destroy(); } catch { /* ignore */ }
+      _currentPdfDoc = null;
+    }
+
+    // Handle invalid scan ID
     if (!Number.isInteger(resolvedScanId) || resolvedScanId <= 0) {
-      if (container) {
-        const existingError = container.querySelector('.pdf-error-message');
-        if (existingError) existingError.remove();
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'pdf-error-message';
-        errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
-        errorDiv.innerHTML = safeHtml(`
-          <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
-          <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
-          <p class="body-sm">We could not resolve this scan preview. Start a new targeted scan and try again.</p>
-        `);
-        container.appendChild(errorDiv);
-      }
-      previewFrame.src = 'about:blank';
-      previewFrame.style.opacity = '1';
+      _showError(container, 'We could not resolve this scan preview. Start a new targeted scan and try again.');
       return;
     }
 
-    applyPdfFrameSize(previewFrame, state);
-    setMode(state.mode);
-
-    let skeleton = container?.querySelector('.preview-skeleton');
-    if (!skeleton && container) {
-      skeleton = document.createElement('div');
-      skeleton.className = 'preview-skeleton';
-      skeleton.innerHTML = safeHtml(
-        '<div class="loader"></div><p class="body-sm text-muted" style="margin-top:var(--sp-3)">Rendering preview…</p>'
-      );
-      skeleton.style.cssText =
-        'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;';
-      container.insertBefore(skeleton, previewFrame);
-    }
-    if (skeleton) skeleton.style.display = 'flex';
-    previewFrame.style.opacity = '0';
+    applyCanvasContainerSize(container);
+    _showSkeleton(container);
 
     const url = `/api/agent/preview/${resolvedScanId}?t=${Date.now()}${currentScanTokenQuery()}${currentPreviewProfileQuery ? currentPreviewProfileQuery() : ''}`;
-    previewFrame.dataset.previewUrl = url;
-    previewFrame.src = 'about:blank';
-
-    const removeExistingError = () => {
-      const existingError = container?.querySelector('.pdf-error-message');
-      if (existingError) existingError.remove();
-    };
-
-    const handleError = message => {
-      if (previewFrame.dataset.previewRequestKey !== requestKey) return;
-      if (skeleton) skeleton.style.display = 'none';
-      previewFrame.style.opacity = '1';
-      clearPdfPreviewObjectUrl(previewFrame);
-      previewFrame.src = 'about:blank';
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'pdf-error-message';
-      errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
-      errorDiv.innerHTML = safeHtml(`
-        <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
-        <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
-        <p class="body-sm">${esc(message || 'Unable to load the PDF preview. The file may still be processing or there was an error.')}</p>
-        <button
-          class="btn btn-primary btn-sm"
-          style="margin-top:1rem"
-          data-action="reload-pdf-preview"
-          data-scan-id="${esc(String(resolvedScanId))}"
-        >
-          Retry
-        </button>
-      `);
-      if (container) {
-        removeExistingError();
-        container.appendChild(errorDiv);
-      }
-    };
-
-    const revealPreview = () => {
-      if (previewFrame.dataset.previewRequestKey !== requestKey) return;
-      previewFrame.style.opacity = '1';
-      if (skeleton) skeleton.style.display = 'none';
-      removeExistingError();
-      applyPdfFrameSize(previewFrame, state);
-    };
-
-    const handleLoad = () => {
-      if (previewFrame.dataset.previewRequestKey !== requestKey) return;
-      if (previewFrame.src === 'about:blank') {
-        handleError('Preview did not initialize correctly. Please try again.');
-        return;
-      }
-      revealPreview();
-    };
-
-    previewFrame.removeEventListener('load', previewFrame._loadHandler);
-    previewFrame.removeEventListener('error', previewFrame._errorHandler);
-
-    previewFrame._loadHandler = handleLoad;
-    previewFrame._errorHandler = () => handleError('Unable to display the generated PDF preview.');
-
-    previewFrame.addEventListener('load', handleLoad);
-    previewFrame.addEventListener('error', previewFrame._errorHandler);
-
-    if (!previewFrame._pdfrsBound) {
-      const resizeHandler = () => applyPdfFrameSize(previewFrame, state);
-      window.addEventListener('resize', resizeHandler);
-      previewFrame._pdfrsBound = true;
-      previewFrame._pdfrsResizeHandler = resizeHandler;
-    }
 
     try {
+      // ── Fetch the PDF blob via our authenticated route ──
       const response = await fetch(url, {
         credentials: 'same-origin',
         headers: { Accept: 'application/pdf' },
-        signal: previewController.signal,
+        signal: abortController.signal,
       });
-      if (previewFrame.dataset.previewRequestKey !== requestKey) return;
+
+      if (container.dataset.previewRequestKey !== requestKey) return;
 
       const contentType = (response.headers.get('content-type') || '').toLowerCase();
       if (!response.ok || !contentType.includes('application/pdf')) {
@@ -233,9 +162,7 @@ export function createPdfPreviewController({
           try {
             const payload = JSON.parse(bodyText);
             errorMessage = payload.error || errorMessage;
-          } catch {
-            /* keep fallback */
-          }
+          } catch { /* keep fallback */ }
         } else if (bodyText) {
           const match = bodyText.match(/<p[^>]*>(.*?)<\/p>/i);
           if (match) {
@@ -244,40 +171,92 @@ export function createPdfPreviewController({
             errorMessage = parser.textContent?.trim() || errorMessage;
           }
         }
-        handleError(errorMessage);
+        _showError(container, errorMessage, resolvedScanId);
         return;
       }
 
       const blob = await response.blob();
       if (!blob || blob.size === 0) {
-        handleError('The preview file was empty. Please regenerate this scan.');
+        _showError(container, 'The preview file was empty. Please regenerate this scan.', resolvedScanId);
         return;
       }
 
-      const objectUrl = URL.createObjectURL(blob);
-      if (previewFrame.dataset.previewRequestKey !== requestKey) {
-        URL.revokeObjectURL(objectUrl);
+      if (container.dataset.previewRequestKey !== requestKey) return;
+
+      // ── Hand blob to PDF.js — never touch iframe or blob:// URLs ──
+      if (!ensurePdfjsWorker()) {
+        _showError(container, 'PDF renderer is still loading. Please wait a moment and try again.', resolvedScanId);
         return;
       }
 
-      previewFrame.dataset.previewObjectUrl = objectUrl;
-      previewFrame.src = objectUrl;
-      window.setTimeout(() => {
-        if (previewFrame.dataset.previewRequestKey !== requestKey) return;
-        if (previewFrame.src === objectUrl) {
-          revealPreview();
-        }
-      }, 1200);
+      const arrayBuffer = await blob.arrayBuffer();
+      if (container.dataset.previewRequestKey !== requestKey) return;
+
+      const pdfjsLib = getPdfjsLib();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdfDoc = await loadingTask.promise;
+
+      if (container.dataset.previewRequestKey !== requestKey) {
+        pdfDoc.destroy();
+        return;
+      }
+
+      _currentPdfDoc = pdfDoc;
+      _hideSkeleton(container);
+      await renderPdfPages(pdfDoc, container, window.devicePixelRatio || 1);
+
     } catch (error) {
       if (error?.name === 'AbortError') return;
-      handleError(error?.message || 'Unable to load the PDF preview right now.');
+      _hideSkeleton(container);
+      _showError(container, error?.message || 'Unable to load the PDF preview right now.', resolvedScanId);
     }
+  }
+
+  // ── Private helpers ──────────────────────────────────────────
+  function _showSkeleton(container) {
+    let skeleton = container.querySelector('.preview-skeleton');
+    if (!skeleton) {
+      skeleton = document.createElement('div');
+      skeleton.className = 'preview-skeleton';
+      skeleton.innerHTML = safeHtml(
+        '<div class="loader"></div><p class="body-sm text-muted" style="margin-top:var(--sp-3)">Rendering preview…</p>'
+      );
+      skeleton.style.cssText =
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;';
+    }
+    skeleton.style.display = 'flex';
+    // Prepend so it shows above any stale canvas
+    container.innerHTML = '';
+    container.appendChild(skeleton);
+  }
+
+  function _hideSkeleton(container) {
+    container.querySelector('.preview-skeleton')?.remove();
+  }
+
+  function _showError(container, message, resolvedScanId) {
+    container.innerHTML = '';
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'pdf-error-message';
+    errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';
+    errorDiv.innerHTML = safeHtml(`
+      <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
+      <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
+      <p class="body-sm">${esc(message || 'Unable to load preview.')}</p>
+      ${resolvedScanId ? `<button
+        class="btn btn-primary btn-sm"
+        style="margin-top:1rem"
+        data-action="reload-pdf-preview"
+        data-scan-id="${esc(String(resolvedScanId))}"
+      >Retry</button>` : ''}
+    `);
+    container.appendChild(errorDiv);
   }
 
   return {
     reloadPreview,
     setFocusMode,
-    setMode,
+    setMode,   // no-op, kept for compat
     setupControls,
   };
 }
