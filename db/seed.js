@@ -137,7 +137,7 @@ Sincerely,`,
     const existing = db
       .prepare('SELECT id FROM scans WHERE user_id = ? AND job_url = ? LIMIT 1')
       .get(userId, payload.jobUrl);
-    if (existing) return false;
+    if (existing) return existing.id;
 
     db.prepare(`
       INSERT INTO scans (
@@ -178,7 +178,7 @@ Sincerely,`,
       })
     );
 
-    return true;
+    return db.prepare('SELECT last_insert_rowid() AS id').get().id;
   }
 
   // ── Demo Users ────────────────────────────────────────────────
@@ -226,6 +226,30 @@ Sincerely,`,
   
   // ── Representative Portal Scans ─────────────────────────────
   if (proUser) {
+    const existingResume = db
+      .prepare('SELECT id FROM resumes WHERE user_id = ? AND file_name = ? LIMIT 1')
+      .get(proUser.id, 'alex-morgan-resume.pdf');
+    const resumeId =
+      existingResume?.id ||
+      db
+        .prepare(`
+          INSERT INTO resumes (user_id, name, file_name, file_type, file_size, raw_text, parsed_data)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          proUser.id,
+          'Alex Morgan Base Resume',
+          'alex-morgan-resume.pdf',
+          'pdf',
+          Buffer.byteLength(baseResumeText, 'utf8'),
+          baseResumeText,
+          JSON.stringify({
+            name: 'Alex Morgan',
+            contact:
+              'alex.morgan@example.com | +353 87 555 0142 | linkedin.com/in/alexmorgan | Dublin, Ireland',
+          })
+        ).lastInsertRowid;
+
     const seedScans = [
       {
         jobUrl: 'https://northstar.wd5.myworkdayjobs.com/en-US/Careers/job/Senior-Program-Manager_R-48211',
@@ -349,7 +373,15 @@ Sincerely,`,
         atsPlatform: scan.jobContext.atsPlatform,
         atsDisplayName: scan.jobContext.atsDisplayName,
       });
-      if (insertSeedScan(proUser.id, scan)) insertedCount++;
+      const scanId = insertSeedScan(proUser.id, scan);
+      if (scanId) {
+        insertedCount++;
+        db.prepare('UPDATE scans SET resume_id = ? WHERE id = ?').run(resumeId, scanId);
+        db.prepare(`
+          INSERT OR IGNORE INTO jobs (user_id, scan_id, company, title, url, status, location, remote)
+          VALUES (?, ?, ?, ?, ?, 'saved', 'Ireland', 'hybrid')
+        `).run(proUser.id, scanId, scan.companyName, scan.jobTitle, scan.jobUrl);
+      }
     }
     console.log(`  ✓ Representative scan fixtures ready (${insertedCount} new)`);
   }

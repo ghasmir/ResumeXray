@@ -5,8 +5,6 @@ const path = require('path');
 const ALLOWED_TYPES = {
   'application/pdf': 'pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-  'application/msword': 'doc',
-  'text/plain': 'txt',
 };
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB — reduced from 10MB for security
@@ -31,16 +29,6 @@ function validateMagicBytes(buffer, mimetype) {
     return buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04;
   }
 
-  if (mimetype === 'application/msword') {
-    // Legacy .doc (OLE2 Compound Document): \xD0\xCF\x11\xE0
-    return buffer[0] === 0xD0 && buffer[1] === 0xCF && buffer[2] === 0x11 && buffer[3] === 0xE0;
-  }
-
-  if (mimetype === 'text/plain') {
-    // Plain text — no magic bytes to validate, accept all
-    return true;
-  }
-
   return false;
 }
 
@@ -60,12 +48,13 @@ const upload = multer({
       cb(null, true);
     } else if (ext === '.docx' && file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       cb(null, true);
-    } else if (ext === '.doc' && file.mimetype === 'application/msword') {
-      cb(null, true);
-    } else if (ext === '.txt' && file.mimetype === 'text/plain') {
-      cb(null, true);
     } else {
-      cb(new Error('Only PDF, DOCX, DOC, and TXT files are allowed. The file extension must match its type.'), false);
+      cb(
+        new Error(
+          'Only PDF and DOCX resume files are allowed. The file extension must match its type.'
+        ),
+        false
+      );
     }
   },
 });

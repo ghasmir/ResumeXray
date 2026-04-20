@@ -29,6 +29,7 @@ const frontendModulesReady = Promise.all([
       clearPdfPreviewObjectUrl,
       getActiveScanId,
       currentScanTokenQuery,
+      currentPreviewProfileQuery,
     });
   })
   .catch(error => {
@@ -1009,9 +1010,7 @@ function extractCompanyFromUrl(urlStr) {
       }
       return null; // slug present but no -at- pattern → can't determine company
     }
-    if (host === 'indeed.com') return 'Indeed';
-    if (host === 'glassdoor.com') return 'Glassdoor';
-    if (host === 'naukri.com') return 'Naukri';
+    if (host === 'indeed.com' || host === 'glassdoor.com' || host === 'naukri.com') return null;
 
     // Generic: use SLD (e.g. stripe.com → Stripe, airbnb.jobs → Airbnb)
     const parts = host.split('.');
@@ -1035,6 +1034,7 @@ function getJobContext(scanOrContext = null) {
     jobUrl: nested.jobUrl || source.jobUrl || source.job_url || '',
     jobTitle: nested.jobTitle || source.jobTitle || source.job_title || '',
     companyName: nested.companyName || source.companyName || source.company_name || '',
+    jdText: nested.jdText || source.jdText || source.jobDescription || source.job_description || '',
     jdSource: nested.jdSource || source.jdSource || '',
     scrapeStatus: nested.scrapeStatus || source.scrapeStatus || '',
     scrapeError: nested.scrapeError || source.scrapeError || '',
@@ -1042,6 +1042,73 @@ function getJobContext(scanOrContext = null) {
     atsDisplayName: nested.atsDisplayName || source.atsDisplayName || '',
     templateProfile: nested.templateProfile || source.templateProfile || null,
   };
+}
+
+function looksLikeJobUrl(value = '') {
+  const trimmed = String(value || '').trim();
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+}
+
+function hasManualJobDescription(value = '') {
+  const trimmed = String(value || '').trim();
+  return !!trimmed && !looksLikeJobUrl(trimmed);
+}
+
+function hasResolvedJobContext(jobContext = currentJobContext) {
+  const context = getJobContext(jobContext);
+  return !!(
+    context.jobUrl &&
+    context.jdText &&
+    context.jobTitle &&
+    context.companyName &&
+    context.scrapeStatus === 'ready'
+  );
+}
+
+function setLockedFieldState(field, { locked = false, reason = '', lockedPlaceholder = '' } = {}) {
+  if (!field) return;
+
+  if (!field.dataset.originalPlaceholder) {
+    field.dataset.originalPlaceholder = field.getAttribute('placeholder') || '';
+  }
+
+  field.disabled = locked;
+  field.classList.toggle('is-locked', locked);
+  field.setAttribute('aria-disabled', locked ? 'true' : 'false');
+
+  if (locked) {
+    if (reason) field.setAttribute('title', reason);
+    if (!field.value.trim() && lockedPlaceholder) field.placeholder = lockedPlaceholder;
+  } else {
+    field.removeAttribute('title');
+    field.placeholder = field.dataset.originalPlaceholder || '';
+  }
+}
+
+function syncTargetInputState() {
+  const urlInput = el('job-url-input');
+  const jobInput = el('job-input');
+  if (!urlInput || !jobInput) return;
+
+  const pastedJobDescriptionActive = hasManualJobDescription(jobInput.value);
+  const resolvedJobLinkActive = !pastedJobDescriptionActive && hasResolvedJobContext(currentJobContext);
+
+  setLockedFieldState(urlInput, {
+    locked: pastedJobDescriptionActive,
+    reason: pastedJobDescriptionActive
+      ? 'Clear the pasted job description to switch back to a job link.'
+      : '',
+    lockedPlaceholder: 'Clear the pasted job description to use a job link.',
+  });
+
+  setLockedFieldState(jobInput, {
+    locked: resolvedJobLinkActive,
+    reason: resolvedJobLinkActive
+      ? 'We already fetched the role, company, portal, and JD from the link above.'
+      : '',
+    lockedPlaceholder:
+      'Job details are already locked from the fetched link above. Clear the link to paste a manual JD instead.',
+  });
 }
 
 function getJobSourceLabel(jobContext) {
@@ -1063,7 +1130,11 @@ function getJobStatusTone(jobContext) {
   if (jobContext.scrapeStatus === 'blocked' || jobContext.scrapeStatus === 'failed') {
     return 'is-warning';
   }
-  if (jobContext.scrapeStatus === 'ready' || jobContext.jdSource === 'pasted_fallback') {
+  if (
+    jobContext.scrapeStatus === 'ready' ||
+    jobContext.jdSource === 'pasted_fallback' ||
+    jobContext.jdSource === 'pasted_text'
+  ) {
     return 'is-success';
   }
   return 'is-info';
@@ -1120,13 +1191,13 @@ function renderJobLinkStatus(jobContext, options = {}) {
       ? 'Fetching job details'
       : jobContext.scrapeStatus === 'blocked'
         ? 'Portal blocked automatic fetch'
-        : jobContext.scrapeStatus === 'failed'
-          ? 'Automatic fetch needs a fallback'
-          : jobContext.jdSource === 'pasted_fallback'
-            ? 'Using your pasted job description'
-            : jobContext.jdSource === 'scraped_url'
-              ? 'Job link resolved'
-              : 'Target role ready';
+          : jobContext.scrapeStatus === 'failed'
+            ? 'Automatic fetch needs a fallback'
+            : jobContext.jdSource === 'pasted_fallback' || jobContext.jdSource === 'pasted_text'
+              ? 'Using your pasted job description'
+              : jobContext.jdSource === 'scraped_url'
+                ? 'Job link resolved'
+                : 'Target role ready';
 
   const pills = [
     {
@@ -1134,6 +1205,8 @@ function renderJobLinkStatus(jobContext, options = {}) {
       label:
         state === 'fetching'
           ? 'Fetching JD'
+          : jobContext.jdSource === 'pasted_text'
+            ? 'Pasted JD'
           : jobContext.jdSource === 'pasted_fallback'
             ? 'Fallback active'
           : jobContext.scrapeStatus === 'ready'
@@ -1311,6 +1384,7 @@ function updateResultsWorkflowHints(scanOrContext = null) {
 
 function setupCompanyDetection() {
   const urlInput = el('job-url-input');
+  const jobInput = el('job-input');
   if (!urlInput) return;
 
   let debounceTimer = null;
@@ -1323,9 +1397,15 @@ function setupCompanyDetection() {
     }
 
     const val = urlInput.value.trim();
-    if (!val || (!val.startsWith('http://') && !val.startsWith('https://'))) {
+    if (hasManualJobDescription(jobInput?.value || '')) {
+      syncTargetInputState();
+      return;
+    }
+
+    if (!val || !looksLikeJobUrl(val)) {
       currentJobContext = null;
       renderJobLinkStatus({}, { state: 'idle' });
+      syncTargetInputState();
       return;
     }
 
@@ -1357,19 +1437,22 @@ function setupCompanyDetection() {
                 'Paste the job description to keep the portal-specific optimization.'
               : '',
           });
+          syncTargetInputState();
         })
         .catch(err => {
           if (err.name === 'AbortError') return;
+          currentJobContext = {
+            jobUrl: val,
+            companyName: extractCompanyFromUrl(val) || '',
+            jdSource: 'url_only',
+            scrapeStatus: 'failed',
+            scrapeError: err.message,
+          };
           renderJobLinkStatus(
-            {
-              jobUrl: val,
-              companyName: extractCompanyFromUrl(val) || '',
-              jdSource: 'url_only',
-              scrapeStatus: 'failed',
-              scrapeError: err.message,
-            },
+            currentJobContext,
             { state: 'warning', note: err.message }
           );
+          syncTargetInputState();
         });
     }, 350);
   });
@@ -1385,7 +1468,9 @@ function setupFileUpload() {
   setupCompanyDetection();
 
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-  const ALLOWED_TYPES = ['.pdf', '.docx', '.doc', '.txt'];
+  const ALLOWED_TYPES = ['.pdf', '.docx'];
+  const urlInput = el('job-url-input');
+  const jobInput = el('job-input');
 
   function showFilePreview(file) {
     if (!file) return;
@@ -1393,7 +1478,7 @@ function setupFileUpload() {
     const ext = '.' + file.name.split('.').pop().toLowerCase();
     if (!ALLOWED_TYPES.includes(ext)) {
       el('scan-error').textContent =
-        `Unsupported file type "${ext}". Please upload PDF, DOCX, DOC, or TXT.`;
+        `Unsupported file type "${ext}". Please upload a PDF or DOCX resume.`;
       el('scan-error').style.display = 'block';
       fileInput.value = '';
       return;
@@ -1452,6 +1537,48 @@ function setupFileUpload() {
 
     const iconEl = el('file-preview')?.querySelector('.file-preview-icon');
     if (iconEl) iconEl.dataset.fileType = '';
+    syncTargetInputState();
+  }
+
+  function setManualJobDescriptionMode() {
+    if (!jobInput) return;
+    const pastedText = jobInput.value.trim();
+    if (!hasManualJobDescription(pastedText)) {
+      if (!urlInput?.value.trim()) {
+        currentJobContext = null;
+        renderJobLinkStatus({}, { state: 'idle' });
+      } else if (looksLikeJobUrl(urlInput.value)) {
+        urlInput.dispatchEvent(new Event('input'));
+      } else if (hasResolvedJobContext(currentJobContext)) {
+        renderJobLinkStatus(currentJobContext, { state: 'resolved' });
+      }
+      syncTargetInputState();
+      return;
+    }
+
+    if (jobContextProbeController) {
+      jobContextProbeController.abort();
+      jobContextProbeController = null;
+    }
+
+    currentJobContext = {
+      jobUrl: '',
+      jobTitle: '',
+      companyName: '',
+      jdText: pastedText,
+      jdSource: 'pasted_text',
+      scrapeStatus: 'not_requested',
+      scrapeError: '',
+      atsPlatform: '',
+      atsDisplayName: '',
+      templateProfile: null,
+    };
+
+    renderJobLinkStatus(currentJobContext, {
+      state: 'resolved',
+      note: 'Using your pasted job description. Clear it to switch back to automatic job-link fetch.',
+    });
+    syncTargetInputState();
   }
 
   area.addEventListener('click', () => fileInput.click());
@@ -1482,6 +1609,14 @@ function setupFileUpload() {
       removeFile();
     });
 
+  if (jobInput) {
+    jobInput.addEventListener('input', () => {
+      setManualJobDescriptionMode();
+    });
+  }
+
+  syncTargetInputState();
+
   form.addEventListener('submit', async e => {
     e.preventDefault();
     if (!fileInput.files.length) {
@@ -1493,10 +1628,8 @@ function setupFileUpload() {
     const urlInputVal = el('job-url-input') ? el('job-url-input').value.trim() : '';
     lastJobInput = el('job-input').value;
     const jdVal = lastJobInput.trim();
-    const looksLikeUrl = value =>
-      value.startsWith('http://') || value.startsWith('https://');
-    const hasJobUrl = looksLikeUrl(urlInputVal) || looksLikeUrl(jdVal);
-    const hasPastedJobDescription = !!(jdVal && !looksLikeUrl(jdVal));
+    const hasJobUrl = looksLikeJobUrl(urlInputVal) || looksLikeJobUrl(jdVal);
+    const hasPastedJobDescription = hasManualJobDescription(jdVal);
 
     if (!hasJobUrl && !hasPastedJobDescription) {
       el('scan-error').textContent =
@@ -1509,7 +1642,7 @@ function setupFileUpload() {
       return;
     }
 
-    if (urlInputVal && !looksLikeUrl(urlInputVal) && !hasPastedJobDescription) {
+    if (urlInputVal && !looksLikeJobUrl(urlInputVal) && !hasPastedJobDescription) {
       el('scan-error').textContent =
         'Enter a full job link starting with http:// or https://, or paste the job description below.';
       el('scan-error').style.display = 'block';
@@ -1524,12 +1657,22 @@ function setupFileUpload() {
     const fd = new FormData();
     fd.append('resume', fileInput.files[0]);
 
-    // Prefer dedicated URL input; fall back to smart detection in JD textarea.
-    if (urlInputVal && looksLikeUrl(urlInputVal)) {
+    // Prefer a resolved job link. If the user pasted a manual JD, keep that as the
+    // primary source and only forward the URL when it was already being used as a
+    // blocked-fetch fallback so we can still infer the portal safely.
+    if (hasPastedJobDescription) {
+      fd.append('jobDescription', jdVal);
+      if (
+        urlInputVal &&
+        looksLikeJobUrl(urlInputVal) &&
+        currentJobContext?.jobUrl === urlInputVal &&
+        ['blocked', 'failed'].includes(currentJobContext?.scrapeStatus)
+      ) {
+        fd.append('jobUrl', urlInputVal);
+      }
+    } else if (urlInputVal && looksLikeJobUrl(urlInputVal)) {
       fd.append('jobUrl', urlInputVal);
-      // Also send JD text if provided alongside URL
-      if (jdVal) fd.append('jobDescription', jdVal);
-    } else if (looksLikeUrl(jdVal)) {
+    } else if (looksLikeJobUrl(jdVal)) {
       fd.append('jobUrl', jdVal);
     } else if (jdVal) {
       fd.append('jobDescription', jdVal);
@@ -1644,7 +1787,15 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
 
   agentBulletPairs = []; // Reset bullet pairs
   agentResumeText = '';
-  currentRenderProfile = null;
+  currentRenderProfile = currentJobContext?.templateProfile
+    ? {
+        template: currentJobContext.templateProfile.template || 'modern',
+        density: currentJobContext.templateProfile.defaultDensity || 'standard',
+        atsPlatform: currentJobContext.atsPlatform || '',
+        atsDisplayName: currentJobContext.atsDisplayName || '',
+      }
+    : null;
+  syncTemplateSelectionUI();
   updateResultsContextStrip(currentJobContext);
   updateResultsWorkspaceHeader({ scan: { jobContext: currentJobContext }, source: 'live' });
   const previewFrame = el('pdf-preview-frame');
@@ -1885,6 +2036,7 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
 
       case 'renderProfile':
         currentRenderProfile = data || null;
+        syncTemplateSelectionUI();
         break;
 
       case 'token':
@@ -2254,10 +2406,12 @@ function updateAgentScores(scores) {
   if (matchRate !== null) {
     animateGauge('gauge-match', 'score-job-match', matchRate, gaugeColor(matchRate));
   }
-  if (matchAfter !== null) {
-    const scoreAfter = el('score-after-card');
-    if (scoreAfter) scoreAfter.style.display = '';
-    animateGauge('gauge-after', 'score-job-match-after', matchAfter, 'var(--green)');
+  const scoreAfter = el('score-after-card');
+  if (scoreAfter) {
+    scoreAfter.style.display = matchRate !== null ? '' : 'none';
+  }
+  if (matchRate !== null) {
+    animateGauge('gauge-after', 'score-job-match-after', matchAfter ?? matchRate, 'var(--green)');
   }
 }
 
@@ -2393,7 +2547,9 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
   const roleTitle = decodeHtml(jobContext.jobTitle || scan?.job_title || '');
 
   titleEl.textContent =
-    roleTitle && roleTitle.toLowerCase() !== 'no job description' ? roleTitle : scanTitle;
+    roleTitle && !isNoisyJobFacingTitle(roleTitle) && roleTitle.toLowerCase() !== 'no job description'
+      ? roleTitle
+      : scanTitle;
   bodyEl.textContent = hasJobContext
     ? jobContext.atsDisplayName
       ? `Role, company, and portal context are locked in. Use the workflow below to tighten parser coverage, recruiter visibility, and export quality for ${jobContext.atsDisplayName}.`
@@ -2700,22 +2856,59 @@ function setupResultsTabs() {
       const bar = el('agent-download-bar');
       const scanId = bar ? bar.dataset.scanId : null;
       if (!scanId) return;
-      document.querySelectorAll('[data-template]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      setSelectedTemplate(btn.dataset.template || 'modern');
       reloadPdfPreview(scanId);
     });
   });
+
+  syncTemplateSelectionUI();
 }
 
 // ── Helpers for current preview state ──
 function getSelectedTemplate() {
-  // Hardcoded to 'modern' — template selector removed from UI
-  return 'modern';
+  return (
+    currentRenderProfile?.template ||
+    currentJobContext?.templateProfile?.template ||
+    currentScan?.renderMeta?.renderTemplate ||
+    'modern'
+  );
 }
 
 function getSelectedDensity() {
-  // Hardcoded to 'standard' — density selector removed from UI
-  return 'standard';
+  return (
+    currentRenderProfile?.density ||
+    currentJobContext?.templateProfile?.defaultDensity ||
+    currentScan?.renderMeta?.renderDensity ||
+    'standard'
+  );
+}
+
+function syncTemplateSelectionUI() {
+  document.querySelectorAll('[data-template]').forEach(button => {
+    button.classList.toggle('active', button.dataset.template === getSelectedTemplate());
+  });
+}
+
+function setSelectedTemplate(template) {
+  const nextTemplate = ['modern', 'classic', 'minimal'].includes(template) ? template : 'modern';
+  currentRenderProfile = {
+    ...(currentRenderProfile || {}),
+    template: nextTemplate,
+    density: getSelectedDensity(),
+    atsPlatform: currentRenderProfile?.atsPlatform || currentJobContext?.atsPlatform || '',
+    atsDisplayName:
+      currentRenderProfile?.atsDisplayName || currentJobContext?.atsDisplayName || '',
+  };
+  syncTemplateSelectionUI();
+}
+
+function currentPreviewProfileQuery() {
+  const template = getSelectedTemplate();
+  const density = getSelectedDensity();
+  const params = [];
+  if (template) params.push(`template=${encodeURIComponent(template)}`);
+  if (density) params.push(`density=${encodeURIComponent(density)}`);
+  return params.length ? `&${params.join('&')}` : '';
 }
 
 async function reloadPdfPreview(scanId) {
@@ -2738,7 +2931,10 @@ async function downloadOptimized(format) {
   if (!scanId) return;
 
   try {
-    const res = await fetch(`/api/agent/download/${scanId}?format=${format}`);
+    const query = new URLSearchParams({ format, template: getSelectedTemplate() });
+    const density = getSelectedDensity();
+    if (density) query.set('density', density);
+    const res = await fetch(`/api/agent/download/${scanId}?${query.toString()}`);
     if (!res.ok) {
       const data = await res.json();
       if (data.upgrade) navigateTo('/pricing');
@@ -2819,6 +3015,18 @@ async function loadResults(scanId, retryCount = 0) {
           }
           currentScan = results;
           currentJobContext = getJobContext(results);
+          currentRenderProfile = {
+            template:
+              results.renderMeta?.renderTemplate ||
+              currentJobContext.templateProfile?.template ||
+              'modern',
+            density:
+              results.renderMeta?.renderDensity ||
+              currentJobContext.templateProfile?.defaultDensity ||
+              'standard',
+            atsPlatform: currentJobContext.atsPlatform || '',
+            atsDisplayName: currentJobContext.atsDisplayName || '',
+          };
         }
       } else if (retryCount < MAX_RETRIES) {
         console.log(
@@ -2873,6 +3081,17 @@ function setupAgentHistoricalView(data) {
   const scanId = data.id || data.scanId;
   console.log('[AgentView] Initializing historical view for scan', scanId, data);
   currentJobContext = getJobContext(data);
+  currentRenderProfile = {
+    template:
+      data.renderMeta?.renderTemplate || currentJobContext.templateProfile?.template || 'modern',
+    density:
+      data.renderMeta?.renderDensity ||
+      currentJobContext.templateProfile?.defaultDensity ||
+      'standard',
+    atsPlatform: currentJobContext.atsPlatform || '',
+    atsDisplayName: currentJobContext.atsDisplayName || '',
+  };
+  syncTemplateSelectionUI();
   updateResultsContextStrip(currentJobContext);
   const atsBadge = el('ats-platform-badge');
   if (atsBadge) {
@@ -2909,10 +3128,10 @@ function setupAgentHistoricalView(data) {
 
   // 4. Update Header Scores
   updateAgentScores({
-    parseRate: data.parseRate || 0,
-    formatHealth: data.formatHealth || 0,
-    matchRate: data.matchRate || 0,
-    matchRateAfter: data.matchRateAfter || null,
+    parseRate: data.parseRate ?? 0,
+    formatHealth: data.formatHealth ?? 0,
+    matchRate: data.matchRate ?? 0,
+    matchRateAfter: data.matchRateAfter ?? null,
   });
   updateResultsSummary({ scores: data, scan: data });
 
@@ -3167,17 +3386,12 @@ async function renderDashboard() {
     if (!res.ok) return;
     const data = await res.json();
     updateDashboardFocus(data, user);
-    updateDashboardJourney(data, user);
 
     // Update Last Score Card
     if (data.scans?.length > 0) {
       const last = data.scans[0];
       el('stat-last-score').textContent = Math.round(last.match_rate || 0) + '%';
-      let lastTitle = decodeHtml(last.job_title) || 'Resume-only Scan';
-      const lastCompany = decodeHtml(last.company_name) || '';
-      if (lastCompany && !lastTitle.toLowerCase().includes(lastCompany.toLowerCase())) {
-        lastTitle = `${lastTitle}, ${lastCompany}`;
-      }
+      const lastTitle = getDashboardScanTitle(last);
       el('stat-last-title').textContent =
         lastTitle.substring(0, 30) + (lastTitle.length > 30 ? '…' : '');
       el('stat-last-title').title = lastTitle;
@@ -3206,72 +3420,7 @@ async function renderDashboard() {
             const best = Math.max(parse, match);
             const borderColor =
               best >= 80 ? 'var(--green)' : best >= 50 ? 'var(--amber)' : 'var(--red)';
-
-            // 1. Graceful Fallback Logic
-            let title = decodeHtml(s.job_title);
-            let companyLabel = decodeHtml(s.company_name) || '';
-            if (!title || title.toLowerCase() === 'no job description') {
-              // Try URL path slug first (LinkedIn: /jobs/view/data-analyst-at-company-123/)
-              if (s.job_url) {
-                try {
-                  const u = new URL(s.job_url);
-                  const segments = u.pathname.split('/').filter(Boolean);
-                  const slug = segments[segments.length - 1] || '';
-                  // Strip trailing numeric ID (LinkedIn job IDs), hyphens → spaces
-                  const cleaned = slug
-                    .replace(/[-_]?\d{5,}$/, '')
-                    .replace(/[-_]+/g, ' ')
-                    .trim();
-                  if (cleaned.length >= 4 && cleaned.length < 80) {
-                    title = cleaned.replace(/\b\w/g, c => c.toUpperCase()).replace(/\bAt\b/g, 'at');
-                  } else {
-                    title = u.hostname.replace(/^www\./, '');
-                  }
-                  // Extract company from hostname if not already set
-                  // NOTE: Don't use job-board platform names (LinkedIn, Indeed, etc.)
-                  // as the company — they're aggregators, not the hiring company.
-                  if (!companyLabel) {
-                    const host = u.hostname.replace(/^www\./, '');
-                    const jobBoards = [
-                      'linkedin.com',
-                      'indeed.com',
-                      'greenhouse.io',
-                      'lever.co',
-                      'workday.com',
-                      'naukri.com',
-                      'glassdoor.com',
-                      'monster.com',
-                      'smartrecruiters.com',
-                      'icims.com',
-                    ];
-                    const isJobBoard = jobBoards.some(d => host.includes(d));
-                    // Only use hostname as company if it's NOT a generic job board
-                    if (!isJobBoard) {
-                      // Custom career site — use domain as company hint
-                      const parts = host.split('.');
-                      if (parts.length >= 2) {
-                        companyLabel =
-                          parts[parts.length - 2].charAt(0).toUpperCase() +
-                          parts[parts.length - 2].slice(1);
-                      }
-                    }
-                  }
-                } catch (e) {
-                  title = 'Linked Job';
-                }
-              } else if (s.company_name) {
-                title = `Role at ${s.company_name}`;
-              } else if (s.job_description && s.job_description.trim().length > 0) {
-                title = 'Pasted Job Description';
-              } else {
-                title = 'Resume-only Scan';
-              }
-            }
-
-            // Append company name to title if available: "Data Analyst, TechGenies"
-            if (companyLabel && !title.toLowerCase().includes(companyLabel.toLowerCase())) {
-              title = `${title}, ${companyLabel}`;
-            }
+            const title = getDashboardScanTitle(s);
 
             const displayTitle = title.length > 65 ? title.substring(0, 65) + '…' : title;
 
@@ -3320,6 +3469,7 @@ function updateDashboardFocus(data, user) {
   const resumes = Array.isArray(data?.resumes) ? data.resumes : [];
   const latest = scans[0] || null;
   const creditBalance = data?.creditBalance ?? user?.creditBalance ?? 0;
+  const targetedScanCount = scans.filter(scan => scanHasTargetJob(scan, getJobContext(scan))).length;
 
   const titleEl = el('dash-next-step-title');
   const bodyEl = el('dash-next-step-body');
@@ -3330,7 +3480,7 @@ function updateDashboardFocus(data, user) {
   const jobsCountEl = el('dash-jobs-count');
   const momentumEl = el('dash-momentum-note');
 
-  if (jobsCountEl) jobsCountEl.textContent = String(jobs.length);
+  if (jobsCountEl) jobsCountEl.textContent = String(targetedScanCount);
 
   const latestTitle = latest ? getDashboardScanTitle(latest) : 'No recent target yet';
 
@@ -3344,10 +3494,10 @@ function updateDashboardFocus(data, user) {
   if (momentumEl) {
     if (!scans.length) {
       momentumEl.textContent = 'Build one strong scan first, then export when the recruiter view looks clean.';
-    } else if (jobs.length > 0) {
-      momentumEl.textContent = `You have ${jobs.length} saved job link${jobs.length === 1 ? '' : 's'} feeding future scan decisions.`;
+    } else if (targetedScanCount > 0) {
+      momentumEl.textContent = `You have ${targetedScanCount} targeted scan${targetedScanCount === 1 ? '' : 's'} ready for follow-up and export review.`;
     } else {
-      momentumEl.textContent = 'Run one more job-specific scan to build a stronger benchmark before exporting.';
+      momentumEl.textContent = 'Run a targeted scan against a live job link or pasted JD to build a stronger benchmark before exporting.';
     }
   }
 
@@ -3500,12 +3650,56 @@ function getDashboardRecommendation({ scans, jobs, resumes, creditBalance }) {
   };
 }
 
+function isNoisyJobFacingTitle(title = '') {
+  const clean = decodeHtml(String(title || '').trim());
+  if (!clean) return true;
+  if (clean.length > 90) return true;
+  if (clean.split(/\s+/).length > 9) return true;
+  if (/^[a-z0-9-]+\.[a-z]{2,}/i.test(clean)) return true;
+  if (
+    /^(provide|responsible|join|working|support|ensure|maintain|this|we|you|our|the)\b/i.test(
+      clean
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function extractTitleFromJobUrl(jobUrl = '') {
+  try {
+    const url = new URL(jobUrl);
+    const host = url.hostname.replace(/^www\./, '');
+    const segments = url.pathname.split('/').filter(Boolean);
+    const slug = segments[segments.length - 1] || '';
+    const cleaned = slug
+      .replace(/[-_]?\d{5,}$/, '')
+      .replace(/[-_]+/g, ' ')
+      .trim();
+
+    if (cleaned.length >= 4 && cleaned.length < 80 && !/^(apply|job|jobs|view)$/i.test(cleaned)) {
+      return cleaned.replace(/\b\w/g, c => c.toUpperCase()).replace(/\bAt\b/g, 'at');
+    }
+
+    if (!/(linkedin|indeed|greenhouse|lever|workday|naukri|glassdoor|smartrecruiters|icims|cezannehr)\./i.test(host)) {
+      return host;
+    }
+  } catch {
+    /* ignore invalid URL */
+  }
+  return '';
+}
+
 function getDashboardScanTitle(scan) {
   const jobContext = getJobContext(scan);
   let title = decodeHtml(jobContext.jobTitle || scan.job_title || '');
   const company = decodeHtml(jobContext.companyName || scan.company_name || '');
 
-  if (!title || title.toLowerCase() === 'no job description') {
+  if (isNoisyJobFacingTitle(title) || title.toLowerCase() === 'no job description') {
+    title = extractTitleFromJobUrl(jobContext.jobUrl || scan.job_url || '');
+  }
+
+  if (!title || isNoisyJobFacingTitle(title) || title.toLowerCase() === 'no job description') {
     if (company) return `Role at ${company}`;
     if (scan.job_description && scan.job_description.trim()) return 'Pasted Job Description';
     return 'Resume-only Scan';
@@ -4130,9 +4324,19 @@ function buildRecruiterOverview(fieldAccuracy = {}, extractedFields = {}) {
   `;
 }
 
+function isDisplayableKeywordTag(keyword) {
+  const term = String(keyword?.term || keyword || '')
+    .trim()
+    .toLowerCase();
+  if (!term) return false;
+  if (term.length === 1) return false;
+  if (term === 'go' || term === 'r') return false;
+  return true;
+}
+
 function renderSearchVisibilitySummary(keywordData = {}) {
-  const matched = (keywordData.matched || []).slice(0, 14);
-  const missing = (keywordData.missing || []).slice(0, 14);
+  const matched = (keywordData.matched || []).filter(isDisplayableKeywordTag).slice(0, 14);
+  const missing = (keywordData.missing || []).filter(isDisplayableKeywordTag).slice(0, 14);
   if (!matched.length && !missing.length) return '';
 
   return `

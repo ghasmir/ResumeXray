@@ -49,6 +49,16 @@ function parseScanId(raw) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+function normalizeTemplateChoice(raw) {
+  const value = sanitizeInput(String(raw || '')).toLowerCase();
+  return ['modern', 'classic', 'minimal'].includes(value) ? value : '';
+}
+
+function normalizeDensityChoice(raw) {
+  const value = sanitizeInput(String(raw || '')).toLowerCase();
+  return ['standard', 'compact'].includes(value) ? value : '';
+}
+
 function sendEmbeddedState(res, statusCode, { title, message, accent = '#8b5cf6' }) {
   return res.status(statusCode).setHeader('Content-Type', 'text/html; charset=utf-8').send(`
     <!DOCTYPE html>
@@ -700,6 +710,8 @@ router.get('/preview/:scanId', async (req, res) => {
     const userId = req.user ? req.user.id : null;
     const scanId = parseScanId(req.params.scanId);
     const accessToken = typeof req.query.token === 'string' ? req.query.token : null;
+    const preferredTemplate = normalizeTemplateChoice(req.query.template);
+    const preferredDensity = normalizeDensityChoice(req.query.density);
     if (!scanId) {
       return sendEmbeddedState(res, 400, {
         title: 'Preview unavailable',
@@ -727,7 +739,11 @@ router.get('/preview/:scanId', async (req, res) => {
       }
     }
 
-    const { buffer, renderMeta } = await renderResumePdf(scan, { watermark: true });
+    const { buffer, renderMeta } = await renderResumePdf(scan, {
+      watermark: true,
+      template: preferredTemplate || undefined,
+      density: preferredDensity || undefined,
+    });
     await db.updateScan(scanId, {
       jobContext: resolveScanJobContext(scan),
       renderMeta,
@@ -895,6 +911,8 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
 
     const format = req.query.format || 'docx';
     const exportType = req.query.type || 'resume'; // 'resume' or 'cover_letter'
+    const preferredTemplate = normalizeTemplateChoice(req.query.template);
+    const preferredDensity = normalizeDensityChoice(req.query.density);
     const { resumeText } = resolveResumeText(scan);
     const sectionData = scan.section_data || {};
     const optimizedBullets = scan.optimized_bullets || [];
@@ -983,6 +1001,8 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
     if (format === 'pdf') {
       const { buffer, renderMeta } = await renderResumePdf(scan, {
         watermark: req.isWatermarked,
+        template: preferredTemplate || undefined,
+        density: preferredDensity || undefined,
       });
       await db.updateScan(scanId, {
         jobContext: resolveScanJobContext(scan),

@@ -1,8 +1,10 @@
 const { describe, it, after } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { detectATS } = require('../lib/jd-processor');
+const { detectATS, processJobDescription } = require('../lib/jd-processor');
+const { extractKeywords } = require('../lib/keywords');
 const { closeBrowser } = require('../lib/playwright-browser');
+const { buildResumeData } = require('../lib/resume-builder');
 const { renderResumePdf, resolveResumeText, resolveScanJobContext } = require('../lib/render-service');
 const { validatePDF } = require('../lib/resume-builder');
 
@@ -119,6 +121,56 @@ describe('Core Flow Contracts', () => {
       ).name,
       'linkedin'
     );
+    assert.equal(detectATS('https://www.indeed.com/viewjob?jk=123456').name, 'indeed');
+    assert.equal(detectATS('https://recruitment.cezannehr.com/RecruitmentPortal/apply').name, 'cezannehr');
+  });
+
+  it('avoids sentence fragments when deriving job titles from pasted descriptions', async () => {
+    const result = await processJobDescription(
+      'Provide accurate, valid and complete information by using the right methods/tools.\n\nResponsibilities include customer support and store operations.',
+      '',
+      ''
+    );
+
+    assert.equal(result.jobTitle, '');
+  });
+
+  it('does not surface short ambiguous keywords like go and r without programming context', () => {
+    const retailKeywords = extractKeywords(
+      'Support customers in the Apple Store environment with clear communication, teamwork, troubleshooting, and point-of-sale operations.'
+    );
+
+    assert.equal(retailKeywords.hardSkills.some(item => item.term === 'go'), false);
+    assert.equal(retailKeywords.hardSkills.some(item => item.term === 'r'), false);
+
+    const engineeringKeywords = extractKeywords(
+      'Build backend services in Golang and Go microservices, then analyze product data in R programming and RStudio.'
+    );
+
+    assert.equal(engineeringKeywords.hardSkills.some(item => item.term === 'golang'), true);
+    assert.equal(engineeringKeywords.hardSkills.some(item => item.term === 'r'), true);
+  });
+
+  it('keeps wrapped bullet continuations inside the same experience entry', () => {
+    const resumeText = `Taylor Quinn
+taylor@example.com | +353 86 123 4567 | Dublin, Ireland
+
+EXPERIENCE
+Software Developer - TechGenies 01/2024 - Present
+• Built scalable applications using the
+javascript, typescript, SQL, NOSQL, python stack for ATS-heavy customer workflows
+• Improved recruiter tooling used by 40 internal hiring managers
+
+EDUCATION
+B.Sc. Computer Science - UCD 2023
+
+TECHNICAL SKILLS
+JavaScript, TypeScript, SQL, Python`;
+
+    const data = buildResumeData(resumeText, {}, [], []);
+    assert.equal(data.sections.experience.length, 1);
+    assert.equal(data.sections.experience[0].bullets.length, 2);
+    assert.match(data.sections.experience[0].bullets[0], /javascript, typescript, SQL, NOSQL, python/i);
   });
 
   it('uses structured fallback text when optimized text is missing', () => {

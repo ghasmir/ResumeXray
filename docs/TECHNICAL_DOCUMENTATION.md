@@ -167,6 +167,12 @@ sequenceDiagram
 5. The backend returns a PDF buffer.
 6. Frontend converts the PDF response to a blob URL and loads it into the iframe.
 
+Current results-tab contract:
+
+- The canonical tab order is `ATS Diagnosis -> Recruiter View -> Export Preview -> Cover Letter`.
+- By explicit product decision, `Export Preview` remains third and `Cover Letter` remains fourth.
+- Any future tab reorder must update button order, pane order, `switchTab()` defaults, and `resumeXray_activeTab` persistence together.
+
 ### 5.5 User exports
 
 1. Frontend calls `/api/agent/download/:scanId?format=pdf|docx`.
@@ -186,9 +192,9 @@ sequenceDiagram
   Operator and developer overview.
 - `FRONTEND_ARCHITECTURE.md`
   Frontend source-of-truth guidance.
-- `project_history.md`
+- `docs/project_history.md`
   Project ledger/history.
-- `TECHNICAL_DOCUMENTATION.md`
+- `docs/TECHNICAL_DOCUMENTATION.md`
   This document.
 - `railway.json`
   Railway build/deploy entrypoint.
@@ -750,16 +756,27 @@ Functions:
 
 Pipeline summary:
 
-1. parse sections heuristically
-2. recover cleaner header/contact/summary fields
-3. structure flat lines into nested template-friendly objects
-4. apply optimized bullet rewrites directly to structured nodes
-5. sanitize text for ATS-safe rendering
-6. normalize dates and symbols
-7. trim content toward a one-page bias
-7. render Handlebars HTML template
-8. use Playwright to generate PDF
-9. validate text layer and page bounds
+1. sanitize the original resume text for ATS-safe rendering
+2. normalize dates and symbols on that original text
+3. parse sections heuristically
+4. recover cleaner header/contact/summary fields
+5. highlight metrics and trim content toward a one-page bias while the data is still in flat arrays
+6. structure flat lines into nested template-friendly objects
+7. apply optimized bullet rewrites directly to structured nodes
+8. render the Handlebars HTML template or DOCX section content from those objects
+9. use Playwright to generate PDF when PDF output is requested
+10. validate text layer and page bounds
+
+Important limitation:
+
+- This pipeline is substantially safer than the older flat-text string-replacement flow, but it is still heuristic.
+- Malformed or heavily wrapped resumes can still produce false experience entries during `structureExperience()` and downstream template rendering.
+- No database migration was required for this refactor; the work was a render-pipeline reordering and structuring change, not a schema rewrite.
+
+Historical provenance:
+
+- These render-pipeline decisions were consolidated during the April 2026 remediation cycle after a Codex audit, Gemini planning pass, and Claude Sonnet/Opus implementation refinement.
+- The durable engineering outcome is what matters in this reference: keep bullet rewrites off flat text, avoid unnecessary schema migration for this class of fix, and treat malformed-source parsing as an active risk rather than a solved problem.
 
 ## 12.3 `lib/template-renderer.js`
 
@@ -1005,8 +1022,8 @@ Major results panes:
 
 - `tab-diagnosis`
 - `tab-recruiter-agent`
-- `tab-cover-letter`
 - `tab-pdf-preview`
+- `tab-cover-letter`
 
 Important results workspace substructures:
 
@@ -1279,6 +1296,12 @@ Important operational nuance:
 - the repo supports both a Railway-style direct Node deploy and a PM2/Caddy production topology
 - Redis is preferred in clustered deployments for shared rate-limiting and render-slot coordination
 
+Budget-hosting guidance recorded during the April 2026 remediation planning:
+
+- Playwright browser rendering, native modules such as `better-sqlite3`, and local temp-file behavior make serverless/edge-style hosts a poor fit for the full app.
+- If the project moves away from Railway, the low-cost path preserved in the remediation planning is an Ubuntu-based VPS flow, with Oracle Cloud A1 identified as the most credible sub-$10/year option.
+- The existing Alpine-based Dockerfile should not be treated as the Oracle/Playwright deployment path; the browser dependency story there differs from Railway's Nixpacks-based runtime.
+
 ### Local environment recovery notes
 
 - `better-sqlite3` is a native dependency. If the local Node ABI changes, the fastest recovery path is `npm rebuild better-sqlite3`.
@@ -1330,8 +1353,8 @@ This appendix lists the first-party code and config files that matter to maintai
 - `package.json`
 - `README.md`
 - `FRONTEND_ARCHITECTURE.md`
-- `project_history.md`
-- `TECHNICAL_DOCUMENTATION.md`
+- `docs/project_history.md`
+- `docs/TECHNICAL_DOCUMENTATION.md`
 
 ### Config
 
@@ -1445,5 +1468,202 @@ When behavior changes in:
 
 then both of these docs should be updated in the same change:
 
-- `project_history.md`
-- `TECHNICAL_DOCUMENTATION.md`
+- `docs/project_history.md`
+- `docs/TECHNICAL_DOCUMENTATION.md`
+
+## 23. April 19 2026 Remediation Addendum
+
+This section captures the trust-breaking scan/results remediation completed after the multi-model planning pass.
+
+### 23.1 Scan Input Contract
+
+The scan form now treats resume upload and job targeting more strictly:
+
+- Resume uploads are limited to `PDF` and `DOCX`.
+- The frontend picker, upload middleware, parser path, and validation copy all reflect the same contract.
+- Pasted job descriptions and job-link fetch mode are now mutually exclusive in the UI:
+  - pasted JD locks the URL field
+  - a successfully resolved job link locks the JD textarea
+- Locked inputs receive visible disabled styling so the user understands which targeting mode is currently active.
+
+### 23.2 Resume Validation Hardening
+
+`lib/resume-validator.js` was strengthened to reduce false acceptance of arbitrary documents:
+
+- positive signals now include:
+  - email / phone / profile links
+  - section headers
+  - resume-like date ranges
+  - bullet density
+  - professional action keywords
+- negative signals now subtract confidence for document classes like:
+  - invoices
+  - contracts
+  - proposals
+  - privacy / terms documents
+- a file must now show both contact evidence and structural resume evidence before it is accepted as a resume
+
+### 23.3 Job Context / Scraper Improvements
+
+`lib/jd-processor.js` and `lib/scraper.js` were expanded so job titles and companies are derived more safely:
+
+- added explicit ATS profiles for:
+  - `Indeed`
+  - `Cezanne HR`
+- title extraction no longer accepts long sentence fragments as role titles
+- aggregator / portal hostnames are no longer used as the company fallback when they are obviously not the employer
+- scraper output is normalized into:
+  - `text`
+  - `platform`
+  - `metadata.title`
+  - `metadata.company`
+  - `metadata.location`
+- generic HTML scrapes now prepend DOM-derived metadata before downstream job-context parsing
+
+Net effect:
+
+- recruiter/history surfaces are less likely to show:
+  - raw domains
+  - sentence fragments
+  - portal names as employer names
+
+### 23.4 Keyword Extraction Guardrails
+
+`lib/keywords.js` was updated to stop emitting noisy single-letter / ambiguous programming terms:
+
+- raw unconditional `go` and `r` dictionary matches were removed
+- contextual detection was added for:
+  - `golang`
+  - `go language`
+  - `go microservices`
+  - `R programming`
+  - `RStudio`
+  - `tidyverse`
+- recruiter-view keyword rendering in `public/js/app.js` also filters one-letter / ambiguous tags defensively
+
+This specifically fixes the recruiter-view failure where non-programming JDs were surfacing missing `go` / `r`.
+
+### 23.5 Resume Structuring / Template Safety
+
+The document pipeline was already reordered earlier in the remediation to avoid destructive flat-text replacement. This pass further tightened the remaining heuristic structuring risk:
+
+- `lib/template-renderer.js`
+  - rejects lowercase / sentence-like lines as job headers
+  - detects wrapped bullet continuations
+  - keeps wrapped skill/tool fragments attached to the current bullet instead of splitting them into fake experience entries
+
+This does **not** mean resume generation is perfect; it means one major class of malformed output is now covered by both code and regression tests.
+
+### 23.6 Results / Preview UI
+
+The results workspace was updated in the following ways:
+
+- tab order remains:
+  - `ATS Diagnosis`
+  - `Recruiter View`
+  - `Export Preview`
+  - `Cover Letter`
+- the tab chrome was visually softened to reduce shell noise
+- projected score is now rendered consistently whenever a match score exists
+- Export Preview now exposes ATS-safe format switching:
+  - `modern`
+  - `classic`
+  - `minimal`
+- selected template state is carried through:
+  - inline preview requests
+  - full preview URLs
+  - download requests
+- the PDF preview iframe sandbox restriction was removed from the blob-backed preview path to improve inline rendering reliability
+
+### 23.7 Dashboard Simplification
+
+The dashboard was simplified to reduce confusion:
+
+- removed the extra `journey` / `recent signal` layer
+- kept the page focused on:
+  - next action
+  - latest scan
+  - targeted scan count
+  - credits
+  - recent history
+- dashboard/history titles are now sanitized so noisy titles fall back to cleaner role/company labels
+
+### 23.8 Database Reset and Seeding
+
+Both data stores were deliberately reset during this remediation.
+
+#### Local SQLite
+
+- reset via `npm run db:reset`
+- local seed data now includes fresh users plus representative resume / scan / job fixtures
+
+#### Supabase / PostgreSQL
+
+- application tables were truncated and identities reset
+- a new dedicated seed script was added:
+  - `db/seed-pg.js`
+- this script recreates:
+  - demo users
+  - resume data
+  - saved jobs
+  - scan history
+  - cover-letter fixtures
+
+Fresh accounts restored:
+
+- `demo@resumexray.com / demo1234`
+- `pro@resumexray.com / pro12345`
+- `hustler@resumexray.com / pro12345`
+
+### 23.9 Verification Snapshot
+
+Completed after the remediation and reset:
+
+- `npm run syntax:frontend`
+- targeted `node -c` validation on modified backend files
+- `npm test` passing at `24/24`
+- local browser verification on `http://localhost:3367`
+
+Verified in browser:
+
+- dashboard no longer renders the removed journey grid
+- pasted JD mode disables the URL field
+- scan-page job-link status reflects pasted-JD mode correctly
+- Export Preview format switching activates and changes preview request URLs
+- projected score card stays visible once a match score exists
+
+### 23.10 Remaining Caveats
+
+- third-party job sites can still change their markup or anti-bot behavior without notice
+- resume generation is materially safer than before but still not yet "premium-perfect" on every malformed source file
+- `public/js/app.js` and `public/css/styles.css` remain large and should continue to be modularized after the current trust-critical fixes
+
+### 23.11 April 20 Frontend Refinement Follow-up
+
+This follow-up pass focused on UI polish and cleanup after the larger Apr 19 remediation landed.
+
+Changes shipped:
+
+- refined the results tab bar so it behaves like a cleaner workspace control:
+  - grid-based layout
+  - calmer shell treatment
+  - improved icon/text alignment
+  - tighter active-state hierarchy
+- preserved the user-approved tab order:
+  - `ATS Diagnosis`
+  - `Recruiter View`
+  - `Export Preview`
+  - `Cover Letter`
+- shortened tab helper copy to utility labels:
+  - `Rules & gaps`
+  - `Search fields`
+  - `PDF + DOCX`
+  - `Targeted draft`
+- increased left padding in the job URL input so the inline link icon no longer crowds placeholder text
+- removed the stale `updateDashboardJourney(...)` dashboard invocation after the journey panel markup had already been deleted
+
+Verification after this follow-up:
+
+- `npm run syntax:frontend` passed
+- `npm test` passed fully (`24/24`)
+- local boot remained healthy on the non-Redis fallback path used for verification

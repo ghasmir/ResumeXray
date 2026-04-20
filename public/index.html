@@ -1416,7 +1416,7 @@
               >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              PDF, DOCX, DOC, TXT</span
+              PDF or DOCX resumes only</span
             >
             <span class="scan-trust-item"
               ><svg
@@ -1487,10 +1487,10 @@
                   <div class="upload-text">
                     <strong>Drop here or <span style="color: var(--accent)">browse</span></strong>
                     <span class="body-xs" style="color: var(--text-muted); margin-top: 2px"
-                      >PDF, DOCX, DOC, TXT · Max 5MB</span
+                      >PDF or DOCX · Max 5MB</span
                     >
                   </div>
-                  <input type="file" id="resume-file" accept=".pdf,.docx,.doc,.txt" hidden />
+                  <input type="file" id="resume-file" accept=".pdf,.docx" hidden />
                 </div>
                 <div id="file-preview" class="file-preview" style="display: none">
                   <div class="file-preview-icon" data-file-type="" aria-hidden="true">
@@ -1773,7 +1773,7 @@
                 </svg>
                 <span class="results-tab-copy">
                   <span>ATS Diagnosis</span>
-                  <span class="results-tab-meta" id="tab-meta-diagnosis">Structural blockers</span>
+                  <span class="results-tab-meta" id="tab-meta-diagnosis">Rules &amp; gaps</span>
                 </span>
               </button>
               <button
@@ -1799,7 +1799,7 @@
                 </svg>
                 <span class="results-tab-copy">
                   <span>Recruiter View</span>
-                  <span class="results-tab-meta" id="tab-meta-recruiter">Search visibility</span>
+                  <span class="results-tab-meta" id="tab-meta-recruiter">Search fields</span>
                 </span>
               </button>
               <button
@@ -1825,7 +1825,7 @@
                 </svg>
                 <span class="results-tab-copy">
                   <span>Export Preview</span>
-                  <span class="results-tab-meta" id="tab-meta-pdf">Preview before pay</span>
+                  <span class="results-tab-meta" id="tab-meta-pdf">PDF + DOCX</span>
                 </span>
               </button>
               <button
@@ -1853,7 +1853,7 @@
                 </svg>
                 <span class="results-tab-copy">
                   <span>Cover Letter</span>
-                  <span class="results-tab-meta" id="tab-meta-cover-letter">Needs target job</span>
+                  <span class="results-tab-meta" id="tab-meta-cover-letter">Targeted draft</span>
                 </span>
               </button>
             </div>
@@ -2150,6 +2150,35 @@
                         </button>
                       </div>
                     </div>
+                    <div class="pdf-control-group">
+                      <span class="pdf-control-label">Format</span>
+                      <div class="pdf-pill-group">
+                        <button
+                          type="button"
+                          class="pdf-pill"
+                          id="tpl-modern"
+                          data-template="modern"
+                        >
+                          Modern
+                        </button>
+                        <button
+                          type="button"
+                          class="pdf-pill"
+                          id="tpl-classic"
+                          data-template="classic"
+                        >
+                          Classic
+                        </button>
+                        <button
+                          type="button"
+                          class="pdf-pill"
+                          id="tpl-minimal"
+                          data-template="minimal"
+                        >
+                          Minimal
+                        </button>
+                      </div>
+                    </div>
                     <div class="pdf-control-divider"></div>
                     <div class="pdf-control-group">
                       <button type="button" class="btn btn-ghost btn-sm" id="pdf-open-new-tab">
@@ -2176,7 +2205,6 @@
                     class="pdf-preview-frame"
                     src="about:blank"
                     title="Resume PDF preview"
-                    sandbox="allow-same-origin allow-downloads allow-scripts allow-popups"
                   ></iframe>
                 </div>
 
@@ -2497,9 +2525,9 @@
         <div class="container">
           <div class="flex justify-between items-center" style="margin-bottom: 2rem">
             <div>
-              <h1 class="headline">Career Dashboard</h1>
+              <h1 class="headline">Dashboard</h1>
               <p class="body-sm text-muted" style="margin-top: 0.25rem">
-                Track scans, credits, and the next best step for the role you're targeting.
+                See your latest scan, credit balance, and recent history at a glance.
               </p>
             </div>
             <button class="btn btn-primary" data-action="navigate" data-path="/scan">
@@ -2509,7 +2537,7 @@
 
           <div class="dash-focus-grid">
             <div class="dash-focus-card dash-focus-primary animate-fade-up">
-              <div class="dash-focus-kicker">Next Best Step</div>
+              <div class="dash-focus-kicker">Next Action</div>
               <h2 class="dash-focus-title" id="dash-next-step-title">Run a targeted scan</h2>
               <p class="dash-focus-body" id="dash-next-step-body">
                 Upload your latest resume and a real job description to see recruiter gaps before you export.
@@ -2530,7 +2558,7 @@
             </div>
 
             <div class="dash-focus-card animate-fade-up" style="animation-delay: 0.05s">
-              <div class="dash-focus-kicker">Latest Target</div>
+              <div class="dash-focus-kicker">Latest Scan</div>
               <div class="dash-focus-value" id="dash-focus-target">No recent target yet</div>
               <p class="dash-focus-body" id="dash-focus-target-sub">
                 Your latest scan will appear here with recruiter-facing context.
@@ -2542,61 +2570,12 @@
               <div class="dash-momentum-stats">
                 <div class="dash-momentum-item">
                   <span class="dash-momentum-value" id="dash-jobs-count">0</span>
-                  <span class="dash-momentum-label">job links</span>
+                  <span class="dash-momentum-label">targeted scans</span>
                 </div>
               </div>
               <p class="dash-focus-body" id="dash-momentum-note">
                 Build one strong scan first, then export when the recruiter view looks clean.
               </p>
-            </div>
-          </div>
-
-          <div class="dash-journey-grid">
-            <div class="dash-journey-card">
-              <div class="dash-focus-kicker">Application Flow</div>
-              <h2 class="dash-journey-title">Keep momentum from scan to export</h2>
-              <div class="dash-journey-list">
-                <div class="dash-journey-item is-current" id="dash-journey-target">
-                  <div class="dash-journey-dot"></div>
-                  <div>
-                    <div class="dash-journey-item-title">Target one real role</div>
-                    <p class="dash-journey-item-body" id="dash-journey-target-body">
-                      Run a scan against a live job description so the feedback stays specific.
-                    </p>
-                  </div>
-                </div>
-                <div class="dash-journey-item" id="dash-journey-review">
-                  <div class="dash-journey-dot"></div>
-                  <div>
-                    <div class="dash-journey-item-title">Review recruiter visibility</div>
-                    <p class="dash-journey-item-body" id="dash-journey-review-body">
-                      Use the recruiter view to confirm which fields stay searchable.
-                    </p>
-                  </div>
-                </div>
-                <div class="dash-journey-item" id="dash-journey-export">
-                  <div class="dash-journey-dot"></div>
-                  <div>
-                    <div class="dash-journey-item-title">Export only when the story is ready</div>
-                    <p class="dash-journey-item-body" id="dash-journey-export-body">
-                      Keep one credit ready so a polished scan can turn into a same-day application.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="dash-journey-card dash-journey-highlight">
-              <div class="dash-focus-kicker">Recent Signal</div>
-              <h2 class="dash-journey-title" id="dash-win-title">
-                Your dashboard will highlight the clearest progress signal here
-              </h2>
-              <p class="dash-journey-item-body" id="dash-win-body">
-                Once you have a scan, we surface the strongest reason to keep iterating or export.
-              </p>
-              <div class="dash-journey-meta" id="dash-win-meta">
-                Run a first scan to turn this space into a live application brief.
-              </div>
             </div>
           </div>
 

@@ -3819,27 +3819,30 @@ select:focus:not(:focus-visible) {
  * Premium overrides in Layer 2 add glassmorphism + gradient active state.        */
 .results-tab-nav {
   display: flex;
-  gap: var(--sp-1);
-  background: var(--bg-card);
-  padding: 4px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-subtle);
+  gap: var(--sp-2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015));
+  padding: 6px;
+  border-radius: calc(var(--radius-lg) + 2px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: var(--sp-4);
   position: sticky;
   top: 64px;
   z-index: 40;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 14px 32px rgba(0, 0, 0, 0.18);
 }
 .results-tab-btn {
   flex: 1;
-  padding: 12px 14px;
-  min-height: 56px;
-  border: none;
-  background: transparent;
+  padding: 13px 16px;
+  min-height: 60px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.015);
   color: var(--text-muted);
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  border-radius: var(--radius-md);
+  border-radius: calc(var(--radius-md) + 2px);
   transition: all var(--duration-fast) var(--ease);
   font-family: inherit;
   text-align: left;
@@ -3873,12 +3876,17 @@ select:focus:not(:focus-visible) {
 }
 .results-tab-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
 }
 .results-tab-btn.active {
-  background: var(--accent);
+  background: linear-gradient(135deg, rgba(99, 91, 255, 0.96), rgba(76, 110, 245, 0.78));
   color: white;
-  box-shadow: var(--shadow-sm);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 14px 30px rgba(79, 70, 229, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 .results-summary-strip {
@@ -7050,7 +7058,9 @@ a svg {
 
 .job-url-icon {
   position: absolute;
+  top: 50%;
   left: var(--sp-3);
+  transform: translateY(-50%);
   color: var(--text-faint);
   pointer-events: none;
   display: flex;
@@ -7061,7 +7071,7 @@ a svg {
 
 .job-url-input {
   width: 100%;
-  padding: var(--sp-3) var(--sp-4) var(--sp-3) calc(var(--sp-3) + 14px + var(--sp-2));
+  padding: var(--sp-3) var(--sp-4) var(--sp-3) calc(var(--sp-4) + 14px + var(--sp-3));
   background: var(--bg-input);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
@@ -7084,6 +7094,21 @@ a svg {
 .job-url-input::placeholder {
   color: var(--text-muted);
   font-size: 0.8125rem;
+}
+
+.job-url-input:disabled,
+.job-url-input.is-locked,
+.jd-textarea:disabled,
+.jd-textarea.is-locked {
+  cursor: not-allowed;
+  opacity: 0.72;
+  background: rgba(255, 255, 255, 0.035);
+  border-style: dashed;
+}
+
+.job-url-input:disabled::placeholder,
+.jd-textarea:disabled::placeholder {
+  color: var(--text-faint);
 }
 
 /* ── Company preview badge ─────────────────────────────────── */
@@ -7358,5 +7383,91 @@ a svg {
 
   .results-tab-nav {
     gap: 4px;
+  }
+}
+
+/* ── Results Workspace Refinement (Apr 20) ─────────────────── */
+.results-tab-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: var(--sp-5);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.012)),
+    rgba(11, 12, 18, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: calc(var(--radius-lg) + 4px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 18px 36px rgba(0, 0, 0, 0.2);
+}
+
+.results-tab-btn {
+  min-height: 72px;
+  padding: 14px 16px;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: calc(var(--radius-md) + 2px);
+  background: rgba(255, 255, 255, 0.018);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.results-tab-copy {
+  gap: 4px;
+}
+
+.results-tab-copy > span:first-child {
+  font-size: 0.9rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.results-tab-meta {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.results-tab-btn .tab-icon {
+  margin-top: 2px;
+  opacity: 0.78;
+}
+
+.results-tab-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.results-tab-btn.active {
+  background:
+    linear-gradient(135deg, rgba(99, 91, 255, 0.95), rgba(140, 92, 255, 0.92)),
+    rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 12px 26px rgba(88, 70, 229, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.results-tab-btn.active .results-tab-meta {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+@media (max-width: 980px) {
+  .results-tab-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .results-tab-nav {
+    grid-template-columns: 1fr;
+    position: static;
+  }
+
+  .results-tab-btn {
+    min-height: 64px;
   }
 }

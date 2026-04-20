@@ -14,6 +14,7 @@ export function createPdfPreviewController({
   clearPdfPreviewObjectUrl,
   getActiveScanId,
   currentScanTokenQuery,
+  currentPreviewProfileQuery,
 }) {
   if (!state) {
     throw new Error('PDF preview controller requires shared state.');
@@ -146,7 +147,7 @@ export function createPdfPreviewController({
     if (skeleton) skeleton.style.display = 'flex';
     previewFrame.style.opacity = '0';
 
-    const url = `/api/agent/preview/${resolvedScanId}?t=${Date.now()}${currentScanTokenQuery()}`;
+    const url = `/api/agent/preview/${resolvedScanId}?t=${Date.now()}${currentScanTokenQuery()}${currentPreviewProfileQuery ? currentPreviewProfileQuery() : ''}`;
     previewFrame.dataset.previewUrl = url;
     previewFrame.src = 'about:blank';
 

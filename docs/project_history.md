@@ -140,7 +140,7 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 - **Landing Feature Strip Mismatch**: Restyled the landing-page feature/proof strip so it now matches the premium glass-card language used elsewhere on the marketing site instead of appearing like a disconnected mono-dashboard widget.
 - **Results Workspace Chrome Bloat**: Folded the job-context strip into the results masthead, simplified the workspace status language, removed repeated context noise, and redesigned the recruiter visibility tab from a raw debug-style table into a structured review grid with a clearer keyword signal panel.
 
-## Timeline: 2026-04-17 (Current)
+## Timeline: 2026-04-17
 **Focus:** CSP Verification Closure, Local Runtime Recovery, Frontend Modularization, and Documentation Hygiene
 
 **Implemented (Added):**
@@ -150,8 +150,8 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 - **Phase 2 Frontend Extraction**: Started the native-ES-module "strangler fig" split by pulling shared UI helpers into `public/js/modules/ui-helpers.mjs` and PDF preview behavior into `public/js/modules/pdf-preview.mjs`, while preserving `public/js/app.js` as the stable orchestration layer.
 - **Frontend Verification Path**: Re-verified the extracted frontend path with `npm run syntax:frontend`, `npm test`, a clean local boot, and a browser smoke confirming the SPA initialized successfully after loading the new dynamic imports.
 - **Docs Maintenance**: Updated `README.md` and `TECHNICAL_DOCUMENTATION.md` with the verified `better-sqlite3` rebuild recovery step, the recommended local boot command when Upstash is intentionally disabled, and the new frontend module ownership boundaries.
-- **Document Pipeline Stabilization**: Rebuilt the fundamental document generation flow. Transitioned from a fragile flat-text pre-parse string replacement process into a robust `parse → structure → surgically rewrite objects` model. Upgraded `generateDOCX()` to consume structural nodes directly, eliminating text gap-shifts and formatting corruption permanently.
-- **Results UX Refinement**: Corrected the Results Interface Tab progression to match true linear feedback logic: ATS Diagnosis → Recruiter View → Export Preview → Cover Letter. Allowed sandboxed scripts/popups in the PDF preview iframe so users can fully expand generated drafts.
+- **Document Pipeline Stabilization**: Rebuilt the fundamental document generation flow. Transitioned from a fragile flat-text pre-parse string replacement process into a safer `parse → structure → surgically rewrite objects` model, and upgraded `generateDOCX()` to consume structural nodes directly.
+- **Results UX Refinement**: Preserved the intended results-tab order as ATS Diagnosis → Recruiter View → Export Preview → Cover Letter and allowed sandboxed scripts/popups in the PDF preview iframe so users can fully expand generated drafts.
 
 **Removed / Fixed:**
 - **Blocked Smoke Suite**: Eliminated the `better-sqlite3` ABI mismatch that had been preventing the smoke suite from spawning a local server, returning `npm test` to a fully green state (`21/21` passing).
@@ -165,5 +165,102 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 This comprehensive remediation phase was successfully executed through a synchronized, multi-agent AI effort:
 - **Audit & Discovery**: Initiated by a severe Codex and infrastructure budget audit.
 - **Strategic Blueprint**: A foundational mitigation roadmap was originally proposed by Gemini, identifying the need for database state resilience.
-- **Implementation Design**: The raw plan was subsequently enhanced and corrected through collaborative input (involving Claude 3 Opus and Sonnet intelligence layers), culminating in the hardened `implementation_plan.md`. This plan pivoted away from Gemini's suggested database migration and instead correctly identified the root cause in the render pipeline (flat-text string replacement vs structured node injection).
+- **Implementation Design**: The raw plan was subsequently enhanced and corrected through collaborative input (involving Claude 3 Opus and Sonnet intelligence layers), culminating in a hardened remediation plan. This plan pivoted away from Gemini's suggested database migration and instead correctly identified the root cause in the render pipeline (flat-text string replacement vs structured node injection).
 - **Execution**: The final rollout was systematically executed step-by-step, validating the infrastructure (Oracle Cloud A1 requirement), strictly structuring the parsing logic, and actively collaborating with the user's ongoing UX feedback to delete the conflicting "Saved Resumes" UI dynamically.
+
+## Timeline: 2026-04-19 (Current)
+**Focus:** Historical Reconciliation, Multi-Model Preservation, and Post-Remediation Reality Check
+
+**Implemented (Added):**
+- **Session History Preservation**: Updated the canonical docs in `docs/project_history.md` and `docs/TECHNICAL_DOCUMENTATION.md` to preserve the full April 2026 remediation story: the original Codex audit, Gemini's infrastructure/database proposal, Claude Sonnet/Opus plan refinement, the final execution decisions, and the user's follow-up UX constraints.
+- **Tab-Order Decision Freeze**: Explicitly recorded the product decision to keep the results information architecture as ATS Diagnosis → Recruiter View → Export Preview → Cover Letter, with Export Preview intentionally staying third and Cover Letter fourth.
+- **Infrastructure Planning Record**: Preserved the budget-hosting conclusion from the remediation plan: Playwright/browser rendering makes ultra-low-memory/serverless targets a poor fit, and Oracle Cloud A1 on Ubuntu is the most credible low-cost path if Railway is replaced.
+- **Documentation Source-of-Truth Cleanup**: Clarified that the maintained history/reference files now live under `docs/`, not the repository root, and should be updated together whenever scan flow, render behavior, or deployment guidance changes.
+
+**Validated / Still Open:**
+- **Resume Template Quality Is Improved, Not Fully Solved**: Post-remediation validation confirmed the new structured-node rewrite order is materially safer than the old flat-text replacement path, but malformed or heavily wrapped resumes can still be split into false experience entries during heuristic structuring/template rendering.
+- **Tab Behavior Still Requires Runtime Alignment**: The intended tab order is correct, but the results runtime still needs continued care so default activation logic, button order, pane order, and session persistence all stay aligned with the product decision above.
+- **Saved Resume Workspace Remains Rolled Back by Choice**: The "Your Resumes" dashboard experiment remains intentionally removed; the product currently stays focused on the linear diagnose/recruiter/export/cover-letter flow rather than a reusable resume-library model.
+
+## Timeline: 2026-04-19 (Continuation)
+**Focus:** Trust-Breaking Flow Remediation, Job-Context Accuracy, Frontend Cleanup, and Full Data Reset
+
+**Implementation Plan Context Preserved:**
+- **Multi-Model Plan Consolidation**: Preserved and operationalized the remediation plan synthesized across the earlier Codex audit, Gemini's infra/database proposal, and Claude Sonnet/Opus refinement. The implementation kept the user's explicit tab-order preference intact: `ATS Diagnosis -> Recruiter View -> Export Preview -> Cover Letter`, with Export Preview third and Cover Letter fourth.
+- **Execution Strategy**: Chose to repair the highest-trust failures first: scan-form contract, job-context/title/company extraction, keyword false positives, broken resume structuring, results preview reliability, and dashboard clarity before any broader visual experiments.
+
+**Implemented (Added):**
+- **Strict Resume Upload Contract**: Reduced accepted upload formats to real resume inputs only (`PDF` and `DOCX`) across the frontend picker, upload middleware, parser path, and validation messaging.
+- **Stronger Resume Validation**: Tightened `lib/resume-validator.js` so arbitrary text documents are less likely to pass as resumes. The validator now weighs contact signals, section structure, bullet/date evidence, and negative non-resume signals instead of relying on weak keyword presence alone.
+- **Mutually Exclusive Targeting Inputs**: Reworked the scan-page input logic so pasted job descriptions and job-link fetch mode no longer fight each other. Manual JD input now locks the URL field, and a successfully resolved job link now locks the JD textarea.
+- **Job-Link UI Fixes**: Fixed the URL-icon positioning bug in the scan form by properly centering the icon inside the input wrapper, and added locked/disabled visual treatment for whichever targeting field is inactive.
+- **Improved ATS / Portal Detection Coverage**: Added explicit ATS profiles for `Indeed` and `Cezanne HR` in `lib/jd-processor.js`, allowing portal-aware rendering decisions on links that were previously falling into a vague generic bucket.
+- **Better Job Title / Company Derivation**: Hardened title extraction so sentence fragments like `Provide accurate, valid and complete information...` are no longer treated as job titles. Also improved URL and text-based company/title fallback rules to avoid using aggregator hostnames or brittle sentence fragments as recruiter-facing labels.
+- **Scraper Metadata Enrichment**: Upgraded `lib/scraper.js` to normalize structured scrape metadata (title/company/location) and enrich generic HTML scrapes with DOM-derived metadata before they reach the job-context pipeline.
+- **Keyword False-Positive Guardrails**: Removed unconditional raw `go` and `r` hard-skill matching from `lib/keywords.js` and replaced it with contextual detection (`golang`, `go language`, `R programming`, `RStudio`, etc.), preventing nonsensical missing-keyword output in recruiter view.
+- **Resume Structuring Hardening**: Tightened `lib/template-renderer.js` so wrapped bullet continuations are no longer promoted into fake experience headers. This closes one of the remaining causes of malformed ATS resume output in the generated preview.
+- **Dashboard Simplification**: Simplified the dashboard information architecture by removing the extra journey/signal panel layer, clarifying the top summary cards, switching momentum from unreliable `job links` counts to targeted scan counts, and sanitizing bad titles before they appear in dashboard/history cards.
+- **History / Results Title Cleanup**: Added title-noise filtering in the SPA so recruiter/history surfaces fall back to cleaner role/company labels instead of showing domain names or sentence fragments when older scan data is imperfect.
+- **Results Tab Visual Cleanup**: Refined the results-tab chrome to feel lighter and more intentional, with a cleaner active state and less distracting shell emphasis.
+- **Projected Score Consistency**: Made the projected-score card behave consistently in results by keeping it visible whenever a match score exists rather than letting it appear/disappear unpredictably.
+- **Multi-Format Export Preview Controls**: Re-exposed ATS-safe resume format selection in the Export Preview toolbar (`modern`, `classic`, `minimal`) and wired the frontend selection through preview/download requests so users can compare multiple ATS-friendly resume formats.
+- **PDF Preview Reliability Improvement**: Removed the iframe sandbox constraint on the blob-backed PDF preview path and carried the selected template profile into preview URLs, improving inline preview stability and making format comparison possible.
+- **Regression Test Expansion**: Extended `tests/core-flow.test.js` to cover:
+  - sentence-fragment job-title rejection
+  - contextual handling of `go` / `r`
+  - wrapped bullet continuation safety
+  - explicit ATS detection for Indeed and Cezanne HR
+- **PostgreSQL Seeding Support**: Added `db/seed-pg.js` so Supabase/PostgreSQL can be truncated and reseeded with coherent demo accounts and realistic scans rather than being left empty or manually patched.
+
+**Removed / Fixed:**
+- **Non-Resume File Acceptance Drift**: Closed the mismatch where the UI and upload middleware still accepted `DOC` and `TXT` even though the product promise and validation flow were already centered on resume uploads.
+- **Scan-Form Source Ambiguity**: Removed the user-facing ambiguity where a fetched link and a pasted JD could both be populated and silently compete inside the same scan request.
+- **Dashboard Cognitive Overload**: Removed the confusing dashboard "journey" section that duplicated meaning without improving decision quality.
+- **Keyword Signal Noise**: Eliminated the specific `go` / `r` false-positive missing-keyword problem visible in recruiter view for retail / non-programming job descriptions.
+- **Preview Format Opacity**: Fixed the disconnect where multiple backend templates existed but the live frontend gave the user no way to choose between ATS-safe formats.
+
+**Database Reset / Reseed Performed:**
+- **Local SQLite Reset**: Deleted the local SQLite database and reseeded it via `npm run db:reset`. The local dataset now contains fresh demo users plus representative resume/scan/job fixtures instead of carrying stale historical records.
+- **Supabase / PostgreSQL Reset**: Truncated the live Postgres application tables (`users`, `resumes`, `scans`, `jobs`, `cover_letters`, `guest_scans`, `scan_sessions`, `download_history`, `stripe_events`, and session storage), then reseeded them using the new `db/seed-pg.js` script.
+- **Fresh Accounts Restored**:
+  - `demo@resumexray.com / demo1234`
+  - `pro@resumexray.com / pro12345`
+  - `hustler@resumexray.com / pro12345`
+
+**Verification Completed:**
+- **Static Verification**: `npm run syntax:frontend` plus direct `node -c` checks passed for the touched backend files.
+- **Automated Tests**: `npm test` passed fully (`24/24`).
+- **Browser Verification (local on port 3367)**:
+  - dashboard loads with the journey grid removed
+  - scan page locks the URL field when a pasted JD is present
+  - scan-page job-link status correctly reflects pasted-JD mode
+  - results page honors template switching in Export Preview
+  - preview URLs now carry explicit template selection
+  - projected score remains visible in results once a match score exists
+
+**Still Open / Residual Notes:**
+- **External Job-Site Variability Remains**: Indeed, LinkedIn, and custom portals can still partially degrade when remote anti-bot controls change. The scraper/job-context path is materially better now, but it still depends on third-party HTML staying accessible.
+- **Resume Output Quality Is Improved, Not Finished**: The wrapped-bullet/header bug is mitigated, but the broader resume-generation system still deserves deeper cleanup if the goal is consistently premium output across badly structured source resumes.
+
+## Timeline: 2026-04-20
+**Focus:** Results-Workspace UI Refinement, Scan-Field Polish, and Documentation Reconciliation
+
+**Implemented (Added):**
+- **Results Tab Polish Pass**: Refined the results-workspace tab bar to feel more like a deliberate control surface and less like stacked generic buttons. The active state, spacing, icon alignment, and responsive layout were tightened while keeping the agreed tab order intact: `ATS Diagnosis -> Recruiter View -> Export Preview -> Cover Letter`.
+- **Tab Copy Cleanup**: Shortened the sublabels beneath each tab so they read as operational cues instead of marketing copy:
+  - `Rules & gaps`
+  - `Search fields`
+  - `PDF + DOCX`
+  - `Targeted draft`
+- **Scan URL Input Spacing Pass**: Increased left padding on the scan-page URL field so the link icon can no longer visually crowd the placeholder text.
+- **Dashboard Render Cleanup**: Removed the leftover `updateDashboardJourney(...)` call from the live dashboard render path after the journey panel had already been deleted from the markup, reducing dead UI coupling.
+- **Documentation Sync**: Updated both canonical docs again so the Apr 20 frontend follow-up is preserved alongside the larger Apr 19 trust-remediation work.
+
+**Verified:**
+- `npm run syntax:frontend` passed
+- `npm test` passed fully (`24/24`)
+- local app boot on `http://localhost:3367` remained healthy after the follow-up pass
+
+**Still Open / Residual Notes:**
+- **Resume generation quality still needs deeper iteration**: The UI is cleaner and the pipeline is safer, but the strongest remaining product risk is still inconsistent resume quality on messy source documents.
+- **Live scraping remains probabilistic**: Indeed / Cezanne / custom-job-board extraction is improved, but third-party markup drift can still weaken job-title/company recovery without warning.
