@@ -6,7 +6,7 @@ Follow these steps to safely transition the application from development to a li
 
 ### 1. Environment Finalization
 1. Ensure `NODE_ENV=production`.
-2. Update `APP_URL` to your production domain (e.g., `https://resumexray.com`).
+2. Update `APP_URL` to your production domain (e.g., `https://resumexray.pro`).
 3. Point `GOOGLE_CALLBACK_URL` and `STRIPE_WEBHOOK_SECRET` to the production values.
 
 ### 2. Database Preparation
@@ -26,7 +26,7 @@ Follow these steps to safely transition the application from development to a li
 2. Verify SSL cookies are working by checking the `set-cookie` header in production.
 
 ### 4. Stripe Webhooks
-1. In the Stripe Dashboard, set the Webhook URL to `https://yourdomain.com/billing/webhook`.
+1. In the Stripe Dashboard, set the Webhook URL to `https://resumexray.pro/billing/webhook`.
 2. Select events: `checkout.session.completed`, `customer.subscription.deleted`.
 3. Copy the `whsec_...` secret and add it to your `.env`.
 

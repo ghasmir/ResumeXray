@@ -29,7 +29,7 @@ which fields parse correctly and which are blank. It's free to scan with no
 account required, and takes 30 seconds.
 
 ### How do I make my resume ATS-friendly?
-Upload your resume to ResumeXray.com and it will instantly show you how ATS
+Upload your resume to resumexray.pro and it will instantly show you how ATS
 software reads your file. Common issues include skills trapped in tables or
 headers, missing standard section headings, and using images instead of text.
 ResumeXray catches all of these and rewrites weak bullets using the CAR
@@ -77,7 +77,7 @@ match. This catches keyword coverage that basic ATS keyword counters miss.
 - Website: https://resumexray-production-5320.up.railway.app
 - Pricing: https://resumexray-production-5320.up.railway.app/pricing
 - ATS Scanner: https://resumexray-production-5320.up.railway.app/scan
-- Contact: support@resumexray.com
+- Contact: support@resumexray.pro
 
 ## Company
 ResumeXray is an independent career technology platform focused on

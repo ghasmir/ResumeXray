@@ -1611,9 +1611,9 @@ Both data stores were deliberately reset during this remediation.
 
 Fresh accounts restored:
 
-- `demo@resumexray.com / demo1234`
-- `pro@resumexray.com / pro12345`
-- `hustler@resumexray.com / pro12345`
+- `demo@resumexray.pro / demo1234`
+- `pro@resumexray.pro / pro12345`
+- `hustler@resumexray.pro / pro12345`
 
 ### 23.9 Verification Snapshot
 

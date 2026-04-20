@@ -223,9 +223,9 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Local SQLite Reset**: Deleted the local SQLite database and reseeded it via `npm run db:reset`. The local dataset now contains fresh demo users plus representative resume/scan/job fixtures instead of carrying stale historical records.
 - **Supabase / PostgreSQL Reset**: Truncated the live Postgres application tables (`users`, `resumes`, `scans`, `jobs`, `cover_letters`, `guest_scans`, `scan_sessions`, `download_history`, `stripe_events`, and session storage), then reseeded them using the new `db/seed-pg.js` script.
 - **Fresh Accounts Restored**:
-  - `demo@resumexray.com / demo1234`
-  - `pro@resumexray.com / pro12345`
-  - `hustler@resumexray.com / pro12345`
+  - `demo@resumexray.pro / demo1234`
+  - `pro@resumexray.pro / pro12345`
+  - `hustler@resumexray.pro / pro12345`
 
 **Verification Completed:**
 - **Static Verification**: `npm run syntax:frontend` plus direct `node -c` checks passed for the touched backend files.

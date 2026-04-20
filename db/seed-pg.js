@@ -149,7 +149,7 @@ async function seed() {
   console.log('🌱 Seeding PostgreSQL database...');
 
   const demoUserId = await createSeedUser({
-    email: 'demo@resumexray.com',
+    email: 'demo@resumexray.pro',
     name: 'Demo User',
     password: 'demo1234',
     tier: 'free',
@@ -157,7 +157,7 @@ async function seed() {
   });
 
   const proUserId = await createSeedUser({
-    email: 'pro@resumexray.com',
+    email: 'pro@resumexray.pro',
     name: 'Pro User',
     password: 'pro12345',
     tier: 'pro',
@@ -165,7 +165,7 @@ async function seed() {
   });
 
   await createSeedUser({
-    email: 'hustler@resumexray.com',
+    email: 'hustler@resumexray.pro',
     name: 'Hustler User',
     password: 'pro12345',
     tier: 'hustler',
@@ -310,9 +310,9 @@ async function seed() {
   });
 
   console.log('  ✓ Representative resumes, scans, jobs, and cover letters created');
-  console.log('    demo@resumexray.com / demo1234');
-  console.log('    pro@resumexray.com / pro12345');
-  console.log('    hustler@resumexray.com / pro12345');
+  console.log('    demo@resumexray.pro / demo1234');
+  console.log('    pro@resumexray.pro / pro12345');
+  console.log('    hustler@resumexray.pro / pro12345');
 
   await db.recordGuestScan('seeded-guest');
   await db.recordGuestScan('seeded-guest');

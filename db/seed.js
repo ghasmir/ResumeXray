@@ -189,27 +189,27 @@ Sincerely,`,
   db.prepare(`
     INSERT OR IGNORE INTO users (email, name, password_hash, tier, credit_balance, is_verified)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run('demo@resumexray.com', 'Demo User', demoPassword, 'free', 3, 1);
+  `).run('demo@resumexray.pro', 'Demo User', demoPassword, 'free', 3, 1);
 
   // Pro tier demo user
   db.prepare(`
     INSERT OR IGNORE INTO users (email, name, password_hash, tier, credit_balance, is_verified)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run('pro@resumexray.com', 'Pro User', proPassword, 'pro', 25, 1);
+  `).run('pro@resumexray.pro', 'Pro User', proPassword, 'pro', 25, 1);
 
   // Hustler tier demo user
   db.prepare(`
     INSERT OR IGNORE INTO users (email, name, password_hash, tier, credit_balance, is_verified)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run('hustler@resumexray.com', 'Hustler User', proPassword, 'hustler', 100, 1);
+  `).run('hustler@resumexray.pro', 'Hustler User', proPassword, 'hustler', 100, 1);
 
   console.log('  ✓ Demo users created');
-  console.log('    demo@resumexray.com / demo1234 (free, 3 credits)');
-  console.log('    pro@resumexray.com / pro12345 (pro, 25 credits)');
-  console.log('    hustler@resumexray.com / pro12345 (hustler, 100 credits)');
+  console.log('    demo@resumexray.pro / demo1234 (free, 3 credits)');
+  console.log('    pro@resumexray.pro / pro12345 (pro, 25 credits)');
+  console.log('    hustler@resumexray.pro / pro12345 (hustler, 100 credits)');
 
   // ── Credit Transactions ───────────────────────────────────────
-  const proUser = db.prepare('SELECT id FROM users WHERE email = ?').get('pro@resumexray.com');
+  const proUser = db.prepare('SELECT id FROM users WHERE email = ?').get('pro@resumexray.pro');
   if (proUser) {
     db.prepare(`
       INSERT INTO credit_transactions (user_id, amount, type, description)

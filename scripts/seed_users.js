@@ -8,9 +8,9 @@ async function seed() {
   const password = await bcrypt.hash('Password123!', 10);
 
   const users = [
-    { email: 'starter@resumexray.com', name: 'Starter User', tier: 'starter', credits: 5 },
-    { email: 'pro@resumexray.com', name: 'Pro User', tier: 'pro', credits: 15 },
-    { email: 'hustler@resumexray.com', name: 'Hustler User', tier: 'hustler', credits: 50 },
+    { email: 'starter@resumexray.pro', name: 'Starter User', tier: 'starter', credits: 5 },
+    { email: 'pro@resumexray.pro', name: 'Pro User', tier: 'pro', credits: 15 },
+    { email: 'hustler@resumexray.pro', name: 'Hustler User', tier: 'hustler', credits: 50 },
   ];
 
   for (const u of users) {

@@ -31,7 +31,7 @@
       "Bash(python3 -c \":*)",
       "Bash(grep -E \"\\\\.\\(js|html|css\\)$\")",
       "Bash(xargs kill:*)",
-      "Bash(curl -s -b /tmp/rx_cookies -c /tmp/rx_cookies 'http://localhost:3000/auth/login' -H 'Content-Type: application/json' -d '{\"\"\"\"email\"\"\"\":\"\"\"\"starter@resumexray.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"Password123!\"\"\"\"}')",
+      "Bash(curl -s -b /tmp/rx_cookies -c /tmp/rx_cookies 'http://localhost:3000/auth/login' -H 'Content-Type: application/json' -d '{\"\"\"\"email\"\"\"\":\"\"\"\"starter@resumexray.pro\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"Password123!\"\"\"\"}')",
       "Bash(curl -s -b /tmp/rx_cookies -c /tmp/rx_cookies 'http://localhost:3000/api/agent/start' -F \"resume=@/Users/ghasmir/Documents/agents/ats-resume-checker/test_resume.pdf;type=application/pdf\" -F 'jobDescription=Senior Software Engineer - Full Stack. We are looking for a Senior Software Engineer to join our team. You will be responsible for designing, developing, and maintaining scalable web applications using React, Node.js, and cloud infrastructure \\(AWS/GCP\\). Requirements: 5+ years of experience in full-stack development, strong proficiency in JavaScript/TypeScript, experience with React and Node.js, knowledge of cloud services \\(AWS preferred\\), experience with PostgreSQL or similar databases, familiarity with Docker and CI/CD pipelines. Nice to have: experience with microservices architecture, knowledge of GraphQL, experience with Kubernetes.')",
       "Bash(ls -la /Users/ghasmir/Documents/agents/ats-resume-checker/*.pdf)",
       "Bash(sort -k5 -n)",
