@@ -1667,3 +1667,49 @@ Verification after this follow-up:
 - `npm run syntax:frontend` passed
 - `npm test` passed fully (`24/24`)
 - local boot remained healthy on the non-Redis fallback path used for verification
+
+### 23.12 April 20 Resume Export Formatting and Page-Budget Update
+
+This pass addressed the actual exported resume quality rather than only the surrounding UI.
+
+Changes shipped:
+
+- tightened the shared PDF template foundation in `lib/templates/base.css`:
+  - smaller vertical rhythm
+  - better bullet indentation
+  - improved title / company / date alignment
+  - less wasteful margins and spacing
+- added section-specific hooks in:
+  - `lib/templates/modern.html`
+  - `lib/templates/classic.html`
+  - `lib/templates/minimal.html`
+  so the render pipeline can selectively tighten or trim low-priority content when the export overflows
+- updated `lib/resume-builder.js` so the export budget is now experience-aware:
+  - `maxPages = 1` when effective experience is `<= 3 years`
+  - `maxPages = 2` when effective experience is `> 3 years`
+- changed the PDF fit logic from a blanket one-page target to an allowed-page-budget model
+- corrected the fit-height calculation to use printable content height rather than full sheet height
+- added a PDF-only compaction pass that progressively:
+  - applies compact density classes
+  - trims summary length
+  - reduces older-role bullet counts
+  - removes low-priority sections only if necessary for the current page budget
+
+Missing-skill handling was also improved:
+
+- `keywordPlan` is no longer only diagnostic metadata
+- honest `Skills` suggestions are now merged conservatively into the built resume data
+- honest `Summary` suggestions can be appended when they are non-duplicative
+- suggestions with `honest: false` are explicitly ignored
+
+Verification after this pass:
+
+- `npm test` passed fully (`26/26`)
+- regression tests now cover:
+  - honest keyword-plan skill injection
+  - experienced-resume two-page budgeting
+  - one-page PDF validation for an early-career modern-template resume
+- artifact validation confirmed a dense early-career sample rendered successfully as:
+  - `template: modern`
+  - `density: standard`
+  - `pageCount: 1`

@@ -64,19 +64,35 @@ function createFixture(overrides = {}) {
 alex.morgan@example.com | +353 87 555 0142 | linkedin.com/in/alexmorgan | Dublin, Ireland
 
 PROFESSIONAL SUMMARY
-Product-minded operations leader with 7+ years of experience shipping workflow automation, analytics, and hiring-platform integrations for fast-moving SaaS teams.
+Product-minded operations leader with 7+ years of experience shipping workflow automation, analytics, and hiring-platform integrations for fast-moving SaaS teams. Experienced in cross-functional delivery, candidate funnel optimization, and recruiter tooling for enterprise hiring environments.
 
 EXPERIENCE
 Senior Program Manager - Northstar Labs 01/2022 - Present
 • Rebuilt hiring operations workflows across Workday, Greenhouse, and LinkedIn integrations, reducing manual recruiter triage time by 38%.
 • Led cross-functional launch plans for applicant-tracking automation used by 120+ recruiters across EMEA and North America.
 • Created analytics dashboards that surfaced funnel drop-off, application quality, and portal completion failures, improving qualified applicant conversion by 24%.
+• Partnered with design and support teams to simplify applicant workflows, lowering form-correction tickets by 31%.
+
+Program Manager - Brightpath Software 06/2018 - 12/2021
+• Standardized resume intake and export templates for enterprise clients, improving ATS parse stability for customer success teams.
+• Partnered with product and design to simplify candidate workflows and reduce form correction issues after upload.
+• Introduced recruiter-facing reporting that made parse failures, missing fields, and completion bottlenecks visible to operations leaders.
 
 EDUCATION
 B.Sc. Business Information Systems - University College Dublin 2018
 
 TECHNICAL SKILLS
-ATS Workflows, Workday, Lever, LinkedIn Jobs, SQL, Analytics, Process Design, Stakeholder Management`,
+ATS Workflows, Workday, Lever, LinkedIn Jobs, SQL, Analytics, Process Design, Stakeholder Management
+
+PROJECTS
+Recruiter Workflow Console 2021
+• Built a workflow console for recruiting operations reviews, helping customer success teams spot ATS completion failures faster.
+
+CERTIFICATIONS
+Certified Scrum Master
+
+LANGUAGES
+English, French`,
     optimized_bullets: JSON.stringify([
       {
         original:
@@ -173,6 +189,59 @@ JavaScript, TypeScript, SQL, Python`;
     assert.match(data.sections.experience[0].bullets[0], /javascript, typescript, SQL, NOSQL, python/i);
   });
 
+  it('injects honest keyword-plan skills into the resume data', () => {
+    const resumeText = `Taylor Quinn
+taylor@example.com | +353 86 123 4567 | Dublin, Ireland
+
+EXPERIENCE
+Support Specialist - Brightpath 01/2024 - Present
+• Supported customer escalations across phone and email channels.
+
+TECHNICAL SKILLS
+Customer Support, CRM`;
+
+    const data = buildResumeData(
+      resumeText,
+      {},
+      [],
+      [
+        {
+          keyword: 'SQL',
+          section: 'Skills',
+          suggestion: "Add to Skills section as: 'SQL, Documentation'",
+          honest: true,
+        },
+        {
+          keyword: 'Kubernetes',
+          section: 'Skills',
+          suggestion: "Add to Skills section as: 'Kubernetes'",
+          honest: false,
+        },
+      ]
+    );
+
+    assert.match(data.sections.skills[0], /SQL/i);
+    assert.match(data.sections.skills[0], /Documentation/i);
+    assert.doesNotMatch(data.sections.skills[0], /Kubernetes/i);
+  });
+
+  it('allows experienced resumes to use a two-page budget', () => {
+    const resumeText = `Jordan Blake
+jordan@example.com | Dublin, Ireland
+
+EXPERIENCE
+Senior Consultant - Apex 01/2020 - Present
+• Led operations work.
+Consultant - Apex 01/2016 - 12/2019
+• Built analytics workflows.
+
+EDUCATION
+B.Sc. Business 2015`;
+
+    const data = buildResumeData(resumeText, {}, [], []);
+    assert.equal(data.maxPages, 2);
+  });
+
   it('uses structured fallback text when optimized text is missing', () => {
     const { resumeText, source } = resolveResumeText(
       createFixture({ optimized_resume_text: '' })
@@ -191,18 +260,20 @@ JavaScript, TypeScript, SQL, Python`;
 
   it('renders a readable portal-targeted PDF preview', async () => {
     const fixture = createFixture();
-    const { buffer, renderMeta } = await renderResumePdf(fixture, { watermark: true });
+    const { buffer, renderMeta } = await renderResumePdf(fixture, {
+      watermark: true,
+      template: 'modern',
+    });
     assert.ok(buffer.length > 5000, 'expected non-trivial PDF output');
     assert.equal(renderMeta.renderStatus, 'ready');
-    assert.equal(renderMeta.renderTemplate, 'minimal');
 
     const validation = await validatePDF(buffer, {
       expectedName: 'Alex Morgan',
-      maxPages: 2,
+      maxPages: 1,
       minTextLength: 90,
     });
 
     assert.equal(validation.valid, true);
-    assert.ok(validation.pageCount >= 1);
+    assert.equal(validation.pageCount, 1);
   });
 });

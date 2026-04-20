@@ -17,7 +17,7 @@
 
 @page {
   size: letter;
-  margin: 0.55in 0.65in;
+  margin: 0.5in;
 }
 
 * {
@@ -32,11 +32,11 @@ html {
 }
 
 body {
-  width: 7.2in; /* 8.5in - 2×0.65in margins */
-  max-width: 7.2in;
+  width: auto;
+  max-width: none;
   margin: 0 auto;
-  font-size: 10.5pt;
-  line-height: 1.45;
+  font-size: 10pt;
+  line-height: 1.32;
   color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   overflow-wrap: anywhere;
@@ -52,16 +52,16 @@ body {
 /* ── Density Modifier ───────────────────────────────────────────────────── */
 
 body.density-compact {
-  font-size: 9.5pt;
-  line-height: 1.2;
+  font-size: 9.25pt;
+  line-height: 1.16;
 }
 
 body.density-compact .section {
-  margin-bottom: 0.12in;
+  margin-bottom: 0.1in;
 }
 
 body.density-compact .entry {
-  margin-bottom: 0.06in;
+  margin-bottom: 0.05in;
 }
 
 body.density-compact .bullet-list li {
@@ -69,16 +69,16 @@ body.density-compact .bullet-list li {
 }
 
 body.density-compact .resume-header {
-  margin-bottom: 0.12in;
+  margin-bottom: 0.1in;
 }
 
 body.density-compact .section-title {
-  margin-bottom: 0.05in;
+  margin-bottom: 0.04in;
 }
 
 body.pdf-tight {
-  font-size: 9pt;
-  line-height: 1.15;
+  font-size: 8.75pt;
+  line-height: 1.1;
 }
 
 body.pdf-tight .resume-header {
@@ -87,8 +87,8 @@ body.pdf-tight .resume-header {
 }
 
 body.pdf-tight .resume-name {
-  font-size: 16pt;
-  margin-bottom: 2pt;
+  font-size: 15pt;
+  margin-bottom: 1pt;
 }
 
 body.pdf-tight .contact-line,
@@ -98,7 +98,7 @@ body.pdf-tight .entry-location {
 }
 
 body.pdf-tight .section {
-  margin-bottom: 0.1in;
+  margin-bottom: 0.08in;
 }
 
 body.pdf-tight .section-title {
@@ -108,7 +108,7 @@ body.pdf-tight .section-title {
 }
 
 body.pdf-tight .entry {
-  margin-bottom: 0.05in;
+  margin-bottom: 0.04in;
 }
 
 body.pdf-tight .entry-title,
@@ -121,35 +121,88 @@ body.pdf-tight .simple-list li {
 }
 
 body.pdf-tight .bullet-list {
-  margin-top: 2pt;
-  padding-left: 0.18in;
+  margin-top: 1pt;
+  padding-left: 0.14in;
 }
 
 body.pdf-tight .bullet-list li {
-  margin-bottom: 1pt;
-  line-height: 1.25;
+  margin-bottom: 0;
+  line-height: 1.18;
+}
+
+body.pdf-ultra-tight {
+  font-size: 8.25pt;
+  line-height: 1.04;
+}
+
+body.pdf-ultra-tight .resume-header {
+  margin-bottom: 0.07in;
+  padding-bottom: 0.03in;
+}
+
+body.pdf-ultra-tight .resume-name {
+  font-size: 14pt;
+  margin-bottom: 0;
+}
+
+body.pdf-ultra-tight .contact-line,
+body.pdf-ultra-tight .entry-dates,
+body.pdf-ultra-tight .entry-location {
+  font-size: 7.8pt;
+}
+
+body.pdf-ultra-tight .section {
+  margin-bottom: 0.06in;
+}
+
+body.pdf-ultra-tight .section-title {
+  font-size: 8.5pt;
+  margin-bottom: 0.03in;
+  padding-bottom: 1pt;
+}
+
+body.pdf-ultra-tight .entry {
+  margin-bottom: 0.03in;
+}
+
+body.pdf-ultra-tight .entry-title,
+body.pdf-ultra-tight .entry-subtitle,
+body.pdf-ultra-tight .skill-category,
+body.pdf-ultra-tight .summary-text,
+body.pdf-ultra-tight .bullet-list li,
+body.pdf-ultra-tight .simple-list li {
+  font-size: 8.2pt;
+}
+
+body.pdf-ultra-tight .bullet-list {
+  padding-left: 0.12in;
+  margin-top: 0;
+}
+
+body.pdf-ultra-tight .bullet-list li {
+  line-height: 1.1;
 }
 
 /* ── Header (Name + Contact) ────────────────────────────────────────────── */
 
 .resume-header {
   text-align: center;
-  margin-bottom: 0.2in;
-  padding-bottom: 0.1in;
+  margin-bottom: 0.14in;
+  padding-bottom: 0.06in;
 }
 
 .resume-name {
   font-size: 18pt;
   font-weight: 700;
   letter-spacing: 0.02em;
-  margin-bottom: 4pt;
+  margin-bottom: 2pt;
   color: #111;
 }
 
 .contact-line {
-  font-size: 9pt;
+  font-size: 8.5pt;
   color: #444;
-  line-height: 1.6;
+  line-height: 1.35;
 }
 
 .contact-line .separator {
@@ -160,69 +213,79 @@ body.pdf-tight .bullet-list li {
 /* ── Sections ───────────────────────────────────────────────────────────── */
 
 .section {
-  margin-bottom: 0.22in;
+  margin-bottom: 0.14in;
 }
 
 .section-title {
-  font-size: 10.5pt;
+  font-size: 9.75pt;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 0.08in;
-  padding-bottom: 3pt;
+  margin-bottom: 0.05in;
+  padding-bottom: 2pt;
   page-break-after: avoid;
 }
 
 /* ── Experience / Education Entries ──────────────────────────────────────── */
 
 .entry {
-  margin-bottom: 0.12in;
+  margin-bottom: 0.08in;
   page-break-inside: avoid;
 }
 
 .entry-header {
-  display: block;
-  margin-bottom: 2pt;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10pt;
+  margin-bottom: 1pt;
+}
+
+.entry-heading {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .entry-title {
   font-weight: 700;
-  font-size: 10.5pt;
+  font-size: 10pt;
   color: #111;
 }
 
 .entry-subtitle {
   font-weight: 400;
-  font-size: 10pt;
+  font-size: 9.4pt;
   color: #333;
 }
 
 .entry-location {
   font-style: italic;
-  font-size: 9.5pt;
+  font-size: 8.8pt;
   color: #555;
 }
 
 .entry-dates {
   display: block;
-  margin-top: 2pt;
-  font-size: 9.5pt;
+  margin-top: 0;
+  font-size: 8.8pt;
   color: #555;
-  white-space: normal;
+  white-space: nowrap;
+  text-align: right;
+  flex: 0 0 auto;
 }
 
 /* ── Bullet Lists ───────────────────────────────────────────────────────── */
 
 .bullet-list {
   list-style-type: disc;
-  padding-left: 0.22in;
-  margin-top: 3pt;
+  padding-left: 0.16in;
+  margin-top: 2pt;
 }
 
 .bullet-list li {
-  margin-bottom: 2pt;
-  font-size: 10pt;
-  line-height: 1.4;
+  margin-bottom: 1pt;
+  font-size: 9.25pt;
+  line-height: 1.26;
   color: #222;
 }
 
@@ -240,9 +303,9 @@ body.pdf-tight .bullet-list li {
 
 .skill-category {
   width: 100%;
-  margin-bottom: 2pt;
-  font-size: 10pt;
-  line-height: 1.5;
+  margin-bottom: 1pt;
+  font-size: 9.1pt;
+  line-height: 1.24;
 }
 
 .skill-category-name {
@@ -257,10 +320,10 @@ body.pdf-tight .bullet-list li {
 /* ── Summary ────────────────────────────────────────────────────────────── */
 
 .summary-text {
-  font-size: 10pt;
-  line-height: 1.5;
+  font-size: 9.2pt;
+  line-height: 1.28;
   color: #333;
-  text-align: justify;
+  text-align: left;
 }
 
 /* ── Certifications / Languages ─────────────────────────────────────────── */
@@ -271,8 +334,8 @@ body.pdf-tight .bullet-list li {
 }
 
 .simple-list li {
-  font-size: 10pt;
-  margin-bottom: 2pt;
+  font-size: 9.1pt;
+  margin-bottom: 1pt;
   color: #222;
 }
 

@@ -264,3 +264,32 @@ This comprehensive remediation phase was successfully executed through a synchro
 **Still Open / Residual Notes:**
 - **Resume generation quality still needs deeper iteration**: The UI is cleaner and the pipeline is safer, but the strongest remaining product risk is still inconsistent resume quality on messy source documents.
 - **Live scraping remains probabilistic**: Indeed / Cezanne / custom-job-board extraction is improved, but third-party markup drift can still weaken job-title/company recovery without warning.
+
+## Timeline: 2026-04-20 (Resume Export Follow-up)
+**Focus:** Resume Layout Quality, Experience-Aware Page Budgeting, and Honest Missing-Skill Injection
+
+**Implemented (Added):**
+- **Export Layout Rework**: Tightened the resume PDF templates (`modern`, `classic`, `minimal`) so the exported CV reads like a cleaner recruiter-facing document instead of a loose browser printout. The pass improved:
+  - title / company / date alignment
+  - bullet indentation and spacing
+  - section spacing and hierarchy
+  - overall line density for ATS-safe PDF output
+- **Experience-Aware Page Budget**: Replaced the temporary hard one-page requirement with a more realistic rule:
+  - resumes with `<= 3 years` effective experience target **1 page**
+  - resumes with `> 3 years` effective experience may validate at **up to 2 pages**
+- **Render Validation Tightening**: The PDF render validator now enforces the dynamic page budget instead of allowing all resumes to pass at 2 pages by default.
+- **DOM-Level Export Fit Pass**: Added a final PDF-only fit stage that progressively tightens spacing and trims low-priority content only when the export exceeds its allowed page budget.
+- **Honest Skill Injection from Keyword Plan**: Wired `keywordPlan` into `buildResumeData()` so recruiter-view missing-skill suggestions are no longer diagnostics only. Honest `Skills` recommendations now get merged conservatively into the exported skills section, while dishonest suggestions (`honest: false`) are skipped.
+- **Summary Injection Guardrail**: Honest summary-level keyword suggestions can be appended conservatively when they do not duplicate the existing summary.
+
+**Verified:**
+- `npm test` passed fully at `26/26`
+- generated PDF preview validation confirmed:
+  - `modern` template
+  - `standard` density
+  - `pageCount: 1` for an early-career sample
+- local artifact review confirmed the updated PDF uses tighter indentation, cleaner hierarchy, and better one-page composition
+
+**Product Clarification Preserved:**
+- Missing skills are **not** blindly stuffed into the resume.
+- Only keyword-plan items marked as honest are eligible for insertion, and the current automatic insertion is conservative and centered on the `Skills` section first.

@@ -72,7 +72,7 @@
 
   <!-- Professional Summary -->
   {{#if summary}}
-  <div class="section">
+  <div class="section section-summary">
     <h2 class="section-title">PROFESSIONAL SUMMARY</h2>
     <p class="summary-text">{{summary}}</p>
   </div>
@@ -80,12 +80,12 @@
 
   <!-- Experience -->
   {{#if experience}}
-  <div class="section">
+  <div class="section section-experience">
     <h2 class="section-title">EXPERIENCE</h2>
     {{#each experience}}
     <div class="entry">
       <div class="entry-header">
-        <div>
+        <div class="entry-heading">
           <span class="entry-title">{{this.title}}</span>
           {{#if this.company}}
           <span class="entry-subtitle"> &mdash; {{this.company}}</span>
@@ -112,12 +112,12 @@
 
   <!-- Education -->
   {{#if education}}
-  <div class="section">
+  <div class="section section-education">
     <h2 class="section-title">EDUCATION</h2>
     {{#each education}}
     <div class="entry">
       <div class="entry-header">
-        <div>
+        <div class="entry-heading">
           <span class="entry-title">{{this.degree}}</span>
           {{#if this.school}}
           <span class="entry-subtitle"> &mdash; {{this.school}}</span>
@@ -141,7 +141,7 @@
 
   <!-- Technical Skills -->
   {{#if skills}}
-  <div class="section">
+  <div class="section section-skills">
     <h2 class="section-title">TECHNICAL SKILLS</h2>
     <div class="skills-grid">
       {{#each skills}}
@@ -158,7 +158,7 @@
 
   <!-- Projects -->
   {{#if projects}}
-  <div class="section">
+  <div class="section section-projects">
     <h2 class="section-title">PROJECTS</h2>
     {{#each projects}}
     <div class="entry">
@@ -182,7 +182,7 @@
 
   <!-- Certifications -->
   {{#if certifications}}
-  <div class="section">
+  <div class="section section-certifications">
     <h2 class="section-title">CERTIFICATIONS</h2>
     <ul class="simple-list">
       {{#each certifications}}
@@ -194,7 +194,7 @@
 
   <!-- Languages -->
   {{#if languages}}
-  <div class="section">
+  <div class="section section-languages">
     <h2 class="section-title">LANGUAGES</h2>
     <ul class="simple-list">
       {{#each languages}}
