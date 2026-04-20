@@ -2623,7 +2623,10 @@ async function finalizeAgentUI(data) {
 
   // 5. Store scanId for lazy-loading in the PDF tab
   const bar = el('agent-download-bar');
-  if (bar && data.scanId) bar.dataset.scanId = data.scanId;
+  if (bar && data.scanId) {
+    bar.dataset.scanId = data.scanId;
+    bar.style.display = '';
+  }
 
   // 5b. Initialize PDF preview immediately if on PDF tab or prepare for lazy loading
   if (data.scanId) {
@@ -3114,7 +3117,10 @@ function setupAgentHistoricalView(data) {
 
   // 3. Update Download Bar
   const bar = el('agent-download-bar');
-  if (bar && scanId) bar.dataset.scanId = scanId;
+  if (bar && scanId) {
+    bar.dataset.scanId = scanId;
+    bar.style.display = '';
+  }
 
   // 4. Update Header Scores
   updateAgentScores({
