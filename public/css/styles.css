@@ -4594,10 +4594,13 @@ body.modal-open {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
 }
 
 /* Wrapper card around the canvas scroll area */
 .pdf-preview-container {
+  flex: 1 1 auto;
+  min-height: 0;
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow:
@@ -7083,7 +7086,7 @@ a svg {
 .job-url-icon {
   position: absolute;
   top: 50%;
-  left: var(--sp-3);
+  left: calc(var(--sp-3) + 1px);
   transform: translateY(-50%);
   color: var(--text-faint);
   pointer-events: none;
@@ -7095,7 +7098,7 @@ a svg {
 
 .job-url-input {
   width: 100%;
-  padding: var(--sp-3) var(--sp-4) var(--sp-3) calc(var(--sp-4) + 14px + var(--sp-3));
+  padding: var(--sp-3) var(--sp-4) var(--sp-3) calc(var(--sp-4) + 14px + var(--sp-4) + 2px);
   background: var(--bg-input);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
