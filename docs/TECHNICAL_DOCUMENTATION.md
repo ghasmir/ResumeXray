@@ -783,6 +783,11 @@ Pipeline summary:
 9. use Playwright to generate PDF when PDF output is requested
 10. validate text layer and page bounds
 
+Template support:
+
+- the live PDF pipeline now accepts `refined`, `modern`, `classic`, and `minimal`
+- `refined` is not just a frontend-only preview option; it is wired end-to-end through request normalization, render-service attempt selection, and `generatePDF(...)`
+
 Important limitation:
 
 - This pipeline is substantially safer than the older flat-text string-replacement flow, but it is still heuristic.
@@ -822,6 +827,7 @@ Functions:
 Template source files:
 
 - `lib/templates/base.css`
+- `lib/templates/refined.html`
 - `lib/templates/modern.html`
 - `lib/templates/classic.html`
 - `lib/templates/minimal.html`

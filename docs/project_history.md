@@ -312,17 +312,20 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Regression Coverage Added**: Added new `tests/core-flow.test.js` cases that specifically lock in:
   - no fake experience-entry creation from comma-heavy wrapped bullet lines
   - no replacement of a clean source headline with a generic fallback summary
+- **Refined Template Export Wiring Fixed**: Corrected the production export path so `refined` is accepted by both `routes/agent.js` and `generatePDF(...)` in `lib/resume-builder.js`. Before this fix, the UI could present `Refined` as selected while the backend silently rendered the `modern` template instead.
 
 **Verified:**
 - `node --check lib/parser.js`
 - `node --check lib/resume-builder.js`
 - `node --check lib/template-renderer.js`
-- `node --test tests/core-flow.test.js` passed fully (`11/11`)
+- `node --check routes/agent.js`
+- `node --test tests/core-flow.test.js` passed fully after the follow-up refined-template regression was added
 - local render review of Hafiz Talha Naseem’s source PDF confirmed:
   - no hallucinated Spark/data-pipeline bullet
   - no `Strengths` leakage into `Projects`
   - no fake second TechGenies entry from wrapped bullet text
   - no literal `**metric**` markdown leakage in the rendered PDF
+  - `refined` direct output now differs correctly from `modern`, and `generatePDF({ template: 'refined' })` now actually renders the refined layout instead of silently downgrading
 
 **Still Open / Residual Notes:**
 - **Tag-style skills are still plain-text, not chip-like**: the export is now structurally honest, but dense right-column skill tags still flatten into plain ATS-safe text rather than a more polished grouped representation.

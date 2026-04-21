@@ -51,7 +51,7 @@ function parseScanId(raw) {
 
 function normalizeTemplateChoice(raw) {
   const value = sanitizeInput(String(raw || '')).toLowerCase();
-  return ['modern', 'classic', 'minimal'].includes(value) ? value : '';
+  return ['refined', 'modern', 'classic', 'minimal'].includes(value) ? value : '';
 }
 
 function normalizeDensityChoice(raw) {
