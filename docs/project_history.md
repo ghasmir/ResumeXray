@@ -293,3 +293,25 @@ This comprehensive remediation phase was successfully executed through a synchro
 **Product Clarification Preserved:**
 - Missing skills are **not** blindly stuffed into the resume.
 - Only keyword-plan items marked as honest are eligible for insertion, and the current automatic insertion is conservative and centered on the `Skills` section first.
+
+## Timeline: 2026-04-21
+**Focus:** Export Resume Quality Upgrade, Template Defaults, and Documentation Discipline
+
+**Implemented (Added):**
+- **Refined Resume Template Added**: Introduced a new `refined` ATS-safe resume template aimed at stronger visual hierarchy and more polished recruiter-facing output without relying on layout tricks that weaken ATS parsing.
+- **Preview Format Control Expanded**: Added `Refined` to the Export Preview format selector so users can compare a higher-quality default format directly in the results workspace.
+- **Higher-Quality ATS Defaults**: Reworked ATS template defaults in `lib/jd-processor.js` so the system now prefers `refined` or `classic` at `standard` density for most platforms instead of falling into `minimal` / `compact` too early.
+- **Render Attempt Reordering**: Updated `lib/render-service.js` so preview/export generation now attempts higher-quality standard-density layouts before compact fallback passes. The practical effect is that the renderer now tries to preserve readable hierarchy before shrinking.
+- **Professional Summary Polishing**: Added a deterministic summary-polish step in `lib/resume-builder.js` so the exported resume no longer relies only on whatever weak summary text survived parsing. When the source summary is poor or absent, the pipeline now builds a cleaner fallback summary from role, experience, and skill signals.
+- **Documentation Process Clarified**: From this point forward, implementation work is expected to update both `docs/project_history.md` and `docs/TECHNICAL_DOCUMENTATION.md` in the same change set so product behavior and historical context remain aligned.
+
+**Verified:**
+- `node --check public/js/app.js`
+- `node --check lib/jd-processor.js`
+- `node --check lib/render-service.js`
+- `node --check lib/resume-builder.js`
+- `npm test -- --runInBand tests/core-flow.test.js` passed fully
+
+**Still Open / Residual Notes:**
+- **Bullet rewriting is still the next major quality lever**: This pass improved summary quality and template selection, but the strongest remaining resume-quality risk is still uneven bullet rewriting on messy source resumes.
+- **Live visual review is still required**: Automated PDF validation passed, but export quality should still be checked against several real scans to tune whitespace, role density, and section tradeoffs before claiming the output is fully premium.

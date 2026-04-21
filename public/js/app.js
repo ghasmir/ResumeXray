@@ -2842,14 +2842,14 @@ function setupResultsTabs() {
   });
 
   // ── Template Selector Event Listeners ──
-  ['tpl-modern', 'tpl-classic', 'tpl-minimal'].forEach(id => {
+  ['tpl-refined', 'tpl-modern', 'tpl-classic', 'tpl-minimal'].forEach(id => {
     const btn = el(id);
     if (!btn) return;
     btn.addEventListener('click', () => {
       const bar = el('agent-download-bar');
       const scanId = bar ? bar.dataset.scanId : null;
       if (!scanId) return;
-      setSelectedTemplate(btn.dataset.template || 'modern');
+      setSelectedTemplate(btn.dataset.template || 'refined');
       reloadPdfPreview(scanId);
     });
   });
@@ -2883,7 +2883,9 @@ function syncTemplateSelectionUI() {
 }
 
 function setSelectedTemplate(template) {
-  const nextTemplate = ['modern', 'classic', 'minimal'].includes(template) ? template : 'modern';
+  const nextTemplate = ['refined', 'modern', 'classic', 'minimal'].includes(template)
+    ? template
+    : 'refined';
   currentRenderProfile = {
     ...(currentRenderProfile || {}),
     template: nextTemplate,

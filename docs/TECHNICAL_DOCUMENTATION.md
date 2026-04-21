@@ -1713,3 +1713,44 @@ Verification after this pass:
   - `template: modern`
   - `density: standard`
   - `pageCount: 1`
+
+### 23.13 April 21 Export Quality and Template Policy Update
+
+This pass shifted the export strategy away from early aggressive shrinking and toward preserving quality first, then tightening only when necessary.
+
+Changes shipped:
+
+- added a new ATS-safe template:
+  - `lib/templates/refined.html`
+- expanded the allowed template set so it now includes:
+  - `refined`
+  - `modern`
+  - `classic`
+  - `minimal`
+- updated the Export Preview toolbar in `public/index.html` and the selector logic in `public/js/app.js` so users can explicitly choose the new `refined` template
+- changed ATS template defaults in `lib/jd-processor.js`:
+  - generic default now prefers `refined`
+  - several ATS profiles that previously defaulted to `minimal` / `compact` now prefer `refined` or `classic` at `standard` density
+- reordered render fallback behavior in `lib/render-service.js` so preview/export attempts now prioritize:
+  - the resolved ATS profile
+  - standard-density quality fallbacks (`refined`, `classic`)
+  - compact fallback only after those higher-quality attempts
+  - `minimal` remains the strict fallback, but no longer starts from `compact` by default
+- added `polishProfessionalSummary(...)` in `lib/resume-builder.js`
+  - normalizes weak first-person / filler-heavy summaries
+  - builds a deterministic fallback summary when the parsed summary is weak or missing
+  - injects role / years-experience / skill context so the resume header section reads more like a professional finished document
+
+Practical product effect:
+
+- the system now tries to keep the resume readable and professional before shrinking typography
+- export previews have a stronger default presentation
+- the summary block is less dependent on the quality of the raw uploaded resume text
+
+Validation completed for this pass:
+
+- `node --check public/js/app.js`
+- `node --check lib/jd-processor.js`
+- `node --check lib/render-service.js`
+- `node --check lib/resume-builder.js`
+- `npm test -- --runInBand tests/core-flow.test.js`
