@@ -1,13 +1,21 @@
 const { describe, it, after } = require('node:test');
 const assert = require('node:assert/strict');
 
+const JSZip = require('jszip');
 const { detectATS, processJobDescription } = require('../lib/jd-processor');
 const { extractKeywords } = require('../lib/keywords');
 const { closeBrowser } = require('../lib/playwright-browser');
 const pdfParse = require('pdf-parse');
-const { buildResumeData, generatePDF } = require('../lib/resume-builder');
+const { buildResumeData, generateDOCX, generatePDF } = require('../lib/resume-builder');
 const { renderResumePdf, resolveResumeText, resolveScanJobContext } = require('../lib/render-service');
 const { validatePDF } = require('../lib/resume-builder');
+
+async function extractDocxXml(buffer, filePath = 'word/document.xml') {
+  const zip = await JSZip.loadAsync(buffer);
+  const file = zip.file(filePath);
+  assert.ok(file, `expected ${filePath} in generated docx`);
+  return file.async('string');
+}
 
 function createFixture(overrides = {}) {
   return {
@@ -351,5 +359,31 @@ B.Sc. Business 2015`;
     const extracted = await pdfParse(buffer);
     assert.match(extracted.text, /CORE SKILLS/i);
     assert.doesNotMatch(extracted.text, /TECHNICAL SKILLS/i);
+  });
+
+  it('renders template-aware DOCX themes for ATS-safe exports', async () => {
+    const fixture = createFixture();
+    const refinedBuffer = await generateDOCX(
+      fixture.optimized_resume_text,
+      JSON.parse(fixture.section_data),
+      JSON.parse(fixture.optimized_bullets),
+      JSON.parse(fixture.keyword_plan),
+      { template: 'refined', density: 'standard' }
+    );
+    const classicBuffer = await generateDOCX(
+      fixture.optimized_resume_text,
+      JSON.parse(fixture.section_data),
+      JSON.parse(fixture.optimized_bullets),
+      JSON.parse(fixture.keyword_plan),
+      { template: 'classic', density: 'compact' }
+    );
+
+    const refinedXml = await extractDocxXml(refinedBuffer);
+    const classicXml = await extractDocxXml(classicBuffer);
+
+    assert.match(refinedXml, /Aptos/);
+    assert.match(refinedXml, /w:jc w:val="center"/);
+    assert.match(classicXml, /Georgia/);
+    assert.doesNotMatch(classicXml, /w:jc w:val="center"/);
   });
 });

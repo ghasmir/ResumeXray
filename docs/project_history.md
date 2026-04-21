@@ -352,3 +352,41 @@ This comprehensive remediation phase was successfully executed through a synchro
 **Still Open / Residual Notes:**
 - **Bullet rewriting is still the next major quality lever**: This pass improved summary quality and template selection, but the strongest remaining resume-quality risk is still uneven bullet rewriting on messy source resumes.
 - **Live visual review is still required**: Automated PDF validation passed, but export quality should still be checked against several real scans to tune whitespace, role density, and section tradeoffs before claiming the output is fully premium.
+
+## Timeline: 2026-04-21 (DOCX Export Contract Tightening)
+**Focus:** Template-Aware Word Exports Without Changing the Current Architecture
+
+**Implemented (Added):**
+- **DOCX Template Awareness Added**: Updated `generateDOCX(...)` in `lib/resume-builder.js` so Word exports now accept template and density options instead of always emitting one generic layout.
+- **ATS-Safe Theme Mapping for DOCX**: Added deterministic DOCX theme profiles that stay single-column and parser-safe while looking materially closer to a paid resume deliverable:
+  - `refined` -> professional Word-style theme
+  - `modern` -> blue-accent modern theme
+  - `classic` -> serif black-and-white theme
+  - `minimal` -> compact theme
+- **No Architecture Rewrite**: Kept the current parser / builder / download stack intact. This was done as an export-layer improvement, not a new document subsystem.
+- **Download Route Wiring Fixed**: Updated `routes/agent.js` so DOCX downloads now honor:
+  - the user-selected template
+  - the selected density
+  - the ATS-profile template/density defaults when the user does not override them
+- **Hierarchy Upgrade for Word Exports**: Reworked the DOCX builder output to improve:
+  - header typography
+  - section divider treatment
+  - role / company / location grouping
+  - right-aligned date lines
+  - compact density behavior for tighter ATS-safe exports
+- **Cover Letter DOCX Path Stabilized**: Added a simple template-aware cover-letter DOCX path so the new DOCX options handling does not regress non-resume downloads.
+- **Regression Coverage Added**: Added a DOCX regression test in `tests/core-flow.test.js` that opens the generated `.docx` ZIP and asserts that the requested theme actually changes the emitted Word XML.
+
+**Why This Mattered:**
+- PDF exports were already template-aware, but DOCX exports were effectively one-style-fits-all.
+- That meant users could choose a format in the product and still receive a bland Word file that ignored the selection.
+- This pass makes DOCX part of the actual paid value instead of a fallback artifact.
+
+**Verified:**
+- `node --check lib/resume-builder.js`
+- `node --check routes/agent.js`
+- `node --test tests/core-flow.test.js` passed fully with the new DOCX-theme regression included
+
+**Still Open / Residual Notes:**
+- **This improves the container, not the content model**: The Word export now respects the selected ATS-safe theme, but the next deeper quality win is still improving how bullets and summaries are authored from messy source resumes.
+- **Visual review against real uploads still matters**: The DOCX structure is materially better and now deterministic, but template polish should still be reviewed against several real customer resumes before making stronger premium claims.

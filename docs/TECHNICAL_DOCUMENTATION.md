@@ -787,6 +787,17 @@ Template support:
 
 - the live PDF pipeline now accepts `refined`, `modern`, `classic`, and `minimal`
 - `refined` is not just a frontend-only preview option; it is wired end-to-end through request normalization, render-service attempt selection, and `generatePDF(...)`
+- the live DOCX pipeline now accepts the same template and density inputs as PDF, instead of always emitting one generic Word layout
+- DOCX exports remain deliberately ATS-safe:
+  - single-column only
+  - no tables / text boxes
+  - standard section headers
+  - deterministic title / company / date ordering
+- the current DOCX theme mapping is:
+  - `refined` -> professional Word-style theme
+  - `modern` -> blue-accent modern Word-style theme
+  - `classic` -> serif black-and-white Word-style theme
+  - `minimal` -> compact Word-style theme
 
 Important limitation:
 

@@ -913,6 +913,11 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
     const exportType = req.query.type || 'resume'; // 'resume' or 'cover_letter'
     const preferredTemplate = normalizeTemplateChoice(req.query.template);
     const preferredDensity = normalizeDensityChoice(req.query.density);
+    const resolvedJobContext = resolveScanJobContext(scan);
+    const resolvedTemplate =
+      preferredTemplate || resolvedJobContext.templateProfile?.template || 'refined';
+    const resolvedDensity =
+      preferredDensity || resolvedJobContext.templateProfile?.defaultDensity || 'standard';
     const { resumeText } = resolveResumeText(scan);
     const sectionData = scan.section_data || {};
     const optimizedBullets = scan.optimized_bullets || [];
@@ -978,7 +983,11 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
         );
         res.send(buffer);
       } else {
-        const buffer = await generateDOCX(coverLetterText, {}, [], [], { isCoverLetter: true });
+        const buffer = await generateDOCX(coverLetterText, {}, [], [], {
+          isCoverLetter: true,
+          template: resolvedTemplate,
+          density: resolvedDensity,
+        });
         res.setHeader(
           'Content-Type',
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -1016,7 +1025,10 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
       );
       res.send(buffer);
     } else {
-      const buffer = await generateDOCX(resumeText, sectionData, optimizedBullets, keywordPlan);
+      const buffer = await generateDOCX(resumeText, sectionData, optimizedBullets, keywordPlan, {
+        template: resolvedTemplate,
+        density: resolvedDensity,
+      });
       res.setHeader(
         'Content-Type',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
