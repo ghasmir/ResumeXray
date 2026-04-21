@@ -558,6 +558,16 @@ Functions:
 - `parseDOCX(buffer)`
 - `parseTXT(buffer)`
 
+Important behavior:
+
+- `parsePDF(...)` now attempts a layout-aware extraction path before falling back to the legacy linear `pdf-parse` text stream.
+- The layout-aware path groups page text into rows, splits rows into spans, detects two-column separation heuristically, and serializes content in this order:
+  1. header-left
+  2. header-right
+  3. body left column
+  4. body right column
+- This materially reduces right-column leakage into left-column experience content on two-column resumes without introducing an external OCR dependency.
+
 ### `lib/sections.js`
 
 Owns heuristic structural section detection and integrity checks.
@@ -739,12 +749,18 @@ Functions:
 - `normalizeDates(text)`
 - `sanitizeForATS(text)`
 - `splitNonEmptyLines(text)`
+- `looksLikeLocationLine(line)`
 - `isLikelyContactLine(line)`
 - `looksLikeContactBlock(text)`
 - `extractHeadlineFromHeaderBlock(text)`
+- `isLikelyNameLine(line)`
+- `matchSectionHeader(line)`
+- `extractHeaderFields(lines)`
 - `looksLikeExperienceHeaderLine(line)`
 - `buildResumeData(resumeText, sectionData, optimizedBullets, keywordPlan)`
-- `trimForSinglePage(sections, isJunior)`
+- `polishProfessionalSummary(sections, options)`
+- `applyBulletRewrites(sections, optimizedBullets)`
+- `trimForSinglePage(sections, { isJunior, maxPages })`
 - `stripPlaceholderMetrics(sections)`
 - `parseSectionsAdvanced(text)`
 - `calculateTenure(experienceLines)`
@@ -758,11 +774,11 @@ Pipeline summary:
 
 1. sanitize the original resume text for ATS-safe rendering
 2. normalize dates and symbols on that original text
-3. parse sections heuristically
-4. recover cleaner header/contact/summary fields
-5. highlight metrics and trim content toward a one-page bias while the data is still in flat arrays
+3. parse sections heuristically, including explicit header extraction and exact section-header matching
+4. recover cleaner header/contact/summary fields and preserve concise honest source headlines when possible
+5. highlight metrics and trim content toward the allowed page budget while the data is still in flat arrays
 6. structure flat lines into nested template-friendly objects
-7. apply optimized bullet rewrites directly to structured nodes
+7. apply optimized bullet rewrites directly to structured nodes, skipping any rewrite that already failed `contextAudit`
 8. render the Handlebars HTML template or DOCX section content from those objects
 9. use Playwright to generate PDF when PDF output is requested
 10. validate text layer and page bounds
@@ -770,7 +786,8 @@ Pipeline summary:
 Important limitation:
 
 - This pipeline is substantially safer than the older flat-text string-replacement flow, but it is still heuristic.
-- Malformed or heavily wrapped resumes can still produce false experience entries during `structureExperience()` and downstream template rendering.
+- False role creation from wrapped comma-heavy bullet lines was materially reduced by the Apr 21 parser/render fix, but unusually malformed resumes can still stress the heuristic boundary.
+- Dense tag-style skill sidebars still flatten into plain ATS-safe text rather than a fully semantic skill taxonomy.
 - No database migration was required for this refactor; the work was a render-pipeline reordering and structuring change, not a schema rewrite.
 
 Historical provenance:
@@ -794,7 +811,8 @@ Functions:
 - `normalizeDateLine(line)`
 - `isLikelyRoleTitle(text)`
 - `splitCompanyAndLocation(text)`
-- `isLikelyEntryHeader(line)`
+- `looksLikeCompanyText(text)`
+- `isLikelyEntryHeader(line, nextLine)`
 - `parseEntryHeader(line)`
 - `structureExperience(lines)`
 - `structureEducation(lines)`
@@ -808,6 +826,14 @@ Template source files:
 - `lib/templates/classic.html`
 - `lib/templates/minimal.html`
 - `lib/templates/cover-letter.html`
+
+Important behavior:
+
+- `structureExperience(...)` now strongly prefers real entry headers:
+  - header line followed by a standalone date line, or
+  - inline role/company patterns with spaced separators like `Title - Company`
+- Once the renderer is inside bullets for a role, non-header lines are biased toward bullet continuation instead of being promoted into new fake roles.
+- `structureEducation(...)` now groups multi-line degree/school text until the date line so wrapped education headers survive export cleanly.
 
 ## 12.4 `lib/cover-letter-parser.js`
 

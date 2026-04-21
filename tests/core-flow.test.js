@@ -189,6 +189,66 @@ JavaScript, TypeScript, SQL, Python`;
     assert.match(data.sections.experience[0].bullets[0], /javascript, typescript, SQL, NOSQL, python/i);
   });
 
+  it('does not turn wrapped comma-heavy bullet lines into fake experience entries', () => {
+    const resumeText = `Hafiz Talha Naseem
+Software Engineer | Data Engineer
+Fullstack developer with 3 years of experience
+Dooradoyle Limerick, Ireland
+089 983 4139
+talharajpoott513@gmail.com
+
+EXPERIENCE
+TechGenies, Limerick, Ireland(remote) - Software Developer
+08/2022 – Present
+Development and maintenance of software applications and infrastructure
+using MEAN/MERN stack
+• Lead the development and maintenance of enterprise-grade
+applications using the (javascript, typescript, SQL, NOSQL, python,
+HTML, CSS, React), contributing to multiple high-impact client projects
+including an ERP System, E-Commerce Platform, and Customer
+Support Ticketing System.
+• Managed Azure-based deployments and CI/CD pipelines, improving
+deployment reliability and minimizing downtime.
+Devsinc, Islamabad, Pakistan - Software Engineer
+02/2022 – 08/2022
+• Implemented SQL Server for efficient data management,
+decreasing data access time by 35%.
+
+TECHNICAL SKILLS
+Python, Node.js, JavaScript`;
+
+    const data = buildResumeData(resumeText, {}, [], []);
+
+    assert.equal(data.sections.experience.length, 2);
+    assert.equal(data.sections.experience[0].title, 'Software Developer');
+    assert.equal(data.sections.experience[1].company, 'Devsinc');
+    assert.match(
+      data.sections.experience[0].bullets[1],
+      /HTML, CSS, React\), contributing to multiple high-impact client projects including an ERP System/i
+    );
+  });
+
+  it('keeps a concise source headline instead of replacing it with a generic fallback summary', () => {
+    const resumeText = `Hafiz Talha Naseem
+Software Engineer | Data Engineer
+Fullstack developer with 3 years of experience
+Dooradoyle Limerick, Ireland
+089 983 4139
+talharajpoott513@gmail.com
+
+EXPERIENCE
+TechGenies - Software Developer 08/2022 – Present
+• Built enterprise applications for customer support workflows.
+
+TECHNICAL SKILLS
+JavaScript, TypeScript, SQL`;
+
+    const data = buildResumeData(resumeText, {}, [], []);
+
+    assert.match(data.sections.summary, /Fullstack developer with 3 years of experience/i);
+    assert.doesNotMatch(data.sections.summary, /Known for clear execution/i);
+  });
+
   it('injects honest keyword-plan skills into the resume data', () => {
     const resumeText = `Taylor Quinn
 taylor@example.com | +353 86 123 4567 | Dublin, Ireland

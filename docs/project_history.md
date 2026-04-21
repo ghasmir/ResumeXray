@@ -294,6 +294,40 @@ This comprehensive remediation phase was successfully executed through a synchro
 - Missing skills are **not** blindly stuffed into the resume.
 - Only keyword-plan items marked as honest are eligible for insertion, and the current automatic insertion is conservative and centered on the `Skills` section first.
 
+## Timeline: 2026-04-21 (Hafiz Resume Parser / Export Fix)
+**Focus:** Two-Column PDF Recovery, Safer Experience Structuring, and Honest Resume Export Output
+
+**Implemented (Added):**
+- **Layout-Aware PDF Parsing for Two-Column Resumes**: Replaced the old linear `pdf-parse` path in `lib/parser.js` with a custom `pagerender` flow that groups text by row, splits rows into spans, detects left/right column clusters, and serializes content in recruiter-reading order. This specifically addressed resumes like Hafiz Talha Naseem’s where the old parser was mixing left-column experience bullets with right-column skills/strengths content.
+- **Header Extraction Tightening**: Reworked `parseSectionsAdvanced(...)` and related helpers in `lib/resume-builder.js` so the top-of-resume header is parsed more deliberately. The builder now:
+  - detects the actual name instead of assuming line 1 is always safe
+  - separates contact lines from short role/headline lines
+  - preserves a clean explicit headline like `Fullstack developer with 3 years of experience`
+  - isolates `Strengths` as its own section instead of leaking it into `Projects` or `Skills`
+- **Summary Fallback Guardrail**: Updated `polishProfessionalSummary(...)` so short, honest source headlines are no longer overwritten by a generic fallback summary. If the uploaded resume already contains a concise role/value line, the export now keeps that instead of inventing bland copy.
+- **Experience Header Heuristic Cleanup**: Tightened `structureExperience(...)` in `lib/template-renderer.js` so wrapped continuation lines like `HTML, CSS, React), contributing to multiple high-impact client projects` are no longer promoted into fake roles. New entries now strongly prefer explicit date support or a real role/company pattern.
+- **Trim Logic Continuation Fix**: Fixed `trimForSinglePage(...)` so when a lower-priority bullet is trimmed, its wrapped continuation lines are also dropped. Before this, skipped bullets could still leak their continuation lines into the previous kept bullet and produce obviously broken exported experience content.
+- **Education Grouping Fix**: Reworked `structureEducation(...)` so wrapped degree/school lines are grouped until the date line, preserving school/degree pairing on PDF exports from multi-line source resumes.
+- **Failed Rewrite Rejection**: `applyBulletRewrites(...)` now ignores optimized bullets whose `contextAudit.passed === false`, preventing low-trust AI rewrites from slipping into exports even when they were already marked unsafe by the rewrite pipeline.
+- **Regression Coverage Added**: Added new `tests/core-flow.test.js` cases that specifically lock in:
+  - no fake experience-entry creation from comma-heavy wrapped bullet lines
+  - no replacement of a clean source headline with a generic fallback summary
+
+**Verified:**
+- `node --check lib/parser.js`
+- `node --check lib/resume-builder.js`
+- `node --check lib/template-renderer.js`
+- `node --test tests/core-flow.test.js` passed fully (`11/11`)
+- local render review of Hafiz Talha Naseem’s source PDF confirmed:
+  - no hallucinated Spark/data-pipeline bullet
+  - no `Strengths` leakage into `Projects`
+  - no fake second TechGenies entry from wrapped bullet text
+  - no literal `**metric**` markdown leakage in the rendered PDF
+
+**Still Open / Residual Notes:**
+- **Tag-style skills are still plain-text, not chip-like**: the export is now structurally honest, but dense right-column skill tags still flatten into plain ATS-safe text rather than a more polished grouped representation.
+- **One-page bias still trims some valid content**: for early-career resumes exported into single-column ATS-safe templates, the renderer still trims lower-priority later bullets to stay within the one-page budget. That tradeoff is now cleaner, but it is still a deliberate tradeoff rather than perfect source preservation.
+
 ## Timeline: 2026-04-21
 **Focus:** Export Resume Quality Upgrade, Template Defaults, and Documentation Discipline
 
