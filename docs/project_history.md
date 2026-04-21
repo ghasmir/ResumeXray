@@ -390,3 +390,26 @@ This comprehensive remediation phase was successfully executed through a synchro
 **Still Open / Residual Notes:**
 - **This improves the container, not the content model**: The Word export now respects the selected ATS-safe theme, but the next deeper quality win is still improving how bullets and summaries are authored from messy source resumes.
 - **Visual review against real uploads still matters**: The DOCX structure is materially better and now deterministic, but template polish should still be reviewed against several real customer resumes before making stronger premium claims.
+
+## Timeline: 2026-04-21 (Profile Reliability & Email Observability)
+**Focus:** Profile CTA Cleanup, Avatar Upload Stability, and Mail Delivery Diagnostics
+
+**Implemented (Added):**
+- **Profile Banner CTA Simplified**: Removed the redundant secondary `View Dashboard` button from the profile momentum card so the profile page now presents one clear primary next step instead of two competing dashboard CTAs.
+- **Runtime Upload Directory Added**: Introduced `lib/uploads.js` to resolve a dedicated writable uploads root. Local development still defaults to `public/uploads`, while production now uses a runtime-safe uploads directory (or `UPLOADS_DIR` if explicitly configured) without changing the public `/uploads/...` URL shape.
+- **Avatar Storage Path Hardened**: Updated `routes/user.js` and `server.js` so avatar uploads are written to the runtime uploads directory and served explicitly from `/uploads`. The upload route now also cleans up old locally stored avatars through the shared path resolver instead of assuming the files live under the compiled `public/` tree.
+- **Avatar Failure Stages Split Out**: Broke the avatar route failure handling into clearer write-stage and database-stage branches, with cleanup when DB persistence fails after a file write. This turns a vague generic failure into a safer, more diagnosable path.
+- **Email Delivery Logging Improved**: Extended `lib/mailer.js` with recipient-domain logging so verification, password reset, and SSO reminder sends now record the delivery domain (`yahoo.com`, `gmail.com`, etc.) alongside the provider message id and active transport. This does not prove inbox placement, but it makes it easier to confirm whether the app handed the message to Resend successfully.
+- **Regression Coverage Added**: Added tests covering the single dashboard CTA in the profile banner, safe upload-url path resolution, and recipient-domain extraction for mail logs.
+
+**Verified:**
+- `node --check server.js`
+- `node --check routes/user.js`
+- `node --check lib/uploads.js`
+- `node --check lib/mailer.js`
+- `npm test`
+- local signup/login/avatar-upload flow against the running app confirmed the avatar endpoint now returns a successful upload response and serves the new image from `/uploads/avatars/...`
+
+**Still Open / Residual Notes:**
+- **Avatar files remain runtime-local, not object storage backed**: uploads now use a safer writable directory, but they are still ephemeral on platforms like Railway until a durable object store is added.
+- **Accepted email != inbox placement**: the app can now log that Resend accepted mail for `yahoo.com`, but inbox vs spam vs user-side blocking still needs Resend event visibility or recipient mailbox verification.

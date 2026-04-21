@@ -431,7 +431,7 @@ Responsibilities:
 - dashboard data
 - credit history
 - password update
-- avatar update
+- avatar update via a runtime uploads directory, with local-avatar cleanup and staged write/DB failure handling
 - account deletion
 
 Functions:
@@ -943,11 +943,33 @@ Functions:
 
 Functions:
 
+- `getEmailDomain(email)`
 - `escapeHtml(str)`
 - `createEmailTemplate(title, body, actionLabel, actionUrl)`
 - `sendVerificationEmail(to, token)`
 - `sendPasswordResetEmail(to, token)`
 - `sendSSOLoginReminderEmail(to, provider)`
+
+Notes:
+
+- chooses Resend first when `RESEND_API_KEY` is present, SMTP otherwise
+- logs the provider message id, active transport, and recipient domain on successful sends
+- recipient-domain logging improves deliverability debugging (`gmail.com`, `yahoo.com`, etc.) without logging full email addresses
+
+### `lib/uploads.js`
+
+Functions:
+
+- `getUploadsRoot()`
+- `ensureUploadsRoot()`
+- `getAvatarUploadsDir()`
+- `uploadUrlToPath(uploadUrl)`
+
+Purpose:
+
+- centralize writable upload-path resolution for runtime-generated assets
+- keep local development on `public/uploads`
+- move production uploads onto a runtime-safe writable directory while preserving public `/uploads/...` URLs
 
 ## 14. Database Layer
 

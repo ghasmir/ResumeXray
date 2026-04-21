@@ -23,6 +23,7 @@ const { configureHelmet, generalLimiter, cspNonceMiddleware, permissionsPolicyMi
 const { AppError } = require('./lib/errors');
 const log = require('./lib/logger');
 const { initSentry, flushSentry } = require('./lib/error-tracker');
+const { ensureUploadsRoot, getUploadsRoot } = require('./lib/uploads');
 
 // ── Fail-Fast: Validate Critical Environment Variables ────────────────────────
 // Google Engineering Standard: Applications MUST crash on startup if critical
@@ -39,6 +40,7 @@ if (process.env.NODE_ENV === 'production') {
 // Initialize Express App
 const app = express();
 const PORT = process.env.PORT || 3000;
+ensureUploadsRoot();
 
 // §14.2: Trust first proxy (Cloudflare/Caddy) — MUST be set before session/rate-limiter.
 // Without this, req.ip = Cloudflare's IP, breaking per-IP rate limits and audit trails.
@@ -277,6 +279,17 @@ app.use((req, res, next) => {
 app.use(passport.initialize());
 app.use(passport.session());
 configurePassport();
+
+// Serve runtime uploads from a dedicated writable directory.
+app.use(
+  '/uploads',
+  express.static(getUploadsRoot(), {
+    index: false,
+    maxAge: '1h',
+    etag: true,
+    lastModified: true,
+  })
+);
 
 // Serve static files — 1-day cache with ETag revalidation.
 // Avoids the 1-year stale cache problem where deploys don't update user's CSS/JS.

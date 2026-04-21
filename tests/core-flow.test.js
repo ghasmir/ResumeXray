@@ -1,14 +1,18 @@
 const { describe, it, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 
 const JSZip = require('jszip');
 const { detectATS, processJobDescription } = require('../lib/jd-processor');
 const { extractKeywords } = require('../lib/keywords');
+const { getEmailDomain } = require('../lib/mailer');
 const { closeBrowser } = require('../lib/playwright-browser');
 const pdfParse = require('pdf-parse');
 const { buildResumeData, generateDOCX, generatePDF } = require('../lib/resume-builder');
 const { renderResumePdf, resolveResumeText, resolveScanJobContext } = require('../lib/render-service');
 const { validatePDF } = require('../lib/resume-builder');
+const { getUploadsRoot, uploadUrlToPath } = require('../lib/uploads');
 
 async function extractDocxXml(buffer, filePath = 'word/document.xml') {
   const zip = await JSZip.loadAsync(buffer);
@@ -385,5 +389,33 @@ B.Sc. Business 2015`;
     assert.match(refinedXml, /w:jc w:val="center"/);
     assert.match(classicXml, /Georgia/);
     assert.doesNotMatch(classicXml, /w:jc w:val="center"/);
+  });
+
+  it('keeps only one dashboard CTA in the profile momentum card', () => {
+    const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+    const profileSection = indexHtml.slice(
+      indexHtml.indexOf('<section id="view-profile"'),
+      indexHtml.indexOf('<!-- Profile Header with Avatar -->')
+    );
+
+    assert.match(profileSection, /id="profile-primary-action"/);
+    assert.doesNotMatch(profileSection, />\s*View Dashboard\s*</);
+  });
+
+  it('maps upload urls into the runtime uploads directory safely', () => {
+    const uploadsRoot = path.resolve(getUploadsRoot());
+    const avatarPath = uploadUrlToPath('/uploads/avatars/example.png');
+
+    assert.ok(avatarPath);
+    assert.equal(
+      avatarPath,
+      path.join(uploadsRoot, 'avatars', 'example.png')
+    );
+    assert.equal(uploadUrlToPath('/public/avatars/example.png'), null);
+  });
+
+  it('extracts recipient domains for email delivery logging', () => {
+    assert.equal(getEmailDomain('candidate@yahoo.com'), 'yahoo.com');
+    assert.equal(getEmailDomain(''), 'unknown');
   });
 });

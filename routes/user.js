@@ -10,6 +10,7 @@ const { isAuthenticated } = require('../middleware/auth');
 const bcrypt = require('bcrypt');
 const { validatePassword } = require('../lib/validation');
 const log = require('../lib/logger');
+const { getAvatarUploadsDir, uploadUrlToPath } = require('../lib/uploads');
 
 // All routes require authentication
 router.use((req, res, next) => {
@@ -209,33 +210,67 @@ router.put('/avatar', isAuthenticated, (req, res, next) => {
     }
 
     // UUID filename — prevents directory traversal and user enumeration via filenames
-    const uploadsDir = path.join(__dirname, '..', 'public', 'uploads', 'avatars');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
+    const uploadsDir = getAvatarUploadsDir();
     const filename = `${uuidv4()}.${outputFormat === 'jpeg' ? 'jpg' : 'png'}`;
     const filepath = path.join(uploadsDir, filename);
+    const avatarUrl = `/uploads/avatars/${filename}`;
 
     // Delete the old avatar file if it was locally stored (clean up disk)
     try {
       const existingUser = await db.getUserById(req.user.id);
-      if (existingUser?.avatar_url?.startsWith('/uploads/avatars/')) {
-        const oldPath = path.join(__dirname, '..', 'public', existingUser.avatar_url);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      const oldPath = existingUser?.avatar_url?.startsWith('/uploads/avatars/')
+        ? uploadUrlToPath(existingUser.avatar_url)
+        : null;
+      if (oldPath && path.dirname(oldPath) === uploadsDir && fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
       }
     } catch (cleanupErr) {
-      log.warn('Failed to clean up old avatar', { error: cleanupErr.message });
+      log.warn('Failed to clean up old avatar', { error: cleanupErr.message, userId: req.user.id });
     }
 
-    fs.writeFileSync(filepath, sanitizedBuffer);
-    const avatarUrl = `/uploads/avatars/${filename}`;
+    try {
+      fs.writeFileSync(filepath, sanitizedBuffer);
+    } catch (writeErr) {
+      log.error('Avatar write failed', {
+        error: writeErr.message,
+        code: writeErr.code,
+        userId: req.user.id,
+        filepath,
+      });
+      return res.status(500).json({ error: 'Avatar storage is temporarily unavailable.' });
+    }
 
-    // Update avatar_url in the database
-    await db.updateAvatarUrl(req.user.id, avatarUrl);
+    try {
+      // Update avatar_url in the database
+      await db.updateAvatarUrl(req.user.id, avatarUrl);
+    } catch (dbErr) {
+      try {
+        if (fs.existsSync(filepath)) {
+          fs.unlinkSync(filepath);
+        }
+      } catch (unlinkErr) {
+        log.warn('Failed to remove avatar after database error', {
+          error: unlinkErr.message,
+          userId: req.user.id,
+          filepath,
+        });
+      }
+
+      log.error('Avatar database update failed', {
+        error: dbErr.message,
+        userId: req.user.id,
+        avatarUrl,
+      });
+      return res.status(500).json({ error: 'Failed to save avatar.' });
+    }
 
     res.json({ success: true, avatarUrl });
   } catch (err) {
-    log.error('Avatar upload error', { error: err.message, userId: req.user?.id });
+    log.error('Avatar upload error', {
+      error: err.message,
+      code: err.code,
+      userId: req.user?.id,
+    });
     res.status(500).json({ error: 'Failed to upload avatar.' });
   }
 });
