@@ -23,6 +23,8 @@ const {
   hydrateAtsProfile,
   normalizeJobContext,
   processJobDescription,
+  sanitizeCompanyNameValue,
+  sanitizeJobTitleValue,
 } = require('../lib/jd-processor');
 const { validateResumeContent } = require('../lib/resume-validator');
 const { runAgentPipeline } = require('../lib/agent-pipeline');
@@ -42,6 +44,7 @@ const log = require('../lib/logger');
 
 // §9.5: Track active SSE connections per user for concurrent stream limiting
 const activeStreams = new Map(); // userId|ip → Set<res>
+const EXPORT_VARIANT_VERSION = 'theme-v2';
 
 // Helper: parse and validate scanId from URL params
 function parseScanId(raw) {
@@ -51,7 +54,7 @@ function parseScanId(raw) {
 
 function normalizeTemplateChoice(raw) {
   const value = sanitizeInput(String(raw || '')).toLowerCase();
-  return ['refined', 'modern', 'classic', 'minimal'].includes(value) ? value : '';
+  return ['refined', 'executive', 'corporate', 'modern', 'classic', 'minimal'].includes(value) ? value : '';
 }
 
 function normalizeDensityChoice(raw) {
@@ -150,6 +153,40 @@ function buildSessionJobContext(dbSession) {
     jdText: dbSession.jd_text,
     atsPlatform: dbSession.ats_platform || '',
   });
+}
+
+function buildExportIdempotencyKey(scanId, format, exportType, template, density) {
+  return [
+    'export',
+    scanId,
+    String(format || 'pdf').toLowerCase(),
+    String(exportType || 'resume').toLowerCase(),
+    String(template || 'refined').toLowerCase(),
+    String(density || 'standard').toLowerCase(),
+    EXPORT_VARIANT_VERSION,
+  ].join('-');
+}
+
+function buildCoverLetterContext(scan = {}) {
+  const sectionData = scan.section_data || {};
+  let name = sectionData?.name || '';
+  let contact = sectionData?.contact || '';
+
+  if (!name && scan.xray_data?.extractedFields?.Name) {
+    name = scan.xray_data.extractedFields.Name;
+  }
+  if (!contact) {
+    const extractedFields = scan.xray_data?.extractedFields || {};
+    const parts = [extractedFields.Email, extractedFields.Phone].filter(Boolean);
+    if (parts.length) contact = parts.join(' | ');
+  }
+
+  return {
+    name,
+    contact,
+    jobTitle: sanitizeJobTitleValue(scan.job_title || ''),
+    companyName: sanitizeCompanyNameValue(scan.company_name || ''),
+  };
 }
 
 function jobContextNeedsManualPaste(jobContext) {
@@ -618,7 +655,7 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
   await emitter.emitInit(scanId, accessToken);
   await emitter.emitJobContext(session.jobContext);
   await emitter.emitRenderProfile({
-    template: session.jobContext.templateProfile?.template || 'modern',
+    template: session.jobContext.templateProfile?.template || 'refined',
     density: session.jobContext.templateProfile?.defaultDensity || 'standard',
     atsPlatform: session.jobContext.atsPlatform,
     atsDisplayName: session.jobContext.atsDisplayName,
@@ -806,6 +843,8 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
       });
     }
     const scan = await db.getFullScan(scanId, userId, accessToken);
+    const preferredTemplate = normalizeTemplateChoice(req.query.template);
+    const preferredDensity = normalizeDensityChoice(req.query.density);
     if (!scan) {
       return sendEmbeddedState(res, 404, {
         title: 'Cover letter unavailable',
@@ -835,29 +874,17 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
       });
     }
 
-    // Build context for cover letter — try multiple sources for name/contact
-    let clName = scan.section_data?.name || '';
-    let clContact = scan.section_data?.contact || '';
-
-    // Fallback: try xray extracted fields if section_data is missing them
-    if (!clName && scan.xray_data?.extractedFields?.Name) {
-      clName = scan.xray_data.extractedFields.Name;
-    }
-    if (!clContact) {
-      const ef = scan.xray_data?.extractedFields || {};
-      const parts = [ef.Email, ef.Phone].filter(Boolean);
-      if (parts.length) clContact = parts.join(' | ');
-    }
-
-    const ctx = {
-      name: clName,
-      contact: clContact,
-      jobTitle: scan.job_title,
-      companyName: scan.company_name,
-    };
-
-    const parsed = parseCoverLetter(scan.cover_letter_text || '', ctx);
-    const html = renderTemplate('cover-letter', parsed, { watermark: false, density: 'standard' });
+    const jobContext = resolveScanJobContext(scan);
+    const resolvedTemplate =
+      preferredTemplate || jobContext.templateProfile?.template || 'refined';
+    const resolvedDensity =
+      preferredDensity || jobContext.templateProfile?.defaultDensity || 'standard';
+    const parsed = parseCoverLetter(scan.cover_letter_text || '', buildCoverLetterContext(scan));
+    const html = renderTemplate('cover-letter', parsed, {
+      watermark: false,
+      density: resolvedDensity,
+      template: resolvedTemplate,
+    });
 
     const protectionCss = `
       html, body {
@@ -925,12 +952,18 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
 
     // Atomic credit deduction with idempotency key (prevents double-deduction)
     if (req.user) {
-      const idempotencyKey = `export-${req.params.scanId}-${format}-${exportType}`;
+      const idempotencyKey = buildExportIdempotencyKey(
+        req.params.scanId,
+        format,
+        exportType,
+        resolvedTemplate,
+        resolvedDensity
+      );
       const result = await db.deductCreditAtomic(
         req.user.id,
         'export',
         idempotencyKey,
-        `Exported ${format.toUpperCase()} ${exportType}`
+        `Exported ${format.toUpperCase()} ${exportType} (${resolvedTemplate}/${resolvedDensity})`
       );
 
       if (!result.success && !result.alreadyProcessed) {
@@ -952,27 +985,11 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
       }
 
       if (format === 'pdf') {
-        // Same fallback logic as preview route
-        let clName = sectionData?.name || '';
-        let clContact = sectionData?.contact || '';
-        if (!clName && scan.xray_data?.extractedFields?.Name) {
-          clName = scan.xray_data.extractedFields.Name;
-        }
-        if (!clContact) {
-          const ef = scan.xray_data?.extractedFields || {};
-          const parts = [ef.Email, ef.Phone].filter(Boolean);
-          if (parts.length) clContact = parts.join(' | ');
-        }
-        const ctx = {
-          name: clName,
-          contact: clContact,
-          jobTitle: scan.job_title,
-          companyName: scan.company_name,
-        };
-        const parsed = parseCoverLetter(coverLetterText, ctx);
+        const parsed = parseCoverLetter(coverLetterText, buildCoverLetterContext(scan));
         const html = renderTemplate('cover-letter', parsed, {
           watermark: req.isWatermarked,
-          density: 'standard',
+          density: resolvedDensity,
+          template: resolvedTemplate,
         });
         const buffer = await renderHtmlToPdf(html);
 

@@ -4,8 +4,12 @@ const fs = require('fs');
 const path = require('path');
 
 const JSZip = require('jszip');
-const { detectATS, processJobDescription } = require('../lib/jd-processor');
-const { extractKeywords } = require('../lib/keywords');
+const {
+  detectATS,
+  processJobDescription,
+  sanitizeCompanyNameValue,
+} = require('../lib/jd-processor');
+const { extractKeywords, matchKeywords } = require('../lib/keywords');
 const { getEmailDomain } = require('../lib/mailer');
 const { closeBrowser } = require('../lib/playwright-browser');
 const pdfParse = require('pdf-parse');
@@ -13,6 +17,8 @@ const { buildResumeData, generateDOCX, generatePDF } = require('../lib/resume-bu
 const { renderResumePdf, resolveResumeText, resolveScanJobContext } = require('../lib/render-service');
 const { validatePDF } = require('../lib/resume-builder');
 const { getUploadsRoot, uploadUrlToPath } = require('../lib/uploads');
+const { parseCoverLetter } = require('../lib/cover-letter-parser');
+const { extractLinkedInAvatarUrl } = require('../lib/oauth-profiles');
 
 async function extractDocxXml(buffer, filePath = 'word/document.xml') {
   const zip = await JSZip.loadAsync(buffer);
@@ -164,6 +170,25 @@ describe('Core Flow Contracts', () => {
     assert.equal(result.jobTitle, '');
   });
 
+  it('extracts the role and company from pasted fallback job descriptions', async () => {
+    const jd = `Full job description
+Lock Doctor are Ireland's largest locksmiths, providing 24 hour call out services.
+
+We require an experienced Operations Booking Agent to join our team in Limerick.
+
+Responsibilities
+Provide top class customer service
+
+Essential Requirements
+Excellent attention to detail`;
+
+    const result = await processJobDescription(jd, '', '');
+
+    assert.equal(result.jobTitle, 'Operations Booking Agent');
+    assert.equal(result.companyName, 'Lock Doctor');
+    assert.equal(sanitizeCompanyNameValue('ie.indeed.com'), '');
+  });
+
   it('does not surface short ambiguous keywords like go and r without programming context', () => {
     const retailKeywords = extractKeywords(
       'Support customers in the Apple Store environment with clear communication, teamwork, troubleshooting, and point-of-sale operations.'
@@ -178,6 +203,57 @@ describe('Core Flow Contracts', () => {
 
     assert.equal(engineeringKeywords.hardSkills.some(item => item.term === 'golang'), true);
     assert.equal(engineeringKeywords.hardSkills.some(item => item.term === 'r'), true);
+  });
+
+  it('does not derive hard skills from unrelated substrings in a customer-service JD', () => {
+    const jdText = `Responsibilities
+Provide top class customer service
+Responsible for rapid service delivery
+Deal with escalated customer requirements as an urgent priority
+
+Essential Requirements
+Excellent communication skills both written and oral
+Excellent attention to detail`;
+
+    const jdKeywords = extractKeywords(jdText);
+    const hardTerms = jdKeywords.hardSkills.map(item => item.term);
+
+    assert.equal(hardTerms.includes('scala'), false);
+    assert.equal(hardTerms.includes('api'), false);
+    assert.equal(hardTerms.includes('excel'), false);
+  });
+
+  it('keeps recruiter-view missing keywords focused on real JD requirements', () => {
+    const resumeText = `Ghasmir Ahmad
+ghasmir@example.com | Limerick, Ireland
+
+EXPERIENCE
+Customer Service Executive - Eir 01/2024 - Present
+• Managed high-volume customer requests and escalations across phone and email channels.
+• Coordinated service bookings, prioritised urgent requests, and maintained accurate records.
+
+TECHNICAL SKILLS
+Customer service, communication`;
+
+    const jdText = `Full job description
+Lock Doctor are Ireland's largest locksmiths.
+We require an experienced Operations Booking Agent to join our team in Limerick.
+
+Responsibilities
+Provide top class customer service
+Responsible for rapid service delivery
+Deal with escalated customer requirements as an urgent priority
+
+Essential Requirements
+Excellent communication skills both written and oral
+Excellent attention to detail`;
+
+    const keywordResults = matchKeywords(extractKeywords(resumeText), extractKeywords(jdText));
+    const missingTerms = keywordResults.missing.map(item => item.term);
+
+    assert.equal(missingTerms.includes('scala'), false);
+    assert.equal(missingTerms.includes('api'), false);
+    assert.equal(missingTerms.includes('excel'), false);
   });
 
   it('keeps wrapped bullet continuations inside the same experience entry', () => {
@@ -262,7 +338,7 @@ JavaScript, TypeScript, SQL`;
     assert.doesNotMatch(data.sections.summary, /Known for clear execution/i);
   });
 
-  it('injects honest keyword-plan skills into the resume data', () => {
+  it('does not inject JD-only keyword-plan skills into exported resume content', () => {
     const resumeText = `Taylor Quinn
 taylor@example.com | +353 86 123 4567 | Dublin, Ireland
 
@@ -293,9 +369,37 @@ Customer Support, CRM`;
       ]
     );
 
-    assert.match(data.sections.skills[0], /SQL/i);
-    assert.match(data.sections.skills[0], /Documentation/i);
+    assert.doesNotMatch(data.sections.skills[0], /SQL/i);
+    assert.doesNotMatch(data.sections.skills[0], /Documentation/i);
     assert.doesNotMatch(data.sections.skills[0], /Kubernetes/i);
+  });
+
+  it('keeps the summary grounded in resume evidence instead of keyword-plan hints', () => {
+    const resumeText = `Taylor Quinn
+taylor@example.com | Dublin, Ireland
+
+EXPERIENCE
+Support Specialist - Brightpath 01/2024 - Present
+• Supported customer escalations across phone and email channels.
+
+TECHNICAL SKILLS
+Customer Support, CRM`;
+
+    const data = buildResumeData(
+      resumeText,
+      {},
+      [],
+      [
+        {
+          keyword: 'Scala programming',
+          section: 'Summary',
+          suggestion: 'Core strengths include Scala programming.',
+          honest: true,
+        },
+      ]
+    );
+
+    assert.doesNotMatch(data.sections.summary, /Scala programming/i);
   });
 
   it('allows experienced resumes to use a two-page budget', () => {
@@ -381,14 +485,32 @@ B.Sc. Business 2015`;
       JSON.parse(fixture.keyword_plan),
       { template: 'classic', density: 'compact' }
     );
+    const executiveBuffer = await generateDOCX(
+      fixture.optimized_resume_text,
+      JSON.parse(fixture.section_data),
+      JSON.parse(fixture.optimized_bullets),
+      JSON.parse(fixture.keyword_plan),
+      { template: 'executive', density: 'standard' }
+    );
+    const corporateBuffer = await generateDOCX(
+      fixture.optimized_resume_text,
+      JSON.parse(fixture.section_data),
+      JSON.parse(fixture.optimized_bullets),
+      JSON.parse(fixture.keyword_plan),
+      { template: 'corporate', density: 'standard' }
+    );
 
     const refinedXml = await extractDocxXml(refinedBuffer);
     const classicXml = await extractDocxXml(classicBuffer);
+    const executiveXml = await extractDocxXml(executiveBuffer);
+    const corporateXml = await extractDocxXml(corporateBuffer);
 
     assert.match(refinedXml, /Aptos/);
     assert.match(refinedXml, /w:jc w:val="center"/);
     assert.match(classicXml, /Georgia/);
     assert.doesNotMatch(classicXml, /w:jc w:val="center"/);
+    assert.match(executiveXml, /Georgia/);
+    assert.match(corporateXml, /Arial/);
   });
 
   it('keeps only one dashboard CTA in the profile momentum card', () => {
@@ -417,5 +539,40 @@ B.Sc. Business 2015`;
   it('extracts recipient domains for email delivery logging', () => {
     assert.equal(getEmailDomain('candidate@yahoo.com'), 'yahoo.com');
     assert.equal(getEmailDomain(''), 'unknown');
+  });
+
+  it('strips placeholder job context from cover letter rendering data', () => {
+    const parsed = parseCoverLetter('Re: Full job description\n\nDear Hiring Team,\n\nThis is a sample.\n\nSincerely,\nTaylor', {
+      name: 'Taylor',
+      companyName: 'ATS-Optimized',
+      jobTitle: 'Full job description',
+    });
+
+    assert.equal(parsed.companyName, '');
+    assert.equal(parsed.recipientTitle, '');
+    assert.deepEqual(parsed.paragraphs, ['This is a sample.']);
+  });
+
+  it('normalizes LinkedIn avatar payloads across common shapes', () => {
+    assert.equal(
+      extractLinkedInAvatarUrl({ picture: 'https://cdn.example.com/avatar.png' }),
+      'https://cdn.example.com/avatar.png'
+    );
+    assert.equal(
+      extractLinkedInAvatarUrl({
+        picture: {
+          data: { url: '//media.licdn.com/dms/image/example' },
+        },
+      }),
+      'https://media.licdn.com/dms/image/example'
+    );
+    assert.equal(
+      extractLinkedInAvatarUrl({
+        picture: {
+          elements: [{ identifiers: [{ identifier: 'https://cdn.example.com/nested.png' }] }],
+        },
+      }),
+      'https://cdn.example.com/nested.png'
+    );
   });
 });

@@ -141,7 +141,11 @@ async function findOrCreateUser({ provider, profileId, email, name, avatarUrl })
     // This is safe because Google/LinkedIn/GitHub all verify email ownership before
     // issuing OAuth tokens — the provider has already proven the user owns this email.
     await pool.query(
-      `UPDATE users SET ${column} = $1, avatar_url = COALESCE(avatar_url, $2), updated_at = NOW() WHERE id = $3`,
+      `UPDATE users
+       SET ${column} = $1,
+           avatar_url = CASE WHEN COALESCE($2, '') <> '' THEN $2 ELSE avatar_url END,
+           updated_at = NOW()
+       WHERE id = $3`,
       [profileId, avatarUrl, user.id]
     );
     return decryptUserEmail(await queryOne('SELECT * FROM users WHERE id = $1', [user.id]));
@@ -865,7 +869,11 @@ async function linkOAuthProvider(userId, provider, profileId, avatarUrl) {
     throw new Error(`Invalid OAuth provider: ${provider}`);
   }
   await pool.query(
-    `UPDATE users SET ${column} = $1, avatar_url = COALESCE(avatar_url, $3), updated_at = NOW() WHERE id = $2`,
+    `UPDATE users
+     SET ${column} = $1,
+         avatar_url = CASE WHEN COALESCE($3, '') <> '' THEN $3 ELSE avatar_url END,
+         updated_at = NOW()
+     WHERE id = $2`,
     [profileId, userId, avatarUrl || null]
   );
   return getUserById(userId);

@@ -294,8 +294,12 @@ function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
     }
     if (user) {
       db.prepare(
-        `UPDATE users SET ${column} = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = datetime('now') WHERE id = ?`
-      ).run(profileId, avatarUrl, user.id);
+        `UPDATE users
+         SET ${column} = ?,
+             avatar_url = CASE WHEN COALESCE(?, '') <> '' THEN ? ELSE avatar_url END,
+             updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(profileId, avatarUrl, avatarUrl, user.id);
       return decryptUserEmail(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id));
     }
 
@@ -423,8 +427,12 @@ function linkOAuthProvider(userId, provider, profileId, avatarUrl) {
   const column = PROVIDER_COLUMNS[provider];
   if (!column) throw new Error(`Unknown OAuth provider: ${provider}`);
   d.prepare(
-    `UPDATE users SET ${column} = ?, avatar_url = COALESCE(avatar_url, ?), updated_at = datetime('now') WHERE id = ?`
-  ).run(profileId, avatarUrl, userId);
+    `UPDATE users
+     SET ${column} = ?,
+         avatar_url = CASE WHEN COALESCE(?, '') <> '' THEN ? ELSE avatar_url END,
+         updated_at = datetime('now')
+     WHERE id = ?`
+  ).run(profileId, avatarUrl, avatarUrl, userId);
   return decryptUserEmail(d.prepare('SELECT * FROM users WHERE id = ?').get(userId));
 }
 

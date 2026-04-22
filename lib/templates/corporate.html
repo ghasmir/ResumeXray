@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>{{{baseCss}}}</style>
+  <style>
+    body {
+      font-family: Arial, Helvetica, 'Liberation Sans', sans-serif;
+      color: #0f172a;
+      font-size: 10pt;
+      line-height: 1.36;
+    }
+
+    .resume-header {
+      text-align: left;
+      margin-bottom: 0.18in;
+      padding-bottom: 0.1in;
+      border-bottom: 2pt solid #1d4ed8;
+    }
+
+    .resume-name {
+      font-size: 22pt;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.01em;
+    }
+
+    .contact-line {
+      margin-top: 5pt;
+      font-size: 8.75pt;
+      color: #475569;
+    }
+
+    .contact-line a {
+      color: #1d4ed8;
+      text-decoration: none;
+    }
+
+    .section-title {
+      color: #1d4ed8;
+      border-bottom: 1pt solid #93c5fd;
+      font-size: 9.85pt;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.08in;
+      padding-bottom: 3pt;
+    }
+
+    .summary-text {
+      font-size: 9.45pt;
+      line-height: 1.48;
+      color: #1f2937;
+    }
+
+    .entry {
+      margin-bottom: 0.11in;
+    }
+
+    .entry-header {
+      margin-bottom: 3pt;
+    }
+
+    .entry-title {
+      font-size: 10.1pt;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .entry-subtitle {
+      font-size: 9.3pt;
+      color: #334155;
+    }
+
+    .entry-location,
+    .entry-dates {
+      font-size: 8.7pt;
+      color: #64748b;
+    }
+
+    .bullet-list {
+      padding-left: 0.17in;
+      margin-top: 3pt;
+    }
+
+    .bullet-list li {
+      font-size: 9.15pt;
+      line-height: 1.29;
+      color: #1f2937;
+      margin-bottom: 2pt;
+    }
+
+    .bullet-list li strong,
+    .skill-category-name {
+      color: #0f172a;
+      font-weight: 700;
+    }
+
+    .skill-category,
+    .simple-list li {
+      font-size: 9.1pt;
+      line-height: 1.26;
+      color: #334155;
+    }
+  </style>
+</head>
+<body class="{{#if compact}}density-compact{{/if}}">
+
+  {{#if watermark}}
+  <div class="watermark-overlay">PREVIEW ONLY – DOWNLOAD TO UNLOCK</div>
+  {{/if}}
+
+  <div class="resume-header">
+    <h1 class="resume-name">{{name}}</h1>
+    {{#if contact}}
+    <div class="contact-line">
+      {{#each contact}}
+        {{#unless @first}}<span class="separator">|</span>{{/unless}}
+        {{this}}
+      {{/each}}
+    </div>
+    {{/if}}
+  </div>
+
+  {{#if summary}}
+  <div class="section section-summary">
+    <h2 class="section-title">PROFESSIONAL SUMMARY</h2>
+    <p class="summary-text">{{summary}}</p>
+  </div>
+  {{/if}}
+
+  {{#if experience}}
+  <div class="section section-experience">
+    <h2 class="section-title">EXPERIENCE</h2>
+    {{#each experience}}
+    <div class="entry">
+      <div class="entry-header">
+        <div class="entry-heading">
+          <span class="entry-title">{{this.title}}</span>
+          {{#if this.company}}
+          <span class="entry-subtitle"> | {{this.company}}</span>
+          {{/if}}
+          {{#if this.location}}
+          <span class="entry-location">, {{this.location}}</span>
+          {{/if}}
+        </div>
+        {{#if this.dates}}
+        <span class="entry-dates">{{this.dates}}</span>
+        {{/if}}
+      </div>
+      {{#if this.bullets}}
+      <ul class="bullet-list">
+        {{#each this.bullets}}
+        <li>{{{boldMetrics this}}}</li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if education}}
+  <div class="section section-education">
+    <h2 class="section-title">EDUCATION</h2>
+    {{#each education}}
+    <div class="entry">
+      <div class="entry-header">
+        <div class="entry-heading">
+          <span class="entry-title">{{this.degree}}</span>
+          {{#if this.school}}
+          <span class="entry-subtitle"> | {{this.school}}</span>
+          {{/if}}
+        </div>
+        {{#if this.dates}}
+        <span class="entry-dates">{{this.dates}}</span>
+        {{/if}}
+      </div>
+      {{#if this.details}}
+      <ul class="bullet-list">
+        {{#each this.details}}
+        <li>{{this}}</li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if skills}}
+  <div class="section section-skills">
+    <h2 class="section-title">KEY SKILLS</h2>
+    <div class="skills-grid">
+      {{#each skills}}
+      <div class="skill-category">
+        {{#if this.category}}
+        <span class="skill-category-name">{{this.category}}: </span>
+        {{/if}}
+        <span class="skill-category-items">{{this.items}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if projects}}
+  <div class="section section-projects">
+    <h2 class="section-title">PROJECTS</h2>
+    {{#each projects}}
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-title">{{this.name}}</span>
+        {{#if this.dates}}
+        <span class="entry-dates">{{this.dates}}</span>
+        {{/if}}
+      </div>
+      {{#if this.bullets}}
+      <ul class="bullet-list">
+        {{#each this.bullets}}
+        <li>{{{boldMetrics this}}}</li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{#if certifications}}
+  <div class="section section-certifications">
+    <h2 class="section-title">CERTIFICATIONS</h2>
+    <ul class="simple-list">
+      {{#each certifications}}
+      <li>{{this}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+
+  {{#if languages}}
+  <div class="section section-languages">
+    <h2 class="section-title">LANGUAGES</h2>
+    <ul class="simple-list">
+      {{#each languages}}
+      <li>{{this}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+
+</body>
+</html>

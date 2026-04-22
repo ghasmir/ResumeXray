@@ -2148,6 +2148,22 @@
                         <button
                           type="button"
                           class="pdf-pill"
+                          id="tpl-executive"
+                          data-template="executive"
+                        >
+                          Executive
+                        </button>
+                        <button
+                          type="button"
+                          class="pdf-pill"
+                          id="tpl-corporate"
+                          data-template="corporate"
+                        >
+                          Corporate
+                        </button>
+                        <button
+                          type="button"
+                          class="pdf-pill"
                           id="tpl-modern"
                           data-template="modern"
                         >
@@ -2207,7 +2223,7 @@
                           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                           <path d="M7 11V7a5 5 0 0110 0v4"/>
                         </svg>
-                        <span class="download-bar-lock-label">1 credit removes watermark &amp; unlocks your file</span>
+                        <span class="download-bar-lock-label">1 credit unlocks this exact export variant</span>
                       </div>
                       <div
                         style="
@@ -2218,7 +2234,7 @@
                         "
                       >
                         <span class="body-sm" id="download-credit-msg"
-                          >Watermark-free PDF + tailored cover letter · 1 credit</span
+                          >Same style + same file type stay reusable without another charge</span
                         >
                         <span
                           id="ats-platform-badge"
@@ -2263,55 +2279,107 @@
                   Turn the scan into a send-ready note for this role.
                 </p>
               </div>
-              <div id="cover-letter-content" class="cover-letter-container">
-                <div
-                  id="cover-letter-stream"
-                  class="agent-stream-text"
-                  style="
-                    min-height: 300px;
-                    white-space: pre-wrap;
-                    font-family: var(--font-serif);
-                    line-height: 1.6;
-                    font-size: 1.05rem;
-                    padding: var(--sp-8);
-                  "
-                >
-                  <div class="cover-letter-placeholder">
-                    <div style="margin-bottom: 1rem; opacity: 0.4">
+              <div id="cover-letter-viewer-overlay" class="pdf-viewer-overlay">
+                <div class="pdf-toolbar">
+                  <div class="pdf-toolbar-top">
+                    <div class="pdf-toolbar-title">
                       <svg
                         aria-hidden="true"
-                        width="48"
-                        height="48"
+                        width="18"
+                        height="18"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        stroke-width="1.5"
+                        stroke-width="2"
+                        style="color: var(--accent); flex-shrink: 0"
                       >
-                        <rect x="2" y="4" width="20" height="16" rx="2" />
-                        <polyline points="22,4 12,13 2,4" />
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
                       </svg>
+                      <h3 class="pdf-toolbar-heading">Role-Matched Cover Letter</h3>
                     </div>
-                    <h4>Generating your cover letter...</h4>
-                    <p class="body-sm text-muted" style="margin-top: 0.5rem">
-                      Your personalized cover letter will appear here once the AI analysis
-                      completes.
-                    </p>
+                    <div class="export-quality-pill">
+                      <svg
+                        aria-hidden="true"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                      >
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      </svg>
+                      Matched Set
+                    </div>
+                  </div>
+                  <div class="pdf-toolbar-controls">
+                    <div class="pdf-control-group">
+                      <span class="pdf-control-label">Format</span>
+                      <div class="pdf-pill-group">
+                        <button type="button" class="pdf-pill" data-template="refined">Refined</button>
+                        <button type="button" class="pdf-pill" data-template="executive">Executive</button>
+                        <button type="button" class="pdf-pill" data-template="corporate">Corporate</button>
+                        <button type="button" class="pdf-pill" data-template="modern">Modern</button>
+                        <button type="button" class="pdf-pill" data-template="classic">Classic</button>
+                        <button type="button" class="pdf-pill" data-template="minimal">Minimal</button>
+                      </div>
+                    </div>
+                    <div class="pdf-control-divider"></div>
+                    <div class="pdf-control-group">
+                      <span class="pdf-toolbar-inline-note">Cover letter preview follows the selected resume family.</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div id="cover-letter-actions" class="agent-download-bar" style="display: none">
-                <div class="download-bar-inner">
-                  <div class="download-bar-text">
-                    <strong>Export cover letter</strong>
-                    <span class="body-sm">Matches your export layout &middot; 1 credit</span>
+
+                <div class="pdf-preview-container cover-letter-preview-container">
+                  <div id="cover-letter-content" class="cover-letter-container">
+                    <div id="cover-letter-stream" class="agent-stream-text document-text-preview">
+                      <div class="cover-letter-placeholder">
+                        <div style="margin-bottom: 1rem; opacity: 0.4">
+                          <svg
+                            aria-hidden="true"
+                            width="48"
+                            height="48"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                          >
+                            <rect x="2" y="4" width="20" height="16" rx="2" />
+                            <polyline points="22,4 12,13 2,4" />
+                          </svg>
+                        </div>
+                        <h4>Generating your cover letter...</h4>
+                        <p class="body-sm text-muted" style="margin-top: 0.5rem">
+                          Your personalized cover letter will appear here once the AI analysis
+                          completes.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div class="download-bar-actions">
-                    <button class="btn btn-primary" id="download-cover-letter-pdf">
-                      Download PDF
-                    </button>
-                    <button class="btn btn-secondary btn-sm" id="download-cover-letter-docx">
-                      DOCX
-                    </button>
+                </div>
+
+                <div id="cover-letter-actions" class="agent-download-bar" style="display: none">
+                  <div class="download-bar-inner">
+                    <div class="download-bar-text">
+                      <div class="download-bar-lock-row">
+                        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--accent);flex-shrink:0">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0110 0v4"/>
+                        </svg>
+                        <span class="download-bar-lock-label">1 credit unlocks this exact cover-letter variant</span>
+                      </div>
+                      <span class="body-sm">Selected style + file type stay reusable without another charge.</span>
+                    </div>
+                    <div class="download-bar-actions">
+                      <button class="btn btn-primary" id="download-cover-letter-pdf">
+                        Download PDF
+                      </button>
+                      <button class="btn btn-secondary btn-sm" id="download-cover-letter-docx">
+                        DOCX
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -2,6 +2,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const { findOrCreateUser, getUserById } = require('../db/database');
 const log = require('../lib/logger');
+const { extractLinkedInAvatarUrl } = require('../lib/oauth-profiles');
 
 function configurePassport() {
   // Serialize: store only user ID in session
@@ -134,12 +135,21 @@ function configurePassport() {
           const email = profile.email || `${profile.sub}@linkedin.local`;
           const name = profile.name || [profile.given_name, profile.family_name].filter(Boolean).join(' ') || 'LinkedIn User';
           
+          const avatarUrl = extractLinkedInAvatarUrl(profile);
+          if (!avatarUrl) {
+            log.info('LinkedIn OIDC profile returned no usable avatar', {
+              subject: profile.sub || '',
+              hasPicture: !!profile.picture,
+              pictureType: typeof profile.picture,
+            });
+          }
+
           const user = await findOrCreateUser({
             provider: 'linkedin',
             profileId: profile.sub,
             email,
             name,
-            avatarUrl: profile.picture || null,
+            avatarUrl: avatarUrl || null,
           });
           done(null, user);
         } catch (err) {

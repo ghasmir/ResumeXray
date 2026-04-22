@@ -219,6 +219,43 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Keyword Signal Noise**: Eliminated the specific `go` / `r` false-positive missing-keyword problem visible in recruiter view for retail / non-programming job descriptions.
 - **Preview Format Opacity**: Fixed the disconnect where multiple backend templates existed but the live frontend gave the user no way to choose between ATS-safe formats.
 
+## Timeline: 2026-04-22
+**Focus:** Document Quality & Export Integrity Overhaul
+
+**Implemented (Added):**
+- **Expanded Resume Families**: Added two new ATS-safe export families, `Executive` and `Corporate`, alongside the existing `Refined`, `Modern`, `Classic`, and `Minimal` options. Wired them through HTML templates, DOCX themes, preview selection, and download requests.
+- **Exact-Variant Export Billing**: Changed export credit idempotency so one credit now unlocks only the exact chosen variant:
+  - scan
+  - document type
+  - file format
+  - template family
+  - density
+  This preserves free re-downloads for the same variant while charging again for a different style or file type.
+- **Cover Letter / Resume Style Linking**: Made cover-letter preview and export inherit the currently selected resume family so both documents now read as one coherent set instead of two disconnected products.
+- **Shared Document Workspace Chrome**: Reworked the Cover Letter tab to use the same toolbar / preview-frame / bottom export-bar language as Export Preview, removing the previous ad hoc iframe wrapper and mismatched shell treatment.
+- **Job Context Recovery Hardening**: Tightened fallback JD parsing so headings like `Full job description` no longer become the role, company intros like `Lock Doctor are ...` are recognized correctly, and aggregator hostnames such as `ie.indeed.com` are suppressed as employer names.
+- **Keyword Trust Guardrails**: Rebuilt keyword detection around boundary-aware matching so substrings like `escalated`, `rapid`, and `excellent` no longer surface fake hard skills like `scala`, `api`, or `excel`.
+- **Requirement-Tier Filtering**: Added requirement-section awareness (`Responsibilities`, `Essential Requirements`, `Desirable Requirements`) so ATS diagnosis and recruiter-view keyword gaps stay focused on higher-confidence requirements.
+- **Trust-First Resume Mutation Policy**: Stopped letting raw missing-keyword output directly mutate exported resumes. Keyword-plan additions are now restricted to resume-evidenced terms, and summary polishing no longer injects JD-only skills.
+- **Cover Letter Generation Cleanup**: Replaced the old numbered / markdown-heavy cover-letter prompt with a structured paragraph-based prompt, and stripped placeholder role/company values from both prompt context and parsed render output.
+- **LinkedIn Avatar Recovery**: Added `lib/oauth-profiles.js` to normalize LinkedIn OIDC avatar payloads across multiple response shapes, and updated OAuth login/linking so valid provider avatars now overwrite stale values instead of getting blocked by `COALESCE` logic.
+
+**Removed / Fixed:**
+- **Broken Placeholder Headers**: Eliminated `Re: Full job description` and `ATS-Optimized` leakage from generated cover letters.
+- **False Keyword Diagnosis**: Removed the substring-driven recruiter-view/ATS-diagnosis bug that was surfacing irrelevant missing skills for customer-service and operations roles.
+- **Template Default Drift**: Reset frontend and backend defaults to `Refined` instead of continuing to fall back to older `Modern` assumptions in preview/export state.
+- **Cover Letter UI Mismatch**: Closed the visual gap where Cover Letter and Export Preview looked like unrelated products.
+
+**Verification Completed:**
+- `node --check config/passport.js`
+- `node --check lib/jd-processor.js`
+- `node --check lib/keywords.js`
+- `node --check lib/resume-builder.js`
+- `node --check lib/template-renderer.js`
+- `node --check public/js/app.js`
+- `node --check routes/agent.js`
+- `node --test tests/core-flow.test.js`
+
 **Database Reset / Reseed Performed:**
 - **Local SQLite Reset**: Deleted the local SQLite database and reseeded it via `npm run db:reset`. The local dataset now contains fresh demo users plus representative resume/scan/job fixtures instead of carrying stale historical records.
 - **Supabase / PostgreSQL Reset**: Truncated the live Postgres application tables (`users`, `resumes`, `scans`, `jobs`, `cover_letters`, `guest_scans`, `scan_sessions`, `download_history`, `stripe_events`, and session storage), then reseeded them using the new `db/seed-pg.js` script.

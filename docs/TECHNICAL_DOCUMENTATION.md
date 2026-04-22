@@ -1819,3 +1819,113 @@ Validation completed for this pass:
 - `node --check lib/render-service.js`
 - `node --check lib/resume-builder.js`
 - `npm test -- --runInBand tests/core-flow.test.js`
+
+### 23.14 April 22 Document Quality & Export Integrity Update
+
+This pass implemented the approved document-quality and export-integrity plan across frontend, backend, rendering, billing, and OAuth identity flows.
+
+#### Template Families and Style Contract
+
+- The supported resume families are now:
+  - `refined`
+  - `executive`
+  - `corporate`
+  - `modern`
+  - `classic`
+  - `minimal`
+- New assets added:
+  - `lib/templates/executive.html`
+  - `lib/templates/corporate.html`
+- `lib/resume-builder.js`
+  - expanded DOCX theme support so Word exports now understand `executive` and `corporate`
+  - keeps `refined` as the default family
+- `lib/render-service.js`
+  - expanded the allowed template set
+  - reorders quality-preserving fallback attempts so `refined`, `executive`, `corporate`, and `classic` are tried before compact/minimal fallback
+
+#### Exact-Variant Export Billing
+
+- `routes/agent.js` now builds export idempotency keys from:
+  - scan id
+  - file format
+  - export type
+  - template
+  - density
+  - explicit variant version tag
+- Practical behavior:
+  - same variant re-download does not burn another credit
+  - switching template or file format creates a new billable variant
+- The frontend copy in `public/index.html` was updated to make this behavior visible in the export bars.
+
+#### Job Context Recovery and Placeholder Suppression
+
+- `lib/jd-processor.js` now:
+  - rejects placeholder job titles such as `Full job description`
+  - extracts title candidates from hiring-language intros like `We require an experienced Operations Booking Agent...`
+  - extracts company names from employer intros like `Lock Doctor are ...`, `X is ...`, and `At X ...`
+  - suppresses aggregator hostnames (`Indeed`, `LinkedIn`, `Glassdoor`, etc.) as fallback company values
+  - sanitizes unusable role/company values inside `normalizeJobContext(...)`
+- `public/js/app.js` applies matching client-side sanitization so historical scans with noisy stored labels do not leak bad titles/company names back into the UI.
+
+#### Keyword Trust Model
+
+- `lib/keywords.js` was rebuilt around boundary-aware dictionary matching:
+  - no more substring hits from `escalated -> scala`
+  - no more `rapid -> api`
+  - no more `excellent -> excel`
+- Requirement-tier parsing now distinguishes:
+  - `Responsibilities`
+  - `Essential Requirements`
+  - `Desirable Requirements`
+  - default contextual mentions
+- `matchKeywords(...)` only surfaces higher-signal soft-skill gaps and keeps low-signal terms suppressed unless they are explicit requirements.
+- `lib/agent-pipeline.js` now generates the keyword plan only from trusted missing keywords rather than merging raw semantic-model missing terms directly into the export mutation path.
+
+#### Trust-First Resume Mutation Rules
+
+- `lib/resume-builder.js` changed in two important ways:
+  - `polishProfessionalSummary(...)` no longer uses keyword-plan hints to inject speculative JD-only skills into the summary
+  - `applyKeywordPlan(...)` now only adds suggested skills when the resume text itself already evidences that term
+- Net effect:
+  - exported resumes stop claiming unsupported technologies
+  - summary quality improves without drifting away from the candidate's actual source material
+
+#### Cover Letter Generation and Shared Shell
+
+- `lib/llm/prompts/cover-letter.js`
+  - now requests 3-4 clean business paragraphs
+  - forbids numbered sections, markdown formatting, subject lines, and placeholder role/company usage
+- `lib/cover-letter-parser.js`
+  - strips numbered/bold legacy output artifacts
+  - removes placeholder role/company values before render
+- `lib/template-renderer.js`
+  - now applies a cover-letter theme based on the selected resume family
+- `lib/templates/cover-letter.html`
+  - switched from the old hardcoded single look to theme-driven styling tied to the active resume family
+- `public/index.html`, `public/js/app.js`, and `public/css/styles.css`
+  - rebuilt the Cover Letter tab so it uses the same document workspace language as Export Preview:
+    - toolbar
+    - template family pills
+    - framed preview container
+    - bottom export bar
+
+#### LinkedIn OAuth Avatar Handling
+
+- Added `lib/oauth-profiles.js` with `extractLinkedInAvatarUrl(...)`.
+- `config/passport.js`
+  - now normalizes LinkedIn OIDC avatar payloads across multiple shapes instead of assuming `profile.picture` is always the final string URL
+  - logs when LinkedIn returns no usable avatar
+- `db/database.js` and `db/pg-database.js`
+  - replaced `COALESCE(avatar_url, provider_avatar)` update behavior with `provider_avatar if present else keep current`
+  - this ensures OAuth login/linking can refresh the stored avatar when the provider sends a usable profile image
+
+#### Verification for This Pass
+
+- `node --check config/passport.js`
+- `node --check lib/jd-processor.js`
+- `node --check lib/keywords.js`
+- `node --check lib/resume-builder.js`
+- `node --check lib/template-renderer.js`
+- `node --check public/js/app.js`
+- `node --check routes/agent.js`
+- `node --test tests/core-flow.test.js`

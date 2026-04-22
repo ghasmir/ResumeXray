@@ -3059,46 +3059,52 @@ body[data-route-group='auth'] .footer-disclaimer {
 
 /* ── Cover Letter Tab ───────────────────────────────────────── */
 .cover-letter-container {
-  min-height: 400px;
-}
-.cover-letter-container .preview-frame {
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-.cover-letter-container .preview-iframe {
-  margin-bottom: 0;
+  min-height: 100%;
 }
 .cover-letter-placeholder {
   text-align: center;
   padding: 4rem 2rem;
   color: var(--text-muted);
 }
-.cover-letter-document {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+.document-text-preview {
+  min-height: 100%;
   padding: var(--sp-8);
-  max-width: 700px;
-  margin: 0 auto;
-  line-height: 1.8;
-  font-size: 0.95rem;
-  color: var(--text-secondary);
+  white-space: pre-wrap;
+  font-family: var(--font-serif);
+  line-height: 1.6;
+  font-size: 1.02rem;
 }
-.cover-letter-document p {
-  margin-bottom: var(--sp-4);
+.document-iframe-wrapper {
+  position: relative;
+  min-height: 100%;
 }
-.cover-letter-document p:last-child {
-  margin-bottom: 0;
-}
-.cover-letter-actions {
+.document-preview-skeleton,
+.document-preview-error {
+  position: absolute;
+  inset: 0;
   display: flex;
-  gap: var(--sp-3);
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  margin-top: 0;
-  padding: var(--sp-4);
-  background: var(--bg-elevated);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
+  padding: var(--sp-8);
+  background: var(--bg-card);
+  z-index: 1;
+  text-align: center;
+}
+.document-preview-error {
+  color: var(--text-muted);
+}
+.document-iframe-wrapper .preview-iframe {
+  width: 100%;
+  min-height: 100%;
+  border: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.pdf-toolbar-inline-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
 /* ── Legal Pages ────────────────────────────────────────────── */
@@ -4506,58 +4512,6 @@ body.modal-open {
   padding: 0; /* PDF/CL tabs have internal padding via their child containers */
 }
 
-#tab-cover-letter {
-  padding: var(--sp-6);
-  height: auto;
-  overflow: visible;
-}
-#tab-cover-letter.active {
-  display: flex;
-}
-
-/* Visual watermark for cover letter — accessible but deterrent */
-.cover-letter-container {
-  position: relative;
-}
-
-/* Watermark overlay — visible but doesn't block interaction */
-.cover-letter-container::before {
-  content: 'PREVIEW';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-30deg);
-  font-size: 4rem;
-  font-weight: 700;
-  color: var(--text-faint);
-  opacity: 0.08;
-  pointer-events: none;
-  user-select: none;
-  z-index: 1;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-
-/* Secondary watermark for content area */
-.cover-letter-document::after,
-#cover-letter-stream::after {
-  content: 'ResumeXray';
-  position: absolute;
-  bottom: 24px;
-  right: 24px;
-  font-size: 0.75rem;
-  color: var(--text-faint);
-  opacity: 0.25;
-  pointer-events: none;
-  user-select: none;
-  z-index: 1;
-}
-
-/* Ensure content remains accessible */
-.cover-letter-container > #cover-letter-stream {
-  position: relative;
-}
-
 .preview-frame,
 .pdf-preview-container {
   flex: 1;
@@ -4639,7 +4593,8 @@ body.modal-open {
 }
 
 /* Inside the new pane, we override the fixed positioning of the download bar */
-#tab-pdf-preview .agent-download-bar {
+#tab-pdf-preview .agent-download-bar,
+#tab-cover-letter .agent-download-bar {
   position: relative;
   bottom: 0;
   left: 0;
@@ -4648,6 +4603,10 @@ body.modal-open {
   border-top: 1px solid var(--border-default);
   margin-top: 0;
   z-index: 10;
+}
+
+.cover-letter-preview-container {
+  background: #f0f0f0;
 }
 
 /* ── Ready Overlay Animation ───────────────────────────────────── */

@@ -901,7 +901,6 @@ function switchTab(tabId) {
   // Lazy-load cover letter preview when switching to that tab
   if (tabId === 'tab-cover-letter' || tabId === 'cover-letter') {
     const bar = el('agent-download-bar');
-    const clContainer = el('cover-letter-content');
     const scanId = getActiveScanId();
     const canGenerateCoverLetter = scanHasTargetJob(currentScan);
 
@@ -917,18 +916,7 @@ function switchTab(tabId) {
         if (actions) actions.style.display = 'none';
         return;
       }
-
-      // Only render if there's no visible content at all
-      // (don't destroy stream container by re-rendering)
-      const streamContainer = el('cover-letter-stream');
-      const hasStreamContent = streamContainer && streamContainer.textContent.trim().length > 50;
-      const hasIframe = clContainer?.querySelector('.preview-iframe');
-      const hasIframeWrapper = clContainer?.querySelector('.cover-letter-iframe-wrapper');
-
-      if (!hasStreamContent && !hasIframe && !hasIframeWrapper) {
-        renderCoverLetter('');
-      }
-
+      reloadCoverLetterPreview(scanId);
       if (actions) actions.style.display = 'flex';
     }
   }
@@ -1024,13 +1012,46 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+function isPlaceholderJobTitle(value = '') {
+  const clean = String(value || '').trim();
+  return /^(full job description|job description|ats-optimized|target role pending|target job pending)$/i.test(
+    clean
+  );
+}
+
+function isPlaceholderCompanyName(value = '') {
+  const clean = String(value || '').trim();
+  return /^(ats-optimized|target company pending|company pending|company|full job description)$/i.test(
+    clean
+  );
+}
+
+function isAggregatorHostname(value = '') {
+  const clean = String(value || '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .toLowerCase();
+  return (
+    /(^|\.)indeed\./i.test(clean) ||
+    /(^|\.)linkedin\.com$/i.test(clean) ||
+    /(^|\.)glassdoor\./i.test(clean) ||
+    /(^|\.)naukri\./i.test(clean)
+  );
+}
+
 function getJobContext(scanOrContext = null) {
   const source = scanOrContext || currentJobContext || currentScan || {};
   const nested = source.jobContext || {};
+  const rawJobTitle = nested.jobTitle || source.jobTitle || source.job_title || '';
+  const rawCompanyName = nested.companyName || source.companyName || source.company_name || '';
   return {
     jobUrl: nested.jobUrl || source.jobUrl || source.job_url || '',
-    jobTitle: nested.jobTitle || source.jobTitle || source.job_title || '',
-    companyName: nested.companyName || source.companyName || source.company_name || '',
+    jobTitle: isPlaceholderJobTitle(rawJobTitle) ? '' : rawJobTitle,
+    companyName:
+      isPlaceholderCompanyName(rawCompanyName) || isAggregatorHostname(rawCompanyName)
+        ? ''
+        : rawCompanyName,
     jdText: nested.jdText || source.jdText || source.jobDescription || source.job_description || '',
     jdSource: nested.jdSource || source.jdSource || '',
     scrapeStatus: nested.scrapeStatus || source.scrapeStatus || '',
@@ -1786,7 +1807,7 @@ function startAgentAnalysis(sessionId, initialJobContext = null) {
   agentResumeText = '';
   currentRenderProfile = currentJobContext?.templateProfile
     ? {
-        template: currentJobContext.templateProfile.template || 'modern',
+        template: currentJobContext.templateProfile.template || 'refined',
         density: currentJobContext.templateProfile.defaultDensity || 'standard',
         atsPlatform: currentJobContext.atsPlatform || '',
         atsDisplayName: currentJobContext.atsDisplayName || '',
@@ -2842,15 +2863,20 @@ function setupResultsTabs() {
   });
 
   // ── Template Selector Event Listeners ──
-  ['tpl-refined', 'tpl-modern', 'tpl-classic', 'tpl-minimal'].forEach(id => {
-    const btn = el(id);
-    if (!btn) return;
+  document.querySelectorAll('[data-template]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const bar = el('agent-download-bar');
-      const scanId = bar ? bar.dataset.scanId : null;
+      const scanId = getActiveScanId();
       if (!scanId) return;
       setSelectedTemplate(btn.dataset.template || 'refined');
-      reloadPdfPreview(scanId);
+      const activeTab =
+        document.querySelector('.results-tab-pane.active')?.id ||
+        sessionStorage.getItem('resumeXray_activeTab') ||
+        'tab-pdf-preview';
+      if (activeTab === 'tab-cover-letter') {
+        reloadCoverLetterPreview(scanId);
+      } else {
+        reloadPdfPreview(scanId);
+      }
     });
   });
 
@@ -2863,7 +2889,7 @@ function getSelectedTemplate() {
     currentRenderProfile?.template ||
     currentJobContext?.templateProfile?.template ||
     currentScan?.renderMeta?.renderTemplate ||
-    'modern'
+    'refined'
   );
 }
 
@@ -2883,7 +2909,7 @@ function syncTemplateSelectionUI() {
 }
 
 function setSelectedTemplate(template) {
-  const nextTemplate = ['refined', 'modern', 'classic', 'minimal'].includes(template)
+  const nextTemplate = ['refined', 'executive', 'corporate', 'modern', 'classic', 'minimal'].includes(template)
     ? template
     : 'refined';
   currentRenderProfile = {
@@ -3014,7 +3040,7 @@ async function loadResults(scanId, retryCount = 0) {
             template:
               results.renderMeta?.renderTemplate ||
               currentJobContext.templateProfile?.template ||
-              'modern',
+              'refined',
             density:
               results.renderMeta?.renderDensity ||
               currentJobContext.templateProfile?.defaultDensity ||
@@ -3078,7 +3104,7 @@ function setupAgentHistoricalView(data) {
   currentJobContext = getJobContext(data);
   currentRenderProfile = {
     template:
-      data.renderMeta?.renderTemplate || currentJobContext.templateProfile?.template || 'modern',
+      data.renderMeta?.renderTemplate || currentJobContext.templateProfile?.template || 'refined',
     density:
       data.renderMeta?.renderDensity ||
       currentJobContext.templateProfile?.defaultDensity ||
@@ -4827,126 +4853,92 @@ function formatFileSize(bytes) {
 // ── Cover Letter Rendering & Actions ─────────────────────────
 let currentCoverLetterText = '';
 
-function renderCoverLetter(text) {
-  currentCoverLetterText = text;
+function coverLetterPreviewUrl(scanId) {
+  return `/api/agent/cover-letter-preview/${esc(scanId)}?t=${Date.now()}${currentPreviewProfileQuery()}${currentScanTokenQuery()}`;
+}
+
+function attachPreviewIframeListeners(wrapper, iframe) {
+  const skeleton = wrapper?.querySelector('.document-preview-skeleton');
+  if (!iframe) return;
+
+  iframe.addEventListener('load', () => {
+    if (skeleton) skeleton.style.display = 'none';
+    iframe.style.opacity = '1';
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) {
+        iframe.style.height = '920px';
+        return;
+      }
+      const contentHeight = Math.max(
+        doc.documentElement?.scrollHeight || 0,
+        doc.body?.scrollHeight || 0
+      );
+      iframe.style.height = `${Math.max(contentHeight, 920)}px`;
+    } catch {
+      iframe.style.height = '920px';
+    }
+  });
+
+  iframe.addEventListener('error', () => {
+    if (wrapper) {
+      wrapper.innerHTML = safeHtml(`
+        <div class="document-preview-error">
+          <div style="font-size:3rem;margin-bottom:1rem;opacity:0.5">&#9993;&#65039;</div>
+          <h4 style="color:var(--text-main);margin-bottom:0.5rem">Cover letter preview unavailable</h4>
+          <p class="body-sm">The preview could not be loaded for this variant. Try another style or refresh the scan.</p>
+        </div>
+      `);
+    }
+  });
+}
+
+function reloadCoverLetterPreview(scanId) {
   const clContainer = el('cover-letter-content');
-  const streamContainer = el('cover-letter-stream');
   const actions = el('cover-letter-actions');
   if (!clContainer) return;
 
-  // Get scanId from multiple possible sources
-  const bar = el('agent-download-bar');
+  clContainer.innerHTML = safeHtml(`
+    <div class="document-iframe-wrapper">
+      <div class="document-preview-skeleton">
+        <div class="loader"></div>
+        <p class="body-sm text-muted" style="margin-top:var(--sp-3)">Loading cover letter preview...</p>
+      </div>
+      <iframe class="preview-iframe" src="${coverLetterPreviewUrl(scanId)}" title="Cover letter preview"></iframe>
+    </div>
+  `);
+
+  const wrapper = clContainer.querySelector('.document-iframe-wrapper');
+  const iframe = wrapper?.querySelector('.preview-iframe');
+  attachPreviewIframeListeners(wrapper, iframe);
+  if (actions) actions.style.display = 'flex';
+}
+
+function renderCoverLetter(text) {
+  currentCoverLetterText = text;
+  const clContainer = el('cover-letter-content');
+  const actions = el('cover-letter-actions');
+  if (!clContainer) return;
+
   const scanId = getActiveScanId();
   const canGenerateCoverLetter = scanHasTargetJob(currentScan);
 
   if (!scanId || !canGenerateCoverLetter) {
-    // Preserve the stream container if it exists
-    if (streamContainer) {
-      streamContainer.innerHTML = safeHtml(
-        '<div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a target job link or paste the job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Target Job</button></div></div>'
-      );
-    } else {
-      clContainer.innerHTML = safeHtml(
-        '<div class="cover-letter-container"><div id="cover-letter-stream" class="agent-stream-text" style="min-height:300px;white-space:pre-wrap;font-family:var(--font-serif);line-height:1.6;font-size:1.05rem;padding:var(--sp-8)"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a target job link or paste the job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Target Job</button></div></div></div></div>'
-      );
-    }
+    clContainer.innerHTML = safeHtml(
+      '<div class="document-text-preview"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a target job link or paste the job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Target Job</button></div></div></div>'
+    );
     if (actions) actions.style.display = 'none';
     return;
   }
 
-  // If we have streaming text content, display it in the stream container
   if (text && text.trim().length > 0) {
-    // Ensure the stream container exists
-    let targetStream = el('cover-letter-stream');
-    if (!targetStream) {
-      // Re-create the full cover letter structure with stream container
-      clContainer.innerHTML = safeHtml(
-        '<div id="cover-letter-stream" class="agent-stream-text" style="min-height:300px;white-space:pre-wrap;font-family:var(--font-serif);line-height:1.6;font-size:1.05rem;padding:var(--sp-8)"></div>'
-      );
-      targetStream = el('cover-letter-stream');
-    }
-    if (targetStream) {
-      targetStream.innerHTML = esc(text);
-    }
+    clContainer.innerHTML = safeHtml(
+      `<div id="cover-letter-stream" class="agent-stream-text document-text-preview">${esc(text)}</div>`
+    );
     if (actions) actions.style.display = 'flex';
     return;
   }
-
-  // Otherwise, load via iframe preview — but preserve the stream container
-  // by using a separate wrapper div for the iframe
-  const existingIframe = clContainer.querySelector('.cover-letter-iframe-wrapper');
-  if (existingIframe) {
-    // Iframe already loaded, just refresh
-    const iframe = existingIframe.querySelector('.preview-iframe');
-    if (iframe) {
-      iframe.src = `/api/agent/cover-letter-preview/${esc(scanId)}?t=${Date.now()}${currentScanTokenQuery()}`;
-    }
-    if (actions) actions.style.display = 'flex';
-    return;
-  }
-
-  // Create iframe wrapper without destroying the stream container
-  clContainer.insertAdjacentHTML(
-    'beforeend',
-    safeHtml(`
-    <div class="cover-letter-iframe-wrapper" style="position:relative;min-height:400px;">
-      <div class="cover-letter-skeleton" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg-card);z-index:1;">
-        <div class="loader"></div>
-        <p class="body-sm text-muted" style="margin-top:var(--sp-3)">Loading cover letter...</p>
-      </div>
-      <iframe class="preview-iframe" src="/api/agent/cover-letter-preview/${esc(scanId)}?t=${Date.now()}${currentScanTokenQuery()}" title="Cover letter preview" style="width:100%;min-height:400px;border:none;opacity:0;transition:opacity 0.3s ease;"></iframe>
-    </div>`)
-  );
-
-  // Handle iframe load
-  const wrapper = clContainer.querySelector('.cover-letter-iframe-wrapper');
-  const iframe = wrapper?.querySelector('.preview-iframe');
-  const skeleton = wrapper?.querySelector('.cover-letter-skeleton');
-
-  if (iframe) {
-    iframe.addEventListener('load', () => {
-      if (skeleton) skeleton.style.display = 'none';
-      iframe.style.opacity = '1';
-      // Auto-resize iframe to fit content
-      try {
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (doc) {
-          const contentHeight = Math.max(
-            doc.documentElement?.scrollHeight || 0,
-            doc.body?.scrollHeight || 0
-          );
-          if (contentHeight > 100) {
-            iframe.style.height = contentHeight + 'px';
-          } else {
-            iframe.style.height = '850px';
-          }
-        }
-      } catch (e) {
-        // Cross-origin fallback
-        iframe.style.height = '850px';
-      }
-    });
-
-    iframe.addEventListener('error', () => {
-      if (skeleton) skeleton.style.display = 'none';
-      if (wrapper) {
-        wrapper.innerHTML = safeHtml(`
-          <div style="padding:3rem;text-align:center;color:var(--text-muted);">
-            <div style="font-size:3rem;margin-bottom:1rem;opacity:0.5">&#9993;&#65039;</div>
-            <h4 style="color:var(--text-main);margin-bottom:0.5rem">Cover letter preview unavailable</h4>
-            <p class="body-sm">The cover letter may still be generating or there was an error loading the preview.</p>
-            <p class="body-xs" style="margin-top:0.5rem;opacity:0.6">Try switching tabs and coming back.</p>
-          </div>
-        `);
-      }
-    });
-  }
-
-  if (actions) actions.style.display = 'flex';
-
-  // Note: Copy protection removed for accessibility compliance
-  // Visual watermarks in CSS serve as deterrent while maintaining
-  // screen reader and keyboard accessibility (WCAG 2.1 Level AA)
+  reloadCoverLetterPreview(scanId);
 }
 
 // Cover letter action handlers
@@ -4982,7 +4974,14 @@ async function downloadCoverLetter(format) {
   }
 
   try {
-    const res = await fetch(`/api/agent/download/${scanId}?format=${format}&type=cover_letter`);
+    const query = new URLSearchParams({
+      format,
+      type: 'cover_letter',
+      template: getSelectedTemplate(),
+    });
+    const density = getSelectedDensity();
+    if (density) query.set('density', density);
+    const res = await fetch(`/api/agent/download/${scanId}?${query.toString()}`);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       if (data.upgrade) {
