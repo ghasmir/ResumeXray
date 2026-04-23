@@ -505,3 +505,44 @@ This comprehensive remediation phase was successfully executed through a synchro
 **Still Open / Residual Notes:**
 - **Content targeting quality remains separate from structural repair**: this pass fixes malformed export structure, but it does not by itself guarantee the role-targeting decisions or summary emphasis are ideal for every JD.
 - **Highly stylized source resumes are still heuristic inputs**: this repair materially improves DOCX reconstruction, but resumes with heavy tables, text boxes, or unconventional heading systems can still require future parser hardening.
+
+## Timeline: 2026-04-23 (Preview Shell Stability and Paper-Fit Repair)
+**Focus:** Stop preview rerender thrash and make one-page previews fit like paper
+
+**Implemented (Changed):**
+- **Same-Variant Preview Deduping Added**:
+  - updated `public/js/modules/pdf-preview.mjs`
+  - updated `public/js/app.js`
+  so revisiting `Export Preview` or `Cover Letter` with the same scan id, template, and density no longer forces another fetch/render cycle.
+- **PDF Preview Height Stabilized**:
+  - the PDF canvas container now receives an explicit runtime height
+  - single-page PDF previews are scaled against available preview height instead of always expanding to the widest allowed width
+- **Cover Letter Preview Sizing Reworked**:
+  - removed the old “stretch iframe to document scroll height” behavior
+  - cover-letter previews now fit to an A4 paper ratio inside the preview shell
+  - iframe previews are centered and bounded like a real sheet instead of filling the whole pane width
+- **A4 Screen Sheet Added**:
+  - updated `lib/templates/cover-letter.html`
+  - the cover-letter preview now renders inside a dedicated `letter-sheet` wrapper sized to `210mm x 297mm` on screen
+  - print/PDF output remains controlled by print styles
+- **Preview Surface Styling Tightened**:
+  - updated `public/css/styles.css`
+  - the preview background now behaves like a paper stage
+  - the cover-letter iframe gets a visible sheet boundary and no longer feels clipped into the pane
+
+**Why This Mattered:**
+- Users were seeing two linked problems:
+  - the preview tabs looked like they were rendering repeatedly
+  - single-page previews did not visually fit as a full paper page
+- The underlying issues were redundant reloads for unchanged preview variants and width-first sizing that ignored paper height.
+
+**Verified:**
+- `node --check public/js/app.js`
+- `node --check public/js/modules/pdf-preview.mjs`
+- `node --check lib/template-renderer.js`
+- `node --test tests/core-flow.test.js`
+- direct template render validation confirmed the cover-letter HTML now emits the `letter-sheet` A4 preview wrapper
+
+**Still Open / Residual Notes:**
+- **Full browser validation still needs a concrete saved scan**: local code and render checks passed, but a true end-to-end visual pass of the live preview tabs still depends on real scan data in the running app.
+- **Multi-page resume previews still scroll by design**: this pass improves one-page fit, not multi-page “show every page at once” behavior.

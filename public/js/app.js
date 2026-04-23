@@ -14,6 +14,7 @@ const pdfPreviewState = {
 };
 let currentJobContext = null;
 let currentRenderProfile = null;
+let currentCoverLetterPreviewKey = '';
 let jobContextProbeController = null;
 let uiHelpers = null;
 let pdfPreviewController = null;
@@ -28,6 +29,7 @@ const frontendModulesReady = Promise.all([
       state: pdfPreviewState,
       clearPdfPreviewObjectUrl,
       getActiveScanId,
+      getPreviewVariantKey,
       currentScanTokenQuery,
       currentPreviewProfileQuery,
     });
@@ -2932,8 +2934,15 @@ function currentPreviewProfileQuery() {
   return params.length ? `&${params.join('&')}` : '';
 }
 
-async function reloadPdfPreview(scanId) {
-  return pdfPreviewController?.reloadPreview(scanId);
+function getPreviewVariantKey(scanId, type = 'resume') {
+  const resolvedScanId = Number.parseInt(String(scanId || getActiveScanId() || ''), 10);
+  const density = getSelectedDensity();
+  const template = getSelectedTemplate();
+  return [type, Number.isInteger(resolvedScanId) ? resolvedScanId : 'invalid', template, density].join(':');
+}
+
+async function reloadPdfPreview(scanId, options = {}) {
+  return pdfPreviewController?.reloadPreview(scanId, options);
 }
 
 async function downloadOptimized(format) {
@@ -4857,30 +4866,41 @@ function coverLetterPreviewUrl(scanId) {
   return `/api/agent/cover-letter-preview/${esc(scanId)}?t=${Date.now()}${currentPreviewProfileQuery()}${currentScanTokenQuery()}`;
 }
 
+function sizeCoverLetterPreviewFrame(wrapper, iframe) {
+  if (!wrapper || !iframe) return;
+  const previewContainer = wrapper.closest('.cover-letter-preview-container') || wrapper;
+  const availableWidth = Math.max(280, (previewContainer.clientWidth || wrapper.clientWidth || 0) - 32);
+  const availableHeight = Math.max(420, (previewContainer.clientHeight || wrapper.clientHeight || 0) - 32);
+  const pageRatio = 210 / 297;
+  const fittedWidth = Math.min(860, availableWidth, availableHeight * pageRatio);
+  const frameWidth = Math.max(280, Math.round(fittedWidth));
+  const frameHeight = Math.round(frameWidth / pageRatio);
+
+  iframe.style.width = `${frameWidth}px`;
+  iframe.style.height = `${frameHeight}px`;
+  wrapper.style.minHeight = `${frameHeight + 32}px`;
+}
+
 function attachPreviewIframeListeners(wrapper, iframe) {
   const skeleton = wrapper?.querySelector('.document-preview-skeleton');
   if (!iframe) return;
 
+  const handleResize = () => sizeCoverLetterPreviewFrame(wrapper, iframe);
+  iframe._resizeHandler = handleResize;
+  window.addEventListener('resize', handleResize);
+
   iframe.addEventListener('load', () => {
     if (skeleton) skeleton.style.display = 'none';
     iframe.style.opacity = '1';
-    try {
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!doc) {
-        iframe.style.height = '920px';
-        return;
-      }
-      const contentHeight = Math.max(
-        doc.documentElement?.scrollHeight || 0,
-        doc.body?.scrollHeight || 0
-      );
-      iframe.style.height = `${Math.max(contentHeight, 920)}px`;
-    } catch {
-      iframe.style.height = '920px';
-    }
+    sizeCoverLetterPreviewFrame(wrapper, iframe);
   });
 
   iframe.addEventListener('error', () => {
+    currentCoverLetterPreviewKey = '';
+    if (iframe._resizeHandler) {
+      window.removeEventListener('resize', iframe._resizeHandler);
+      delete iframe._resizeHandler;
+    }
     if (wrapper) {
       wrapper.innerHTML = safeHtml(`
         <div class="document-preview-error">
@@ -4897,6 +4917,22 @@ function reloadCoverLetterPreview(scanId) {
   const clContainer = el('cover-letter-content');
   const actions = el('cover-letter-actions');
   if (!clContainer) return;
+  const previewKey = getPreviewVariantKey(scanId, 'cover-letter');
+  const existingIframe = clContainer.querySelector('.preview-iframe');
+
+  if (existingIframe && currentCoverLetterPreviewKey === previewKey) {
+    const existingWrapper = clContainer.querySelector('.document-iframe-wrapper');
+    sizeCoverLetterPreviewFrame(existingWrapper, existingIframe);
+    if (actions) actions.style.display = 'flex';
+    return;
+  }
+
+  const previousIframe = clContainer.querySelector('.preview-iframe');
+  if (previousIframe?._resizeHandler) {
+    window.removeEventListener('resize', previousIframe._resizeHandler);
+    delete previousIframe._resizeHandler;
+  }
+  currentCoverLetterPreviewKey = previewKey;
 
   clContainer.innerHTML = safeHtml(`
     <div class="document-iframe-wrapper">
@@ -4924,6 +4960,7 @@ function renderCoverLetter(text) {
   const canGenerateCoverLetter = scanHasTargetJob(currentScan);
 
   if (!scanId || !canGenerateCoverLetter) {
+    currentCoverLetterPreviewKey = '';
     clContainer.innerHTML = safeHtml(
       '<div class="document-text-preview"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a target job link or paste the job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Target Job</button></div></div></div>'
     );
@@ -4932,6 +4969,7 @@ function renderCoverLetter(text) {
   }
 
   if (text && text.trim().length > 0) {
+    currentCoverLetterPreviewKey = '';
     clContainer.innerHTML = safeHtml(
       `<div id="cover-letter-stream" class="agent-stream-text document-text-preview">${esc(text)}</div>`
     );

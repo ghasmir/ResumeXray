@@ -25,6 +25,8 @@ async function renderPdfPages(pdfDoc, container, devicePixelRatio = 1) {
 
   const totalPages = pdfDoc.numPages;
   const scale = Math.min(devicePixelRatio, 2) * 1.2; // crisp but not too heavy
+  const containerWidth = Math.max(280, container.clientWidth - 32);
+  const containerHeight = Math.max(420, container.clientHeight - 32);
 
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
     const page = await pdfDoc.getPage(pageNum);
@@ -32,6 +34,11 @@ async function renderPdfPages(pdfDoc, container, devicePixelRatio = 1) {
 
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'pdf-page-wrapper';
+    if (totalPages === 1) {
+      const fittedWidth = Math.min(860, containerWidth, containerHeight * (viewport.width / viewport.height));
+      pageWrapper.style.width = `${Math.max(280, Math.round(fittedWidth))}px`;
+      pageWrapper.style.maxWidth = '100%';
+    }
 
     const canvas = document.createElement('canvas');
     canvas.className = 'pdf-page-canvas';
@@ -57,6 +64,7 @@ export function createPdfPreviewController({
   state,
   clearPdfPreviewObjectUrl,
   getActiveScanId,
+  getPreviewVariantKey,
   currentScanTokenQuery,
   currentPreviewProfileQuery,
 }) {
@@ -72,6 +80,7 @@ export function createPdfPreviewController({
     const viewportFactor = state.focusMode ? 0.9 : 0.75;
     const maxH = state.focusMode ? 1400 : 1100;
     const height = Math.max(420, Math.min(maxH, window.innerHeight * viewportFactor));
+    container.style.height = `${height}px`;
     container.style.maxHeight = `${height}px`;
   }
 
@@ -111,11 +120,27 @@ export function createPdfPreviewController({
   // No-op setMode — kept for API compatibility with app.js callers
   function setMode(_mode) {}
 
-  async function reloadPreview(scanId) {
+  async function reloadPreview(scanId, { force = false } = {}) {
     const container = el('pdf-canvas-container');
     if (!container) return;
 
     const resolvedScanId = Number.parseInt(String(scanId || getActiveScanId() || ''), 10);
+    const previewKey = getPreviewVariantKey
+      ? getPreviewVariantKey(resolvedScanId, 'resume')
+      : `${resolvedScanId || 'invalid'}:${currentPreviewProfileQuery ? currentPreviewProfileQuery() : ''}`;
+
+    if (
+      !force &&
+      state.lastRenderedPdfPreviewKey === previewKey &&
+      container.querySelector('.pdf-page-wrapper')
+    ) {
+      applyCanvasContainerSize(container);
+      return;
+    }
+
+    if (!force && state.loadingPdfPreviewKey === previewKey) {
+      return;
+    }
 
     // Abort any in-flight request
     if (reloadPreview._abortController) {
@@ -141,6 +166,7 @@ export function createPdfPreviewController({
 
     applyCanvasContainerSize(container);
     _showSkeleton(container);
+    state.loadingPdfPreviewKey = previewKey;
 
     const url = `/api/agent/preview/${resolvedScanId}?t=${Date.now()}${currentScanTokenQuery()}${currentPreviewProfileQuery ? currentPreviewProfileQuery() : ''}`;
 
@@ -172,12 +198,14 @@ export function createPdfPreviewController({
           }
         }
         _showError(container, errorMessage, resolvedScanId);
+        state.loadingPdfPreviewKey = null;
         return;
       }
 
       const blob = await response.blob();
       if (!blob || blob.size === 0) {
         _showError(container, 'The preview file was empty. Please regenerate this scan.', resolvedScanId);
+        state.loadingPdfPreviewKey = null;
         return;
       }
 
@@ -186,6 +214,7 @@ export function createPdfPreviewController({
       // ── Hand blob to PDF.js — never touch iframe or blob:// URLs ──
       if (!ensurePdfjsWorker()) {
         _showError(container, 'PDF renderer is still loading. Please wait a moment and try again.', resolvedScanId);
+        state.loadingPdfPreviewKey = null;
         return;
       }
 
@@ -204,11 +233,14 @@ export function createPdfPreviewController({
       _currentPdfDoc = pdfDoc;
       _hideSkeleton(container);
       await renderPdfPages(pdfDoc, container, window.devicePixelRatio || 1);
+      state.lastRenderedPdfPreviewKey = previewKey;
+      state.loadingPdfPreviewKey = null;
 
     } catch (error) {
       if (error?.name === 'AbortError') return;
       _hideSkeleton(container);
       _showError(container, error?.message || 'Unable to load the PDF preview right now.', resolvedScanId);
+      state.loadingPdfPreviewKey = null;
     }
   }
 
@@ -236,6 +268,7 @@ export function createPdfPreviewController({
 
   function _showError(container, message, resolvedScanId) {
     container.innerHTML = '';
+    state.lastRenderedPdfPreviewKey = null;
     const errorDiv = document.createElement('div');
     errorDiv.className = 'pdf-error-message';
     errorDiv.style.cssText = 'padding:3rem;text-align:center;color:var(--text-muted);';

@@ -915,6 +915,44 @@ Validation completed for this pass:
   - separate selected-impact section
   - correctly structured education and project entries
 
+### 23.16 April 23 Preview Rendering Stability and Paper-Fit Update
+
+This pass addressed the preview-shell behavior for `Export Preview` and `Cover Letter`.
+
+Changes shipped:
+
+- `public/js/modules/pdf-preview.mjs`
+  - added preview-variant deduping keyed by:
+    - scan id
+    - template
+    - density
+  - single-page PDF previews now fit to available preview height instead of always maximizing width
+  - the PDF canvas area now receives an explicit runtime height to stabilize layout
+- `public/js/app.js`
+  - added shared preview-variant key generation
+  - cover-letter preview reloads now short-circuit when the same variant is already mounted
+  - cover-letter iframe sizing now uses an A4 aspect-ratio fit calculation instead of raw scroll-height measurement
+- `public/css/styles.css`
+  - the cover-letter iframe wrapper now centers the page inside a paper-stage background
+  - preview iframes now render as bounded paper sheets instead of full-width panes
+  - the PDF preview surface background was normalized to the same paper-stage tone
+- `lib/templates/cover-letter.html`
+  - now wraps preview content in a `letter-sheet` sized to A4 on screen
+  - preserves print-safe output with `@media print`
+
+Practical effect:
+
+- revisiting `Export Preview` or `Cover Letter` with the same scan/style no longer forces a redundant rerender
+- one-page previews are scaled to feel like an actual sheet
+- cover-letter previews no longer rely on an oversized iframe-height hack that could make the page feel clipped or unstable
+
+Validation completed for this pass:
+
+- `node --check public/js/app.js`
+- `node --check public/js/modules/pdf-preview.mjs`
+- `node --test tests/core-flow.test.js`
+- direct render validation confirmed the cover-letter template now emits the A4 `letter-sheet` preview wrapper
+
 ## 12.4 `lib/cover-letter-parser.js`
 
 Transforms raw generated cover-letter text into the structured data required by the cover-letter template.
@@ -928,6 +966,11 @@ Functions:
 - `stripSubjectLine(body)`
 - `guessHeaderFromText(text)`
 - `parseCoverLetter(rawText, ctx)`
+
+Important rendering behavior:
+
+- cover-letter preview HTML now renders inside a dedicated `letter-sheet` wrapper sized like an A4 page on screen
+- print/PDF output keeps separate print sizing so the screen-paper wrapper does not distort exported files
 
 ## 12.5 `lib/playwright-browser.js`
 
