@@ -4557,6 +4557,9 @@ function setupMobileMenu() {
   if (!menuBtn || !sheet || !backdrop) return;
   if (menuBtn._bound) return; // Prevent double-binding
   menuBtn._bound = true;
+  sheet.setAttribute('aria-hidden', 'true');
+  sheet.setAttribute('inert', '');
+  backdrop.setAttribute('aria-hidden', 'true');
 
   // Store last focused element for focus restoration
   let lastFocusedElement = null;
@@ -4569,7 +4572,9 @@ function setupMobileMenu() {
     menuBtn.classList.add('open');
     menuBtn.setAttribute('aria-label', 'Close menu');
     document.body.style.overflow = 'hidden';
+    sheet.removeAttribute('inert');
     sheet.setAttribute('aria-hidden', 'false');
+    backdrop.setAttribute('aria-hidden', 'false');
 
     // Activate focus trap
     setupFocusTrap(sheet);
@@ -4585,6 +4590,8 @@ function setupMobileMenu() {
     menuBtn.setAttribute('aria-label', 'Open menu');
     document.body.style.overflow = '';
     sheet.setAttribute('aria-hidden', 'true');
+    sheet.setAttribute('inert', '');
+    backdrop.setAttribute('aria-hidden', 'true');
     // Reset any swipe transform
     sheet.style.transform = '';
     sheet.style.transition = '';
@@ -4934,18 +4941,33 @@ function reloadCoverLetterPreview(scanId) {
   }
   currentCoverLetterPreviewKey = previewKey;
 
-  clContainer.innerHTML = safeHtml(`
-    <div class="document-iframe-wrapper">
-      <div class="document-preview-skeleton">
-        <div class="loader"></div>
-        <p class="body-sm text-muted" style="margin-top:var(--sp-3)">Loading cover letter preview...</p>
-      </div>
-      <iframe class="preview-iframe" src="${coverLetterPreviewUrl(scanId)}" title="Cover letter preview"></iframe>
-    </div>
-  `);
+  clContainer.innerHTML = '';
 
-  const wrapper = clContainer.querySelector('.document-iframe-wrapper');
-  const iframe = wrapper?.querySelector('.preview-iframe');
+  const wrapper = document.createElement('div');
+  wrapper.className = 'document-iframe-wrapper';
+
+  const skeleton = document.createElement('div');
+  skeleton.className = 'document-preview-skeleton';
+
+  const loader = document.createElement('div');
+  loader.className = 'loader';
+  skeleton.appendChild(loader);
+
+  const skeletonLabel = document.createElement('p');
+  skeletonLabel.className = 'body-sm text-muted';
+  skeletonLabel.style.marginTop = 'var(--sp-3)';
+  skeletonLabel.textContent = 'Loading cover letter preview...';
+  skeleton.appendChild(skeletonLabel);
+
+  const iframe = document.createElement('iframe');
+  iframe.className = 'preview-iframe';
+  iframe.src = coverLetterPreviewUrl(scanId);
+  iframe.title = 'Cover letter preview';
+
+  wrapper.appendChild(skeleton);
+  wrapper.appendChild(iframe);
+  clContainer.appendChild(wrapper);
+
   attachPreviewIframeListeners(wrapper, iframe);
   if (actions) actions.style.display = 'flex';
 }
@@ -4958,6 +4980,7 @@ function renderCoverLetter(text) {
 
   const scanId = getActiveScanId();
   const canGenerateCoverLetter = scanHasTargetJob(currentScan);
+  const usesHistoricalPreview = window.location.pathname.startsWith('/results/');
 
   if (!scanId || !canGenerateCoverLetter) {
     currentCoverLetterPreviewKey = '';
@@ -4965,6 +4988,12 @@ function renderCoverLetter(text) {
       '<div class="document-text-preview"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a target job link or paste the job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Target Job</button></div></div></div>'
     );
     if (actions) actions.style.display = 'none';
+    return;
+  }
+
+  if (usesHistoricalPreview) {
+    reloadCoverLetterPreview(scanId);
+    if (actions) actions.style.display = 'flex';
     return;
   }
 

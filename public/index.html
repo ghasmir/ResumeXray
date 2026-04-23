@@ -383,8 +383,15 @@
     <div id="sr-announcer" aria-live="polite" aria-atomic="false" class="visually-hidden"></div>
 
     <!-- Bottom Sheet (mobile menu) -->
-    <div class="bottom-sheet-backdrop" id="bottom-sheet-backdrop"></div>
-    <div class="bottom-sheet" id="bottom-sheet" role="dialog" aria-label="Navigation menu">
+    <div class="bottom-sheet-backdrop" id="bottom-sheet-backdrop" aria-hidden="true"></div>
+    <div
+      class="bottom-sheet"
+      id="bottom-sheet"
+      role="dialog"
+      aria-label="Navigation menu"
+      aria-modal="true"
+      aria-hidden="true"
+    >
       <div class="bottom-sheet-handle"></div>
       <nav class="bottom-sheet-nav" aria-label="Mobile navigation">
         <a href="/scan" data-link class="bottom-sheet-item">

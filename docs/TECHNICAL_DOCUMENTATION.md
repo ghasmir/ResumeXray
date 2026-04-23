@@ -953,6 +953,97 @@ Validation completed for this pass:
 - `node --test tests/core-flow.test.js`
 - direct render validation confirmed the cover-letter template now emits the A4 `letter-sheet` preview wrapper
 
+### 23.17 April 23 Mobile Responsiveness and Same-Origin Preview Repair
+
+This pass added an explicit mobile audit loop for the public site and repaired the remaining phone-width defects in the results workspace.
+
+#### Mobile Audit Scope
+
+- Verified at `390px` and `320px` widths:
+  - `/`
+  - `/pricing`
+  - `/scan`
+  - `/login`
+  - `/signup`
+  - `/privacy`
+  - `/terms`
+- Seeded a local guest scan and validated `/results/:id` at `390px` so the densest application layout could be exercised with real tabs, export bars, and document previews.
+
+#### Mobile Navigation Hidden-State Contract
+
+- `public/index.html`
+  - the bottom-sheet backdrop now starts with `aria-hidden="true"`
+  - the bottom-sheet dialog now starts with:
+    - `aria-hidden="true"`
+    - `aria-modal="true"`
+- `public/js/app.js`
+  - `setupMobileMenu()` now:
+    - sets `inert` on the sheet while closed
+    - removes `inert` on open
+    - restores `aria-hidden` on close
+- `public/css/styles.css`
+  - closed bottom-sheet state now uses:
+    - `visibility: hidden`
+    - `pointer-events: none`
+    - `opacity: 0`
+  - open state restores visibility and interaction
+
+Practical effect:
+- the hidden menu no longer leaks into the accessibility tree as an active dialog
+- offscreen mobile nav no longer bleeds into full-page mobile captures
+- closed-state menu controls are no longer accidentally interactive.
+
+#### Mobile Template Picker Behavior
+
+- `public/css/styles.css`
+  - phone-width template controls were rebuilt so the export and cover-letter style pills no longer overflow horizontally
+  - at `max-width: 600px`, `.pdf-pill-group` now uses a `3 x 2` grid layout
+  - all six choices remain visible and tappable:
+    - `Refined`
+    - `Executive`
+    - `Corporate`
+    - `Modern`
+    - `Classic`
+    - `Minimal`
+
+This replaces the previous phone behavior where the pill row overflowed and the rightmost style could become inaccessible.
+
+#### Cover-Letter Preview Loading Fix
+
+- `config/security.js`
+  - `clickjackingProtection(...)` now sets `X-Frame-Options: SAMEORIGIN`
+  - this matches the existing CSP `frame-ancestors 'self'` policy and still blocks third-party framing while allowing same-origin preview iframes
+- `public/js/app.js`
+  - historical `/results/:id` views now prefer the document preview path for cover letters instead of forcing the plain-text stream view
+  - `reloadCoverLetterPreview(...)` now builds the preview wrapper and iframe via DOM APIs instead of `safeHtml(...)`
+
+Why this was necessary:
+- `safeHtml(...)` sanitizes iframe tags away
+- the previous combination of:
+  - `X-Frame-Options: DENY`
+  - sanitized iframe markup
+  meant the cover-letter tab could remain stuck in its loading skeleton even when the server returned a valid preview document.
+
+#### Cookie Banner Mobile Tuning
+
+- `public/css/styles.css`
+  - reduced mobile cookie-banner padding
+  - lowered mobile max-height
+  - made the action area sticky within the panel so consent actions remain reachable without the first-visit banner overwhelming the viewport
+
+#### Verification Snapshot
+
+- `node --check public/js/app.js`
+- `node --check config/security.js`
+- `node --test tests/core-flow.test.js`
+- Playwright verification confirmed:
+  - no horizontal overflow on audited public routes at `390px` and `320px`
+  - seeded results workspace renders correctly at `390px`
+  - export preview shows all six style options on mobile
+  - cover-letter tab now mounts a live iframe-backed preview
+- direct header check:
+  - `curl -I /api/agent/cover-letter-preview/:scanId` returns `X-Frame-Options: SAMEORIGIN`
+
 ## 12.4 `lib/cover-letter-parser.js`
 
 Transforms raw generated cover-letter text into the structured data required by the cover-letter template.

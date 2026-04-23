@@ -568,6 +568,7 @@ a:hover {
   -webkit-backdrop-filter: blur(4px);
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
   transition:
     opacity 0.25s var(--ease),
     visibility 0.25s;
@@ -576,6 +577,7 @@ a:hover {
 .bottom-sheet-backdrop.open {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 .bottom-sheet {
   position: fixed;
@@ -587,7 +589,13 @@ a:hover {
   border-radius: 16px 16px 0 0;
   padding: var(--sp-2) var(--sp-4) calc(var(--sp-6) + env(safe-area-inset-bottom, 0px));
   transform: translateY(100%);
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s var(--ease),
+    visibility 0s linear 0.35s;
   z-index: 999;
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
   will-change: transform;
@@ -596,6 +604,10 @@ a:hover {
 }
 .bottom-sheet.open {
   transform: translateY(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
 }
 .bottom-sheet-handle {
   width: 36px;
@@ -4930,13 +4942,16 @@ a svg {
     width: 100%;
   }
 
-  /* PDF toolbar — simplified (template/density removed) */
+  /* PDF toolbar — keep controls visible on phones */
   .pdf-toolbar-top {
     flex-wrap: wrap;
     gap: var(--sp-2);
   }
   .pdf-toolbar-controls {
-    display: none !important;
+    display: flex !important;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-3);
   }
 
   /* Download bar mobile */
@@ -5786,12 +5801,45 @@ a svg {
   }
   .pdf-control-group {
     width: 100%;
-    justify-content: space-between;
+    flex-direction: column;
+    justify-content: flex-start;
     flex-wrap: wrap;
+    align-items: stretch;
+    gap: var(--sp-2);
+  }
+  .pdf-control-group .btn {
+    width: 100%;
+  }
+  .pdf-pill-group {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: hidden;
   }
   .pdf-pill {
-    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 6px;
     font-size: 0.6875rem;
+    text-align: center;
+  }
+  .pdf-pill + .pdf-pill {
+    border-left: none;
+  }
+  .pdf-pill {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .pdf-pill:nth-child(-n + 3) {
+    border-top: none;
+  }
+  .pdf-pill:not(:nth-child(3n + 1)) {
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .pdf-toolbar-inline-note,
+  .pdf-mobile-note {
+    width: 100%;
   }
 }
 
@@ -6641,12 +6689,23 @@ a svg {
 
 /* Mobile */
 @media (max-width: 640px) {
+  .cookie-banner {
+    padding: 0 var(--sp-3) max(var(--sp-3), env(safe-area-inset-bottom, 0px));
+  }
   .cookie-banner-inner {
-    padding: var(--sp-4);
+    margin: 0 auto var(--sp-2);
+    padding: var(--sp-3);
+    max-height: min(68vh, 420px);
+    scrollbar-gutter: stable both-edges;
   }
   .cookie-banner-actions {
     flex-direction: column;
     gap: var(--sp-2);
+    position: sticky;
+    bottom: calc(-1 * var(--sp-3));
+    margin: var(--sp-3) calc(-1 * var(--sp-3)) 0;
+    padding: var(--sp-3);
+    background: linear-gradient(180deg, rgba(18, 18, 22, 0), rgba(18, 18, 22, 0.98) 32%);
   }
   .cookie-category {
     flex-direction: column;

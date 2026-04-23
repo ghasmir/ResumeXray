@@ -546,3 +546,59 @@ This comprehensive remediation phase was successfully executed through a synchro
 **Still Open / Residual Notes:**
 - **Full browser validation still needs a concrete saved scan**: local code and render checks passed, but a true end-to-end visual pass of the live preview tabs still depends on real scan data in the running app.
 - **Multi-page resume previews still scroll by design**: this pass improves one-page fit, not multi-page “show every page at once” behavior.
+
+## Timeline: 2026-04-23 (Mobile Responsiveness Audit and Preview Surface Repair)
+**Focus:** Verify the full site on phone breakpoints and fix the remaining mobile and preview-surface defects
+
+**Implemented (Changed):**
+- **Whole-Site Mobile Audit Completed**:
+  - verified the public routes at `390px` and `320px` widths:
+    - landing
+    - pricing
+    - scan
+    - login
+    - signup
+    - privacy
+    - terms
+  - seeded a local guest scan so `/results/:id` could be checked with real tabs, previews, and export bars at phone width.
+- **Hidden Mobile Nav State Hardened**:
+  - updated `public/index.html`, `public/js/app.js`, and `public/css/styles.css`
+  - the bottom-sheet menu now starts closed with `aria-hidden="true"` and `inert`
+  - closed state also uses `visibility: hidden` and `pointer-events: none`
+  - this removes the hidden-menu bleed-through in full-page captures and keeps offscreen menu content out of the active accessibility tree.
+- **Phone-Sized Template Picker Fixed**:
+  - updated `public/css/styles.css`
+  - the six export styles no longer overflow horizontally on phones
+  - the style pills now render as a `3 x 2` grid on small screens, so all paid export families remain visible and tappable.
+- **Cover-Letter Preview Now Renders as a Real Document**:
+  - updated `config/security.js`
+  - updated `public/js/app.js`
+  - `X-Frame-Options` now uses `SAMEORIGIN`, which aligns with the existing CSP `frame-ancestors 'self'` policy and permits first-party preview iframes
+  - historical results now route cover letters through the document-preview path instead of forcing the plain-text stream view
+  - the cover-letter iframe wrapper is now built with DOM nodes instead of `safeHtml(...)`, which previously stripped the iframe out before mount.
+- **Cookie Banner Mobile Footprint Reduced**:
+  - updated `public/css/styles.css`
+  - the first-visit consent panel now uses tighter mobile spacing, a shorter max-height, and sticky action buttons so it does not dominate the viewport on smaller screens.
+
+**Why This Mattered:**
+- The mobile pass exposed issues that desktop review would not clearly surface:
+  - the hidden nav sheet still behaved like a live dialog while offscreen
+  - the cover-letter tab could remain stuck in its loading skeleton
+  - the six-style selector overflowed and hid one export option on phones
+  - the cookie banner consumed too much vertical space on first load
+- These were usability issues, not just visual polish problems, because they affected export selection, preview reliability, and page stability on mobile.
+
+**Verified:**
+- `node --check public/js/app.js`
+- `node --check config/security.js`
+- `node --test tests/core-flow.test.js`
+- Playwright verification on:
+  - public routes at `390px` and `320px`
+  - seeded `/results/1` at `390px`
+  - export preview with all six styles visible
+  - cover-letter preview rendering through a live iframe-backed document view
+- `curl -I /api/agent/cover-letter-preview/:scanId` now returns `X-Frame-Options: SAMEORIGIN`
+
+**Still Open / Residual Notes:**
+- **Full-page screenshot tools can still duplicate sticky chrome in the exported artifact**: that is a Playwright capture quirk, not a viewport rendering defect in the live UI.
+- **Authenticated dashboard/profile flows still deserve a separate signed-in phone pass**: the public site and seeded results workspace were verified here, but logged-in account pages were not exercised with a real user session in this pass.

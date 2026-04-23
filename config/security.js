@@ -92,10 +92,11 @@ function configureHelmet() {
 }
 
 // ── Clickjacking Protection ───────────────────────────────────────────────────
-// Additional layer beyond CSP frame-ancestors for older browsers
+// SAMEORIGIN matches our CSP and still blocks third-party framing while
+// allowing first-party preview iframes such as the cover-letter workspace.
 function clickjackingProtection(req, res, next) {
-  res.setHeader('X-Frame-Options', 'DENY');
-  // CSP frame-ancestors already set in configureHelmet, but belt-and-suspenders
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  // CSP frame-ancestors already set in configureHelmet; this covers older browsers.
   next();
 }
 
@@ -130,7 +131,7 @@ function permissionsPolicyMiddleware(req, res, next) {
     ].join(', '),
   );
   // Note: X-Frame-Options is intentionally NOT set here.
-  // clickjackingProtection middleware (registered after this) sets DENY,
+  // clickjackingProtection middleware (registered after this) sets SAMEORIGIN,
   // and Helmet's CSP frame-ancestors is the modern, authoritative control.
   next();
 }
