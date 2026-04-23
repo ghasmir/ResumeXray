@@ -785,7 +785,7 @@ Pipeline summary:
 
 Template support:
 
-- the live PDF pipeline now accepts `refined`, `modern`, `classic`, and `minimal`
+- the live PDF pipeline now accepts `refined`, `executive`, `corporate`, `modern`, `classic`, and `minimal`
 - `refined` is not just a frontend-only preview option; it is wired end-to-end through request normalization, render-service attempt selection, and `generatePDF(...)`
 - the live DOCX pipeline now accepts the same template and density inputs as PDF, instead of always emitting one generic Word layout
 - DOCX exports remain deliberately ATS-safe:
@@ -795,6 +795,8 @@ Template support:
   - deterministic title / company / date ordering
 - the current DOCX theme mapping is:
   - `refined` -> professional Word-style theme
+  - `executive` -> serif executive Word-style theme
+  - `corporate` -> blue-accent corporate Word-style theme
   - `modern` -> blue-accent modern Word-style theme
   - `classic` -> serif black-and-white Word-style theme
   - `minimal` -> compact Word-style theme
@@ -805,6 +807,12 @@ Important limitation:
 - False role creation from wrapped comma-heavy bullet lines was materially reduced by the Apr 21 parser/render fix, but unusually malformed resumes can still stress the heuristic boundary.
 - Dense tag-style skill sidebars still flatten into plain ATS-safe text rather than a fully semantic skill taxonomy.
 - No database migration was required for this refactor; the work was a render-pipeline reordering and structuring change, not a schema rewrite.
+- The Apr 23 repair further tightened DOCX reconstruction by:
+  - suppressing decorative header noise from summary/contact extraction
+  - recognizing aliases like `CORE SKILLS` and `SELECTED IMPACT`
+  - preserving location-only lines as location metadata instead of bullet text
+  - pairing `degree` + `school | year` education patterns correctly
+  - treating sentence-style DOCX paragraphs as implicit bullets when they follow a role header
 
 Historical provenance:
 
@@ -825,11 +833,16 @@ Functions:
 - `buildContactArray(contactString)`
 - `isDateOnlyLine(line)`
 - `normalizeDateLine(line)`
+- `looksLikeStandaloneLocationLine(line)`
 - `isLikelyRoleTitle(text)`
 - `splitCompanyAndLocation(text)`
 - `looksLikeCompanyText(text)`
 - `isLikelyEntryHeader(line, nextLine)`
+- `looksLikeWrappedBulletContinuation(line)`
+- `isLikelyNarrativeBulletLine(line)`
+- `shouldStartImplicitBullet(line, previousBullet)`
 - `parseEntryHeader(line)`
+- `parseInstitutionDateLine(line)`
 - `structureExperience(lines)`
 - `structureEducation(lines)`
 - `structureSkills(lines)`
@@ -839,6 +852,8 @@ Template source files:
 
 - `lib/templates/base.css`
 - `lib/templates/refined.html`
+- `lib/templates/executive.html`
+- `lib/templates/corporate.html`
 - `lib/templates/modern.html`
 - `lib/templates/classic.html`
 - `lib/templates/minimal.html`
@@ -850,7 +865,55 @@ Important behavior:
   - header line followed by a standalone date line, or
   - inline role/company patterns with spaced separators like `Title - Company`
 - Once the renderer is inside bullets for a role, non-header lines are biased toward bullet continuation instead of being promoted into new fake roles.
+- `structureExperience(...)` also supports DOCX-style sentence paragraphs:
+  - standalone location lines are attached to the current role
+  - sentence paragraphs after a role header become implicit bullets
+  - wrapped comma-heavy continuation lines stay inside the current bullet instead of starting fake bullets or fake roles
 - `structureEducation(...)` now groups multi-line degree/school text until the date line so wrapped education headers survive export cleanly.
+- `structureEducation(...)` also recognizes `School | 2024` style lines and pairs them with the preceding degree line.
+- `structureProjects(...)` now keeps trailing sentence descriptions attached to the active project title.
+- resume templates now render `strengths` / `selected impact` as a first-class export section instead of dropping that data on the floor.
+
+### 23.15 April 23 DOCX Reconstruction and Export Structure Repair
+
+This pass addressed a specific production-quality failure where a real uploaded DOCX was being converted into a visibly broken export despite the job context being valid.
+
+Changes shipped:
+
+- `lib/resume-builder.js`
+  - suppresses decorative header noise so `Master CV`, `Ireland Tech Roles`, and tag-cloud lines do not contaminate summary/contact output
+  - favors explicit `PROFILE` / `SUMMARY` sections over header-title fallbacks when both exist
+  - recognizes additional section aliases:
+    - `CORE SKILLS`
+    - `KEY SKILLS`
+    - `SELECTED IMPACT`
+    - achievement/highlight variants
+  - exposes `strengths` / `selected impact` as a rendered export section
+- `lib/template-renderer.js`
+  - attaches standalone location lines to the current role
+  - converts DOCX-style paragraph accomplishments into implicit bullets
+  - keeps wrapped continuation lines attached to the active bullet
+  - pairs education entries from `degree` + `school | year`
+  - attaches narrative project descriptions to the correct project title
+- `lib/templates/refined.html`
+- `lib/templates/executive.html`
+- `lib/templates/corporate.html`
+- `lib/templates/modern.html`
+- `lib/templates/classic.html`
+- `lib/templates/minimal.html`
+  - all now render `SELECTED IMPACT` when structured strength/impact lines exist
+
+Validation completed for this pass:
+
+- `node --check lib/resume-builder.js`
+- `node --check lib/template-renderer.js`
+- `node --test tests/core-flow.test.js`
+- local render validation on `/Users/ghasmir/Downloads/ghasmir_ahmad_master_cv_ireland_tech.docx`
+  confirmed the repaired export contained:
+  - clean summary
+  - separate skills section
+  - separate selected-impact section
+  - correctly structured education and project entries
 
 ## 12.4 `lib/cover-letter-parser.js`
 

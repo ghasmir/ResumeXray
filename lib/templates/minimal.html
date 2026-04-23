@@ -228,6 +228,18 @@
   </div>
   {{/if}}
 
+  <!-- Selected Impact -->
+  {{#if strengths}}
+  <div class="section section-strengths">
+    <h2 class="section-title">Selected Impact</h2>
+    <ul class="bullet-list">
+      {{#each strengths}}
+      <li>{{{boldMetrics this}}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+
   <!-- Projects -->
   {{#if projects}}
   <div class="section section-projects">

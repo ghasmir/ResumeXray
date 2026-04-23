@@ -16,6 +16,7 @@ const pdfParse = require('pdf-parse');
 const { buildResumeData, generateDOCX, generatePDF } = require('../lib/resume-builder');
 const { renderResumePdf, resolveResumeText, resolveScanJobContext } = require('../lib/render-service');
 const { validatePDF } = require('../lib/resume-builder');
+const { renderTemplate } = require('../lib/template-renderer');
 const { getUploadsRoot, uploadUrlToPath } = require('../lib/uploads');
 const { parseCoverLetter } = require('../lib/cover-letter-parser');
 const { extractLinkedInAvatarUrl } = require('../lib/oauth-profiles');
@@ -400,6 +401,74 @@ Customer Support, CRM`;
     );
 
     assert.doesNotMatch(data.sections.summary, /Scala programming/i);
+  });
+
+  it('keeps docx-style section boundaries and structured entries intact', () => {
+    const resumeText = `Ghasmir Ahmad
+Software Engineer and Data Analyst
+Limerick, Ireland | Full right to work in Ireland | ghasmirahmad@gmail.com | +353 89 985 2814
+Master CV
+Ireland Tech Roles
+Engineering | Data | Technical Support
+
+PROFILE
+Early-career software engineer and data analytics graduate with hands-on experience building production SaaS features, investigating technical faults, and translating complex issues into clear actions. Built commercial and academic projects across REST APIs, SQL and NoSQL data flows, analytics dashboards, machine learning pipelines, and blockchain applications. Brings a practical mix of engineering depth, customer-facing communication, and structured root-cause analysis suited to software, systems, data, and technical support roles across Ireland.
+
+EXPERIENCE
+Associate Application Developer | Chakor 01/2023 – 09/2023
+Lahore, Pakistan (Hybrid)
+Built Haddle, a multi-tenant employee sentiment platform for a commercial Australian client, delivering dashboards, survey workflows, and production-facing features used across multiple teams.
+Designed and integrated REST APIs, scheduled survey logic, bulk data upload flows, and SQL and NoSQL-backed reporting views across company, team, and individual dashboards.
+Worked in Agile sprints with product, design, QA, and senior engineers to ship tested features end to end and improve day-to-day delivery quality.
+Technical Support Advisor | Eir 08/2025 – 02/2026
+Limerick, Ireland (Hybrid)
+Handled 40+ technical cases per shift, diagnosing broadband and PSTN connectivity incidents with remote diagnostic tools, telemetry, and structured root-cause analysis.
+Maintained 90%+ SLA compliance across all KPIs and achieved the lowest repeat contact rate in the team at 4% through accurate diagnosis, escalation quality, and clear customer communication.
+Escalated complex faults to Tier 2 and network engineering teams with precise documentation, reproduction steps, and impact notes that kept cases moving to resolution.
+Freelance Blockchain Developer | Fiverr 01/2022 – 01/2023
+Remote
+Delivered Solidity smart contracts for international clients across Ethereum, BSC, and Polygon, including decentralised exchange contracts, a domain-verification system, and custom token logic.
+
+CORE SKILLS
+Languages: JavaScript, Python, SQL, Solidity, HTML, CSS
+Engineering: REST APIs, webhooks, data pipelines, debugging, root-cause analysis
+Data: SQL and NoSQL databases, anomaly detection, analytics dashboards, ML model evaluation
+Tools: Git, Docker, ServiceNow, CRM and ticketing systems, Agile delivery
+
+SELECTED IMPACT
+40+ technical cases handled per shift in a high-volume support environment
+4% repeat contact rate at Eir, lowest in team while maintaining 90%+ SLA compliance
+
+PROJECTS
+Cryptocurrency Market Manipulation Detection
+Built an MSc thesis pipeline over 100,000+ transaction records and improved detection accuracy by 22% against baseline models.
+SmartFarm / DairySmart
+Developed a smart dairy farming system using Flask, PostgreSQL, IoT sensors, and YOLOv5-based computer vision for monitoring and analytics.
+
+EDUCATION
+MSc, Data Analytics
+Technological University of the Shannon | 2024
+BSc, Computer Science
+FAST-NUCES | 2022`;
+
+    const data = buildResumeData(resumeText, {}, [], []);
+
+    assert.equal(data.sections.contact.includes('Ireland Tech Roles'), false);
+    assert.doesNotMatch(data.sections.summary, /Master CV/i);
+    assert.equal(data.sections.experience.length, 3);
+    assert.equal(data.sections.experience[0].location, 'Lahore, Pakistan (Hybrid)');
+    assert.equal(data.sections.experience[0].bullets.length, 3);
+    assert.equal(data.sections.skills.length, 4);
+    assert.equal(data.sections.strengths.length, 2);
+    assert.equal(data.sections.projects.length, 2);
+    assert.equal(data.sections.projects[0].bullets.length, 1);
+    assert.equal(data.sections.education[0].degree, 'MSc, Data Analytics');
+    assert.equal(data.sections.education[0].school, 'Technological University of the Shannon');
+    assert.equal(data.sections.education[0].dates, '2024');
+
+    const html = renderTemplate('refined', data, { template: 'refined' });
+    assert.match(html, /SELECTED IMPACT/i);
+    assert.match(html, /technical cases handled per shift/i);
   });
 
   it('allows experienced resumes to use a two-page budget', () => {

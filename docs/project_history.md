@@ -450,3 +450,58 @@ This comprehensive remediation phase was successfully executed through a synchro
 **Still Open / Residual Notes:**
 - **Avatar files remain runtime-local, not object storage backed**: uploads now use a safer writable directory, but they are still ephemeral on platforms like Railway until a durable object store is added.
 - **Accepted email != inbox placement**: the app can now log that Resend accepted mail for `yahoo.com`, but inbox vs spam vs user-side blocking still needs Resend event visibility or recipient mailbox verification.
+
+## Timeline: 2026-04-23 (DOCX Resume Reconstruction Repair)
+**Focus:** Stop DOCX-derived resumes from flattening into malformed exports
+
+**Implemented (Changed):**
+- **Header Noise Suppression Added**: Updated `lib/resume-builder.js` so decorative header lines like `Master CV`, `Ireland Tech Roles`, and tag-cloud style lines such as `Engineering | Data | Technical Support` no longer leak into:
+  - contact info
+  - summary text
+  - exported document headers
+- **Explicit Summary Sections Now Win**: When the uploaded resume already contains a real `PROFILE` / `SUMMARY` section, header-level title lines are no longer concatenated into that section. This prevents polluted summaries like `Software Engineer and Data Analyst Master CV ...`.
+- **Section Alias Coverage Expanded**: Added parsing support for additional real-world section labels, including:
+  - `CORE SKILLS`
+  - `KEY SKILLS`
+  - `SELECTED IMPACT`
+  - `ACHIEVEMENTS` / `HIGHLIGHTS` style variants
+- **Selected Impact Preserved End-to-End**: Wired `strengths` / `selected impact` through:
+  - `lib/resume-builder.js`
+  - `lib/template-renderer.js`
+  - all ATS-safe resume templates
+  so export PDFs and DOCX files no longer drop or misplace quantified impact lines.
+- **DOCX Paragraph-to-Bullet Reconstruction Improved**: Updated `lib/template-renderer.js` so sentence-style role paragraphs from DOCX resumes are converted into clean bullets without requiring explicit bullet glyphs. This specifically fixes resumes where each accomplishment is a separate paragraph rather than a `•` list item.
+- **Location Lines Reattached Correctly**: Standalone lines like `Lahore, Pakistan (Hybrid)` and `Remote` are now recognized as entry locations instead of being absorbed into bullets or summary text.
+- **Education Pairing Fixed**: Degree lines such as `MSc, Data Analytics` now pair correctly with school/date lines like `Technological University of the Shannon | 2024` instead of rendering as malformed school/date output.
+- **Project Descriptions Reattached to Their Titles**: Project description sentences now stay inside the correct project entry rather than becoming fake standalone project names.
+- **Regression Coverage Added**: Added a DOCX-style reconstruction test to `tests/core-flow.test.js` that locks in:
+  - clean contact extraction
+  - unpolluted summary output
+  - separate `skills` and `selected impact` sections
+  - proper project and education structure
+  - rendered HTML containing the `SELECTED IMPACT` section
+
+**Why This Mattered:**
+- The supplied CV/JD case showed the export pipeline was not failing because LinkedIn JD detection broke.
+- The real defect was that DOCX-derived line structure was being flattened and then reconstructed too loosely, which caused:
+  - summary/header pollution
+  - skills merging into experience
+  - impact metrics disappearing into the wrong role
+  - education rendering as broken title/date pairs
+- This pass repairs the exported document structure without changing the overall architecture or requiring a schema migration.
+
+**Verified:**
+- `node --check lib/resume-builder.js`
+- `node --check lib/template-renderer.js`
+- `node --test tests/core-flow.test.js`
+- local parse/render validation using `/Users/ghasmir/Downloads/ghasmir_ahmad_master_cv_ireland_tech.docx`
+- local PDF text extraction confirmed the repaired export now contains:
+  - clean contact line
+  - clean professional summary
+  - separated `CORE SKILLS`
+  - separated `SELECTED IMPACT`
+  - correctly paired education entries
+
+**Still Open / Residual Notes:**
+- **Content targeting quality remains separate from structural repair**: this pass fixes malformed export structure, but it does not by itself guarantee the role-targeting decisions or summary emphasis are ideal for every JD.
+- **Highly stylized source resumes are still heuristic inputs**: this repair materially improves DOCX reconstruction, but resumes with heavy tables, text boxes, or unconventional heading systems can still require future parser hardening.
