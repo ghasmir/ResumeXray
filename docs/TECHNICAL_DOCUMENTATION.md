@@ -35,23 +35,23 @@ The product supports two major usage modes:
 
 ## 2. Current Source Of Truth
 
-The repository currently has one active frontend and one active backend.
+The repository currently has one active frontend and one active backend. All legacy modular code (`src/`) and build pipelines (Vite) have been removed.
 
 ### Active frontend
 
-- `/Users/ghasmir/Documents/agents/ats-resume-checker/public/index.html`
-- `/Users/ghasmir/Documents/agents/ats-resume-checker/public/js/app.js`
-- `/Users/ghasmir/Documents/agents/ats-resume-checker/public/js/modules/ui-helpers.mjs`
-- `/Users/ghasmir/Documents/agents/ats-resume-checker/public/js/modules/pdf-preview.mjs`
-- `/Users/ghasmir/Documents/agents/ats-resume-checker/public/css/styles.css`
-- `/Users/ghasmir/Documents/agents/ats-resume-checker/public/css/app-surfaces.css`
+- `public/index.html`
+- `public/js/app.js`
+- `public/js/modules/ui-helpers.mjs`
+- `public/js/modules/pdf-preview.mjs`
+- `public/css/styles.css`
+- `public/css/app-surfaces.css`
 
 ### Active backend
 
-- `/Users/ghasmir/Documents/agents/ats-resume-checker/server.js`
-- routes in `/Users/ghasmir/Documents/agents/ats-resume-checker/routes`
-- business logic in `/Users/ghasmir/Documents/agents/ats-resume-checker/lib`
-- persistence adapters in `/Users/ghasmir/Documents/agents/ats-resume-checker/db`
+- `server.js`
+- routes in `routes/`
+- business logic in `lib/`
+- persistence adapters in `db/`
 
 There is no second active frontend build pipeline anymore.
 
@@ -822,6 +822,8 @@ Historical provenance:
 ## 12.3 `lib/template-renderer.js`
 
 This module compiles HTML templates and structures flat lines into template-friendly objects.
+
+**Security Note:** The `boldMetrics` Handlebars helper is security-hardened. It explicitly escapes HTML input using the `escape-html` library before applying regex transformations and returning a `SafeString`. This prevents XSS attacks via resume content in the PDF rendering pipeline.
 
 Functions:
 
