@@ -4774,7 +4774,9 @@ function safeHtml(html) {
   if (uiHelpers) return uiHelpers.safeHtml(html);
   if (typeof window.DOMPurify !== 'undefined')
     return window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
-  return html; // Fallback if DOMPurify fails to load — esc() already escapes
+  // Fallback if DOMPurify fails to load: 
+  // We cannot return raw HTML, so we strip all tags as a last resort.
+  return html.replace(/<[^>]*>?/gm, '');
 }
 
 function truncate(str, len) {
