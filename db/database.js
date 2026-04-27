@@ -257,6 +257,20 @@ function runMigrations(database) {
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_stripe_events_id ON stripe_events(event_id)'
   );
 
+  // ── Phase 7: Lemon Squeezy Events Idempotency Table ──────────────────────────
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS lemon_squeezy_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id TEXT UNIQUE NOT NULL,
+      event_type TEXT NOT NULL,
+      processed_at TEXT DEFAULT (datetime('now')),
+      payload_hash TEXT
+    )
+  `);
+  database.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_lemon_squeezy_events_id ON lemon_squeezy_events(event_id)'
+  );
+
   // ── H-9: Add ats_platform column to scans ────────────────────────────────
   try {
     database.prepare('SELECT ats_platform FROM scans LIMIT 1').get();
@@ -1125,6 +1139,34 @@ function recordStripeEvent(eventId, eventType, payloadHash = null) {
   }
 }
 
+// ── Phase 7: Lemon Squeezy Event Idempotency ──────────────────────────────
+
+/**
+ * Check if a Lemon Squeezy event has already been processed.
+ * Returns true if the event was already handled (skip processing).
+ */
+function isLemonSqueezyEventProcessed(eventId) {
+  const d = getDb();
+  const existing = d.prepare('SELECT id FROM lemon_squeezy_events WHERE event_id = ?').get(eventId);
+  return !!existing;
+}
+
+/**
+ * Record a Lemon Squeezy event as processed.
+ * Called after successful handling to prevent reprocessing on retries.
+ */
+function recordLemonSqueezyEvent(eventId, eventType, payloadHash = null) {
+  const d = getDb();
+  try {
+    d.prepare(
+      'INSERT INTO lemon_squeezy_events (event_id, event_type, payload_hash) VALUES (?, ?, ?)'
+    ).run(eventId, eventType, payloadHash);
+  } catch (err) {
+    // UNIQUE constraint violation = already recorded, safe to ignore
+    if (!err.message.includes('UNIQUE')) throw err;
+  }
+}
+
 module.exports = {
   getDb,
   findOrCreateUser,
@@ -1186,4 +1228,7 @@ module.exports = {
   // Phase 6: Stripe Idempotency
   isStripeEventProcessed,
   recordStripeEvent,
+  // Phase 7: Lemon Squeezy Idempotency
+  isLemonSqueezyEventProcessed,
+  recordLemonSqueezyEvent,
 };

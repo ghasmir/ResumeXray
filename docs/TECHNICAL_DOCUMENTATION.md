@@ -2399,3 +2399,99 @@ This pass fixes five confirmed UX bugs across the scan/results flow.
 - `.download-bar-lock-label`: removed `text-transform: uppercase`.
 - `.results-context-card` padding: `sp-3 sp-4` → `sp-4 sp-5`. Label font-size: `0.6875rem` → `0.75rem`.
 - "AI Cover Letter" → "A.I. Cover Letter" in pane title.
+
+## 7.3 Payment Gateway Integration: From Stripe to Lemon Squeezy
+
+### Overview
+
+This section details the migration from Stripe to Lemon Squeezy for handling one-time credit pack purchases. The primary goal is to leverage Lemon Squeezy's hosted checkout solution for simplicity and reliability, while maintaining the existing credit-based system for user entitlements.
+
+### Key Changes and Components
+
+#### 1. Lemon Squeezy Product Configuration
+
+-   **Product Setup**: Corresponding products and variants for the existing Starter, Professional, and Hustler credit packs will be configured within the Lemon Squeezy dashboard.
+-   **Environment Variables**: New environment variables will be introduced to store Lemon Squeezy API keys, webhook secrets, store ID, and individual product/variant IDs for each credit pack. These will replace the existing Stripe-specific environment variables.
+
+#### 2. Backend Integration
+
+##### `config/lemonsqueezy.js` (New Module)
+
+This new module will encapsulate Lemon Squeezy-specific configurations and utility functions:
+
+-   **`LEMON_SQUEEZY_API_KEY`**: API key for authenticating requests to Lemon Squeezy.
+-   **`LEMON_SQUEEZY_WEBHOOK_SECRET`**: Secret for verifying incoming webhook signatures.
+-   **`LEMON_SQUEEZY_STORE_ID`**: Identifier for the Lemon Squeezy store.
+-   **`CREDIT_PACKS`**: A mapping that links internal credit pack identifiers (e.g., `starter`, `pro`) to their respective Lemon Squeezy product/variant IDs and credit amounts.
+-   **`createCheckoutUrl(packId, userId, email)`**: A function responsible for constructing and returning the Lemon Squeezy hosted checkout URL. This function will replace the `createCheckoutSession` logic previously used for Stripe.
+
+##### `routes/billing.js`
+
+-   **`POST /billing/checkout`**: This route will be modified to:
+    -   Utilize the `createCheckoutUrl` function from `config/lemonsqueezy.js` to generate a hosted checkout URL.
+    -   Redirect the user's browser to this Lemon Squeezy URL, initiating the payment process.
+-   **`POST /billing/lemonsqueezy-webhook` (New Route)**: A dedicated webhook endpoint will be created to handle incoming events from Lemon Squeezy. This route will:
+    -   Verify the authenticity of the webhook request using the `LEMON_SQUEEZY_WEBHOOK_SECRET`.
+    -   Process `order_created` events, which signify a successful payment.
+    -   Extract relevant information from the webhook payload, including `user_id`, `credits` purchased, and the Lemon Squeezy `order_id`.
+    -   Invoke the `db.addCredits` function to update the user's credit balance, using the `order_id` as the idempotency key to prevent duplicate credit allocation.
+
+##### `db/database.js`
+
+-   **`addCredits` Function**: The `addCredits` function will be refactored to accept a generic `paymentGatewayTransactionId` instead of `stripeSessionId`. This change will make the function agnostic to the specific payment gateway, allowing it to be reused for Lemon Squeezy and potentially other future integrations.
+-   **`credit_transactions` Table**: A database migration will be required to rename the `stripe_session_id` column to `payment_gateway_transaction_id` in the `credit_transactions` table. This ensures consistency and flexibility for different payment gateways.
+
+#### 3. Frontend Integration (`public/js/app.js`)
+
+-   **`startCheckout(packId)` Function**: This function will be updated to make an API call to the modified `/billing/checkout` endpoint. Upon receiving the Lemon Squeezy hosted checkout URL, the frontend will redirect the user to this URL to complete the purchase.
+-   **UI Updates**: Existing UI elements that might display Stripe-specific branding or information will be reviewed and updated to reflect the transition to Lemon Squeezy, although the current credit-focused UI is largely payment-gateway agnostic.
+
+### Data Flow for Lemon Squeezy Checkout
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend as public/js/app.js
+    participant Backend as routes/billing.js
+    participant LS as Lemon Squeezy Hosted Checkout
+    participant LS_Webhook as Lemon Squeezy Webhook Service
+    participant DB as db/database.js
+
+    User->>Frontend: Clicks 
+on "Buy Now" for a credit pack
+    Frontend->>Backend: POST /billing/checkout { packId, userId, email }
+    Backend->>Backend: Calls createCheckoutUrl(packId, userId, email)
+    Backend->>LS: Requests hosted checkout URL
+    LS-->>Backend: Returns hosted checkout URL
+    Backend-->>Frontend: { url: LemonSqueezyCheckoutUrl }
+    Frontend->>User: Redirects to LemonSqueezyCheckoutUrl
+    User->>LS: Completes payment on hosted checkout page
+    LS->>LS_Webhook: Sends order_created webhook event
+    LS_Webhook->>Backend: POST /billing/lemonsqueezy-webhook { event_payload }
+    Backend->>Backend: Verifies webhook signature
+    Backend->>DB: addCredits(userId, amount, 'purchase', order_id, description)
+    DB-->>Backend: Credits added successfully
+    Backend-->>LS_Webhook: 200 OK
+    LS-->>User: Redirects to success_url (e.g., /dashboard?purchased=true)
+    User->>Frontend: Lands on success page, UI updates credit balance
+
+### Implementation Details
+
+#### `config/lemonsqueezy.js`
+
+This new module centralizes Lemon Squeezy configuration. It defines `CREDIT_PACKS` mapping internal pack IDs to Lemon Squeezy variant IDs and provides `createCheckoutUrl` for generating hosted checkout URLs and `verifyWebhookSignature` for validating incoming webhooks.
+
+#### `routes/billing.js`
+
+-   The `POST /billing/checkout` route has been updated to use `createCheckoutUrl` from `config/lemonsqueezy.js` to generate the checkout URL and redirect the user.
+-   A new route, `POST /billing/lemonsqueezy-webhook`, has been added to handle Lemon Squeezy `order_created` webhook events. This route verifies the webhook signature, parses the event payload, and calls `db.addCredits` with the Lemon Squeezy order ID for idempotency.
+
+#### `db/database.js`
+
+-   The `addCredits` function has been made more generic to accept a `paymentGatewayTransactionId` instead of `stripeSessionId`.
+-   New functions `isLemonSqueezyEventProcessed` and `recordLemonSqueezyEvent` have been added to handle idempotency for Lemon Squeezy webhooks, similar to the existing Stripe event handling.
+-   A migration has been added to `runMigrations` to create the `lemon_squeezy_events` table in the database schema.
+
+#### `db/schema.sql`
+
+-   The `lemon_squeezy_events` table has been added to the schema to store Lemon Squeezy webhook event IDs for idempotency checking.

@@ -111,7 +111,17 @@ CREATE TABLE IF NOT EXISTS guest_scans (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Phase 7: Lemon Squeezy Events Idempotency Table
+CREATE TABLE IF NOT EXISTS lemon_squeezy_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id TEXT UNIQUE NOT NULL,
+  event_type TEXT NOT NULL,
+  processed_at TEXT DEFAULT (datetime('now')),
+  payload_hash TEXT
+);
+
 -- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_lemon_squeezy_events_id ON lemon_squeezy_events(event_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_user ON resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_scans_user ON scans(user_id);
 CREATE INDEX IF NOT EXISTS idx_scans_resume ON scans(resume_id);

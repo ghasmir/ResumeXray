@@ -879,3 +879,15 @@ This comprehensive remediation phase was successfully executed through a synchro
 - `npm test` passed (43/43)
 - `node -e` module load checks passed for `resume-builder.js` and `agent-pipeline.js`
 - CSS file integrity verified
+
+## Timeline: 2026-04-27
+**Focus:** Lemon Squeezy Payment Gateway Migration
+
+**Implemented (Added):**
+- **Payment Gateway Migration Plan**: Initiated migration from Stripe to Lemon Squeezy for hosted checkout. The plan involves:
+  - Setting up corresponding products in Lemon Squeezy for existing credit packs.
+  - Modifying frontend `startCheckout` function to redirect to Lemon Squeezy hosted checkout URLs.
+  - Creating/modifying backend webhook handler to process Lemon Squeezy `order_created` events, verify signatures, and add credits using existing `db.addCredits` function.
+  - Adapting `db.addCredits` and `credit_transactions` table for generic payment gateway IDs.
+  - Introducing new environment variables for Lemon Squeezy API key, webhook secret, and product variant IDs.
+- **Frontend Update**: Confirmed that the existing `startCheckout` function in `public/js/app.js` is generic and does not require modification, as it correctly handles the redirect to the provided checkout URL from the backend.
