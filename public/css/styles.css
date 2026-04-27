@@ -1451,6 +1451,14 @@ a.nav-cta:hover {
   color: var(--text-secondary);
 }
 
+.jd-paste-error {
+  display: block;
+  margin-top: var(--sp-2);
+  color: var(--danger);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 /* ── Loading & Skeleton ───────────────────────────────────── */
 .loading-state {
   display: flex;
@@ -3056,7 +3064,8 @@ body[data-route-group='auth'] .footer-disclaimer {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: var(--sp-4);
   background: #e9ebef;
 }
@@ -3079,6 +3088,7 @@ body[data-route-group='auth'] .footer-disclaimer {
 .document-iframe-wrapper .preview-iframe {
   display: block;
   flex: 0 0 auto;
+  max-width: 100%;
   border: none;
   background: #fff;
   box-shadow:
@@ -3860,7 +3870,7 @@ select:focus:not(:focus-visible) {
   line-height: 1.2;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  opacity: 0.72;
+  opacity: 0.85;
 }
 .results-tab-btn.active .results-tab-meta {
   opacity: 0.88;
@@ -3875,12 +3885,12 @@ select:focus:not(:focus-visible) {
   border-color: rgba(255, 255, 255, 0.08);
 }
 .results-tab-btn.active {
-  background: linear-gradient(135deg, rgba(99, 91, 255, 0.96), rgba(76, 110, 245, 0.78));
+  background: linear-gradient(135deg, rgba(99, 91, 255, 0.22), rgba(76, 110, 245, 0.18));
   color: white;
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(99, 91, 255, 0.4);
   box-shadow:
-    0 14px 30px rgba(79, 70, 229, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    0 4px 12px rgba(79, 70, 229, 0.15),
+    inset 0 -2px 0 rgba(99, 91, 255, 0.6);
 }
 
 .results-summary-strip {
@@ -4608,6 +4618,8 @@ body.modal-open {
 
 .cover-letter-preview-container {
   background: #f0f0f0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 /* ── Ready Overlay Animation ───────────────────────────────────── */
@@ -5593,7 +5605,6 @@ a svg {
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--accent);
-  text-transform: uppercase;
 }
 
 /* ─── 13. PDF TOOLBAR PREMIUM ──────────────────────────────── */
@@ -7501,7 +7512,7 @@ a svg {
 .results-tab-meta {
   font-size: 0.68rem;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .results-tab-btn .tab-icon {
@@ -7517,12 +7528,12 @@ a svg {
 
 .results-tab-btn.active {
   background:
-    linear-gradient(135deg, rgba(99, 91, 255, 0.95), rgba(140, 92, 255, 0.92)),
+    linear-gradient(135deg, rgba(99, 91, 255, 0.24), rgba(140, 92, 255, 0.22)),
     rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(99, 91, 255, 0.35);
   box-shadow:
-    0 12px 26px rgba(88, 70, 229, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    0 4px 12px rgba(88, 70, 229, 0.12),
+    inset 0 -2px 0 rgba(99, 91, 255, 0.5);
 }
 
 .results-tab-btn.active .results-tab-meta {

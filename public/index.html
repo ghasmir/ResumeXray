@@ -1630,6 +1630,7 @@
                       rows="4"
                       placeholder="Paste the job description here..."
                     ></textarea>
+                    <small id="jd-paste-error" class="jd-paste-error" style="display:none"></small>
                   </div>
                 </div>
               </div>
@@ -1896,7 +1897,7 @@
                 </p>
               </div>
               <div class="results-summary-card">
-                <div class="results-summary-label">Recruiter Visibility</div>
+                <div class="results-summary-label">ATS Structure</div>
                 <div class="results-summary-value" id="results-visibility-value">Waiting</div>
                 <p class="results-summary-body" id="results-visibility-body">
                   Match rate and extracted fields will show how visible you are in recruiter searches.
@@ -2038,7 +2039,8 @@
                       transform="rotate(-90 60 60)"
                     />
                   </svg>
-                  <div class="gauge-label">JD Match</div>
+                  <div class="gauge-label">Keyword Match</div>
+                  <div class="gauge-sublabel" style="font-size:0.65rem;color:var(--text-faint);margin-top:2px">semantic score</div>
                   <div class="gauge-value" id="score-job-match">--</div>
                 </div>
                 <div class="score-gauge-card" id="score-after-card" style="display: none">
@@ -2308,7 +2310,7 @@
             <!-- TAB 4: Cover Letter -->
             <div class="results-tab-pane" id="tab-cover-letter">
               <div class="pane-header">
-                <h2 class="pane-title" style="margin-bottom: var(--sp-2)">AI Cover Letter</h2>
+                <h2 class="pane-title" style="margin-bottom: var(--sp-2)">A.I. Cover Letter</h2>
                 <p
                   class="body-sm text-muted"
                   id="results-pane-note-cover-letter"

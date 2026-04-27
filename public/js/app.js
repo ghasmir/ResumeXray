@@ -1089,9 +1089,44 @@ function looksLikeJobUrl(value = '') {
   return trimmed.startsWith('http://') || trimmed.startsWith('https://');
 }
 
-function hasManualJobDescription(value = '') {
+function validatePastedJd(value = '') {
   const trimmed = String(value || '').trim();
-  return !!trimmed && !looksLikeJobUrl(trimmed);
+  if (!trimmed) { return { valid: false, reason: 'empty' }; }
+  if (looksLikeJobUrl(trimmed)) { return { valid: false, reason: 'url' }; }
+
+  if (trimmed.replace(/\s/g, '').length < 800) {
+    return { valid: false, reason: 'too_short' };
+  }
+
+  const charCounts = {};
+  for (const ch of trimmed) {
+    charCounts[ch] = (charCounts[ch] || 0) + 1;
+  }
+  const totalChars = trimmed.length;
+  const maxRepeatRatio = Math.max(...Object.values(charCounts)) / totalChars;
+  if (maxRepeatRatio > 0.3) { return { valid: false, reason: 'gibberish' }; }
+
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length <= 1) { return { valid: false, reason: 'gibberish' }; }
+
+  const upperRatio = (trimmed.match(/[A-Z]/g) || []).length / totalChars;
+  if (upperRatio > 0.5) { return { valid: false, reason: 'gibberish' }; }
+
+  const signals = {
+    hasRole: /\b(role|position|title|job\s+title|hiring|looking\s+for|seeking|opening|vacancy|opportunity)\b/i.test(trimmed),
+    hasResponsibilities: /\b(responsibilit|duties|what\s+you.ll\s+do|what\s+you\s+will\s+do|you\s+will\s+be\s+responsible|accountable\s+for|day-to-day|day\s+to\s+day|key\s+deliverables)\b/i.test(trimmed),
+    hasRequirements: /\b(require|qualif|must\s+have|essential|mandatory|necessary|preferred|desired|nice\s+to\s+have|skills|competenc|criteria)\b/i.test(trimmed),
+    hasSkills: /\b(skills|technologies|tools|frameworks|languages|proficiency|familiarity|experience\s+with|knowledge\s+of)\b/i.test(trimmed),
+    hasCompany: /\b(company|location|remote|onsite|hybrid|full-?time|part-?time|contract|salary|benefits|team|department|about\s+us)\b/i.test(trimmed),
+  };
+  const signalCount = Object.values(signals).filter(Boolean).length;
+  if (signalCount < 2) { return { valid: false, reason: 'not_jd' }; }
+
+  return { valid: true };
+}
+
+function hasManualJobDescription(value = '') {
+  return validatePastedJd(value).valid;
 }
 
 function hasResolvedJobContext(jobContext = currentJobContext) {
@@ -1539,30 +1574,49 @@ function switchJobSourceMode(mode) {
   if (mode === 'url') {
     setLockedFieldState(urlInput, { locked: false });
     setLockedFieldState(jobInput, { locked: false });
+    if (currentJobContext?.jdSource === 'pasted_text' && !jobInput?.value?.trim()) {
+      currentJobContext = currentJobContext?.jobUrl || currentJobContext?.scrapeStatus === 'ready'
+        ? { ...currentJobContext, jdText: '', jdSource: '' }
+        : null;
+      if (!currentJobContext) {
+        renderJobLinkStatus({}, { state: 'idle' });
+      } else if (looksLikeJobUrl(currentJobContext.jobUrl)) {
+        renderJobLinkStatus(currentJobContext, { state: 'idle' });
+      }
+    }
   } else {
     if (jobContextProbeController) {
       jobContextProbeController.abort();
       jobContextProbeController = null;
     }
-    // Preserve the URL in the input and context so the backend can still
-    // detect the portal/company when the user pastes a fallback JD.
     const preservedUrl = urlInput?.value?.trim() || currentJobContext?.jobUrl || '';
-    currentJobContext = {
-      jobUrl: preservedUrl,
-      jobTitle: currentJobContext?.jobTitle || '',
-      companyName: currentJobContext?.companyName || '',
-      jdText: '',
-      jdSource: 'pasted_text',
-      scrapeStatus: currentJobContext?.scrapeStatus || 'not_requested',
-      scrapeError: currentJobContext?.scrapeError || '',
-      atsPlatform: currentJobContext?.atsPlatform || '',
-      atsDisplayName: currentJobContext?.atsDisplayName || '',
-      templateProfile: currentJobContext?.templateProfile || null,
-    };
-    renderJobLinkStatus(currentJobContext, {
-      state: 'resolved',
-      note: 'Using your pasted job description.',
-    });
+    const existingResolvedUrl = looksLikeJobUrl(preservedUrl) ? preservedUrl : '';
+    currentJobContext = existingResolvedUrl
+      ? {
+          jobUrl: existingResolvedUrl,
+          jobTitle: currentJobContext?.jobTitle || '',
+          companyName: currentJobContext?.companyName || '',
+          jdText: '',
+          jdSource: '',
+          scrapeStatus: currentJobContext?.scrapeStatus || 'not_requested',
+          scrapeError: currentJobContext?.scrapeError || '',
+          atsPlatform: currentJobContext?.atsPlatform || '',
+          atsDisplayName: currentJobContext?.atsDisplayName || '',
+          templateProfile: currentJobContext?.templateProfile || null,
+        }
+      : {
+          jobUrl: '',
+          jobTitle: '',
+          companyName: '',
+          jdText: '',
+          jdSource: '',
+          scrapeStatus: 'not_requested',
+          scrapeError: '',
+          atsPlatform: '',
+          atsDisplayName: '',
+          templateProfile: null,
+        };
+    renderJobLinkStatus({}, { state: 'idle' });
     setLockedFieldState(urlInput, { locked: false });
     setLockedFieldState(jobInput, { locked: false });
   }
@@ -1655,17 +1709,38 @@ function setupFileUpload() {
   function setManualJobDescriptionMode() {
     if (!jobInput) return;
     const pastedText = jobInput.value.trim();
-    if (!hasManualJobDescription(pastedText)) {
-      if (!urlInput?.value.trim()) {
-        currentJobContext = null;
-        renderJobLinkStatus({}, { state: 'idle' });
-      } else if (looksLikeJobUrl(urlInput.value)) {
-        urlInput.dispatchEvent(new Event('input'));
-      } else if (hasResolvedJobContext(currentJobContext)) {
-        renderJobLinkStatus(currentJobContext, { state: 'resolved' });
+    const validation = validatePastedJd(pastedText);
+    const jdPasteError = el('jd-paste-error');
+
+    if (!validation.valid) {
+      if (jdPasteError) {
+        const messages = {
+          empty: '',
+          url: 'Please paste the job description text, not a URL. Use the URL tab above to provide a link.',
+          too_short: 'Job description is too short — paste the full posting (at least 800 characters) for accurate analysis.',
+          gibberish: 'This doesn\'t look like a real job description. Please paste the complete job posting text.',
+          not_jd: 'This doesn\'t appear to be a job description. Please include role details, requirements, and responsibilities.',
+        };
+        jdPasteError.textContent = pastedText ? (messages[validation.reason] || 'Please paste a valid job description.') : '';
+        jdPasteError.style.display = pastedText ? 'block' : 'none';
+      }
+      if (!pastedText) {
+        if (!urlInput?.value.trim()) {
+          currentJobContext = null;
+          renderJobLinkStatus({}, { state: 'idle' });
+        } else if (looksLikeJobUrl(urlInput.value)) {
+          urlInput.dispatchEvent(new Event('input'));
+        } else if (hasResolvedJobContext(currentJobContext)) {
+          renderJobLinkStatus(currentJobContext, { state: 'resolved' });
+        }
       }
       syncTargetInputState();
       return;
+    }
+
+    if (jdPasteError) {
+      jdPasteError.textContent = '';
+      jdPasteError.style.display = 'none';
     }
 
     if (jobContextProbeController) {
@@ -1743,7 +1818,25 @@ function setupFileUpload() {
     lastJobInput = el('job-input').value;
     const jdVal = lastJobInput.trim();
     const hasJobUrl = looksLikeJobUrl(urlInputVal) || looksLikeJobUrl(jdVal);
-    const hasPastedJobDescription = hasManualJobDescription(jdVal);
+    const jdValidation = validatePastedJd(jdVal);
+    const hasPastedJobDescription = jdValidation.valid;
+
+    if (activeJobSourceMode === 'jd' && jdVal && !jdValidation.valid) {
+      const jdPasteError = el('jd-paste-error');
+      const messages = {
+        url: 'Please paste the job description text, not a URL. Use the URL tab above to provide a link.',
+        too_short: 'Job description is too short — paste the full posting (at least 800 characters) for accurate analysis.',
+        gibberish: 'This doesn\'t look like a real job description. Please paste the complete job posting text.',
+        not_jd: 'This doesn\'t appear to be a job description. Please include role details, requirements, and responsibilities.',
+      };
+      el('scan-error').textContent = messages[jdValidation.reason] || 'Please paste a valid job description.';
+      el('scan-error').style.display = 'block';
+      if (jdPasteError) {
+        jdPasteError.textContent = messages[jdValidation.reason] || 'Please paste a valid job description.';
+        jdPasteError.style.display = 'block';
+      }
+      return;
+    }
 
     if (!hasJobUrl && !hasPastedJobDescription) {
       el('scan-error').textContent =
@@ -2605,22 +2698,31 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
   if (priorityCard) priorityCard.dataset.severity = prioritySeverity;
 
   if (visibilityValueEl) {
-    visibilityValueEl.textContent =
-      !hasTargetJob
-        ? 'Structural review only'
-        : lowVisibilityFields > 0
-        ? `${lowVisibilityFields} field${lowVisibilityFields === 1 ? '' : 's'} at risk`
-        : matchRate !== null
-          ? `${Math.round(matchRate)}% match`
-          : 'Waiting for field data';
+    if (missingKeywords > 0) {
+      visibilityValueEl.textContent = `${missingKeywords} keyword${missingKeywords === 1 ? '' : 's'} missing`;
+    } else {
+      visibilityValueEl.textContent =
+        !hasTargetJob
+          ? 'Structural review only'
+          : lowVisibilityFields > 0
+          ? `${lowVisibilityFields} field${lowVisibilityFields === 1 ? '' : 's'} at risk`
+          : matchRate !== null
+            ? `${Math.round(matchRate)}% match`
+            : 'Waiting for field data';
+    }
   }
   if (visibilityBodyEl) {
-    visibilityBodyEl.textContent =
-      !hasTargetJob
-        ? 'Recruiter view can confirm parser coverage, but role match and portal-specific guidance stay limited without a target job.'
-        : lowVisibilityFields > 0
-        ? 'Recruiters may still miss part of your profile in search because extracted fields are incomplete or partial.'
-        : 'The recruiter view looks structurally stronger, so focus shifts toward keyword fit and final polish.';
+    if (missingKeywords > 0) {
+      visibilityBodyEl.textContent =
+        `${missingKeywords} keyword${missingKeywords === 1 ? '' : 's'} from the job description are still missing from this resume. Address these to improve search and ranking.`;
+    } else {
+      visibilityBodyEl.textContent =
+        !hasTargetJob
+          ? 'Recruiter view can confirm parser coverage, but role match and portal-specific guidance stay limited without a target job.'
+          : lowVisibilityFields > 0
+          ? 'Recruiters may still miss part of your profile in search because extracted fields are incomplete or partial.'
+          : 'The recruiter view looks structurally stronger, so focus shifts toward keyword fit and final polish.';
+    }
   }
 
   if (exportValueEl) {
@@ -2708,6 +2810,11 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
   }
 
   if (scan) {
+    const scanData = scan || currentScan;
+    const kwMissing = Array.isArray(scanData?.keywordData?.missing) ? scanData.keywordData.missing.length : 0;
+    const matchLabel = matchRate !== null && hasJobContext
+      ? (kwMissing > 0 ? `${Math.round(matchRate)}% match · ${kwMissing} keyword${kwMissing === 1 ? '' : 's'} missing` : `${Math.round(matchRate)}% match`)
+      : null;
     const contextParts = [
       source === 'history' ? 'Saved scan' : 'Live workspace',
       hasJobContext
@@ -2715,7 +2822,7 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
           ? `${jobContext.atsDisplayName} targeted`
           : 'Targeted review'
         : 'Structural review',
-      hasJobContext && matchRate !== null ? `${Math.round(matchRate)}% match` : null,
+      matchLabel,
     ].filter(Boolean);
     contextEl.textContent = contextParts.join(' · ');
     contextEl.dataset.state = hasJobContext ? 'targeted' : 'structural';
@@ -5024,7 +5131,11 @@ function coverLetterPreviewUrl(scanId) {
 function sizeCoverLetterPreviewFrame(wrapper, iframe) {
   if (!wrapper || !iframe) return;
   const previewContainer = wrapper.closest('.cover-letter-preview-container') || wrapper;
-  const availableWidth = Math.max(280, (previewContainer.clientWidth || wrapper.clientWidth || 0) - 32);
+  let availableWidth = previewContainer.clientWidth || wrapper.clientWidth || 0;
+  if (availableWidth < 100) {
+    availableWidth = Math.max(280, document.documentElement.clientWidth * 0.8);
+  }
+  availableWidth = Math.max(280, availableWidth - 32);
   const availableHeight = Math.max(420, (previewContainer.clientHeight || wrapper.clientHeight || 0) - 32);
   const pageRatio = 210 / 297;
   const fittedWidth = Math.min(860, availableWidth, availableHeight * pageRatio);
@@ -5044,10 +5155,18 @@ function attachPreviewIframeListeners(wrapper, iframe) {
   iframe._resizeHandler = handleResize;
   window.addEventListener('resize', handleResize);
 
+  if (window.ResizeObserver && wrapper) {
+    const ro = new ResizeObserver(() => sizeCoverLetterPreviewFrame(wrapper, iframe));
+    ro.observe(wrapper);
+    iframe._resizeObserver = ro;
+  }
+
   iframe.addEventListener('load', () => {
     if (skeleton) skeleton.style.display = 'none';
     iframe.style.opacity = '1';
-    sizeCoverLetterPreviewFrame(wrapper, iframe);
+    requestAnimationFrame(() => {
+      sizeCoverLetterPreviewFrame(wrapper, iframe);
+    });
   });
 
   iframe.addEventListener('error', () => {
@@ -5055,6 +5174,10 @@ function attachPreviewIframeListeners(wrapper, iframe) {
     if (iframe._resizeHandler) {
       window.removeEventListener('resize', iframe._resizeHandler);
       delete iframe._resizeHandler;
+    }
+    if (iframe._resizeObserver) {
+      iframe._resizeObserver.disconnect();
+      delete iframe._resizeObserver;
     }
     if (wrapper) {
       wrapper.innerHTML = safeHtml(`
@@ -5085,6 +5208,10 @@ function reloadCoverLetterPreview(scanId) {
   const previousIframe = clContainer.querySelector('.preview-iframe');
   if (previousIframe?._resizeHandler) {
     window.removeEventListener('resize', previousIframe._resizeHandler);
+    if (previousIframe._resizeObserver) {
+      previousIframe._resizeObserver.disconnect();
+      delete previousIframe._resizeObserver;
+    }
     delete previousIframe._resizeHandler;
   }
   currentCoverLetterPreviewKey = previewKey;
@@ -5117,6 +5244,7 @@ function reloadCoverLetterPreview(scanId) {
   wrapper.appendChild(iframe);
   clContainer.appendChild(wrapper);
 
+  requestAnimationFrame(() => sizeCoverLetterPreviewFrame(wrapper, iframe));
   attachPreviewIframeListeners(wrapper, iframe);
   if (actions) actions.style.display = 'flex';
 }

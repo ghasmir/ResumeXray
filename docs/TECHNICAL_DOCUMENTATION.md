@@ -763,6 +763,7 @@ Functions:
 - `polishProfessionalSummary(sections, options)`
 - `applyBulletRewrites(sections, optimizedBullets)`
 - `trimForSinglePage(sections, { isJunior, maxPages })`
+- `createDocxDocument(children, theme)` — now strips consecutive empty Paragraphs from DOCX output
 - `stripPlaceholderMetrics(sections)`
 - `parseSectionsAdvanced(text)`
 - `calculateTenure(experienceLines)`
@@ -779,9 +780,9 @@ Pipeline summary:
 3. normalize dates and symbols on that original text
 4. parse sections heuristically, including explicit header extraction and exact section-header matching
 5. recover cleaner header/contact/summary fields and preserve concise honest source headlines when possible
-6. highlight metrics and trim content toward the allowed page budget while the data is still in flat arrays
+6. highlight metrics and trim content toward the allowed page budget while the data is still in flat arrays; guard against dropping >25% of experience entries — if threshold exceeded, restore dropped entries preferring bullet-level trimming instead
 7. structure flat lines into nested template-friendly objects
-8. apply optimized bullet rewrites directly to structured nodes, skipping any rewrite that already failed `contextAudit`
+8. apply optimized bullet rewrites directly to structured nodes, skipping any rewrite that already failed `contextAudit`; bullet rewrites carry a `preserveAllEntries` directive
 9. render the Handlebars HTML template or DOCX section content from those objects
 10. use Playwright to generate PDF when PDF output is requested
 11. validate text layer and page bounds
@@ -1384,6 +1385,9 @@ Major function groups:
 
 - `extractCompanyFromUrl(urlStr)`
 - `capitalize(str)`
+- `looksLikeJobUrl(value)`
+- `validatePastedJd(value)` — validates pasted JD text (min 800 chars, rejects URLs, detects gibberish, requires 2/5 JD signals); returns `{ valid, reason }`
+- `hasManualJobDescription(value)` — delegates to `validatePastedJd(value).valid`
 - `getJobContext(scanOrContext)`
 - `getJobSourceLabel(jobContext)`
 - `getJobStatusTone(jobContext)`
@@ -1404,7 +1408,7 @@ Major function groups:
 - `typewriterToken(step, chunk, bulletIndex)`
 - `renderAgentBullet(data)`
 - `updateAgentScores(scores)`
-- `updateResultsSummary({ scores, scan })`
+- `updateResultsSummary({ scores, scan })` — computes priority/visibility/export cards; visibility card now shows keyword gap when `missingKeywords > 0` instead of raw matchRate; label changed from "Recruiter Visibility" to "ATS Structure"
 - `updateResultsWorkspaceHeader({ scan, source })`
 - `finalizeAgentUI(data)`
 
@@ -2174,7 +2178,7 @@ The mutual-locking two-input layout (URL + JD textarea) was replaced with a segm
 
 - Removed `.job-details-hint` element and its CSS rule; the segmented toggle itself serves as the mode indicator
 - Added `.job-source-toggle`, `.job-source-toggle-btn`, `.job-source-panel` CSS classes with active state styling
-- Added `setupJobSourceToggle()` and `switchJobSourceMode()` JS functions that manage `activeJobSourceMode` state
+- Added `setupJobSourceToggle()` and `switchJobSourceMode()` JS functions that manage `activeJobSourceMode` state; switching to JD tab no longer resolves context immediately (shows idle state); switching to URL tab clears stale JD context
 - Updated `syncTargetInputState()` to respect the active toggle mode — no field-locking occurs in JD mode
 - Manual JD submissions now continue to forward any associated job URL so the backend can still infer company, portal, and ATS template from blocked or still-pending links
 - Form validation error messages are now context-aware per active mode ("Add a job link..." vs "Paste the job description...")
@@ -2355,3 +2359,43 @@ This pass addressed the senior-review findings against the OpenCode patch before
 - `npm run syntax`
 - `npm test` (43/43)
 - local `/healthz` returned `ok`
+
+### 23.23 UX Fixes — JD Validation, Optimization Safety, Preview Scaling, Scoring Clarity, Accessibility (2026-04-27)
+
+This pass fixes five confirmed UX bugs across the scan/results flow.
+
+**Issue 1 — Pasted JD Validation (`public/js/app.js`, `public/index.html`, `public/css/styles.css`)**
+
+- New `validatePastedJd(value)` replaces the weak `hasManualJobDescription()` check. Validates minimum 800 characters of content, rejects URLs in JD mode, detects gibberish (repeated chars >30%, single word, excessive uppercase), and requires at least 2 of 5 JD signals (role, responsibilities, requirements, skills, company/location/employment type). Returns `{ valid, reason }`.
+- `switchJobSourceMode('jd')` no longer resolves context immediately — shows idle state until validation passes. Switching to URL mode clears stale JD context.
+- `setManualJobDescriptionMode()` uses `validatePastedJd()` and shows inline errors via new `#jd-paste-error` element.
+- Form submit in JD mode validates with `validatePastedJd()` and shows specific error messages.
+
+**Issue 2 — Resume Optimization Destructiveness (`lib/resume-builder.js`, `lib/agent-pipeline.js`)**
+
+- `isJunior` threshold moved from `yearsExp < 5` to `yearsExp < 3`. Bullet-level trimming is preferred for 3–7 year candidates instead of entry removal.
+- Post-trim guard in `buildResumeData()`: if >25% of experience entries are dropped, they are restored.
+- `createDocxDocument()` now strips consecutive empty Paragraph nodes.
+- Bullet rewrite calls include `{ preserveAllEntries: true }`. Keyword plans carry an `_instruction` field: "Rewrite and reorder only; do not remove or skip any experience entries."
+
+**Issue 3 — Document Preview Scaling (`public/js/app.js`, `public/css/styles.css`)**
+
+- `sizeCoverLetterPreviewFrame()` falls back to `document.documentElement.clientWidth * 0.8` when container width resolves to < 100px.
+- `attachPreviewIframeListeners()` attaches a `ResizeObserver` on the wrapper for responsive reflow. Sizing is retried via `requestAnimationFrame` on iframe load.
+- CSS: `overflow: auto` → `overflow-x: hidden; overflow-y: auto` on `.document-iframe-wrapper`. Added `max-width: 100%` to `.preview-iframe`. Added `max-width: 100%; overflow: hidden` to `.cover-letter-preview-container`.
+
+**Issue 4 — Scoring UI Contradiction (`public/js/app.js`, `public/index.html`)**
+
+- When `missingKeywords > 0`, visibility card shows "X keywords missing" instead of "100% match".
+- Visibility card label changed from "Recruiter Visibility" to "ATS Structure".
+- Context strip shows "X% match · Y keywords missing" when keywords are missing.
+- Gauge label changed from "JD Match" to "Keyword Match" with "semantic score" sub-label.
+
+**Issue 5 — UI Hierarchy & Accessibility (`public/css/styles.css`, `public/css/app-surfaces.css`, `public/index.html`)**
+
+- Inactive tab meta opacity: 0.72 → 0.85. Mobile override: `0.62` → `0.65` color.
+- Active tab: gradient softened from ~95%/92% to ~22%/18%; border-based active indicator replaces CTA-style background.
+- `.results-masthead-pill[data-state='ready']`: filled green → transparent background, border-only.
+- `.download-bar-lock-label`: removed `text-transform: uppercase`.
+- `.results-context-card` padding: `sp-3 sp-4` → `sp-4 sp-5`. Label font-size: `0.6875rem` → `0.75rem`.
+- "AI Cover Letter" → "A.I. Cover Letter" in pane title.

@@ -804,3 +804,78 @@ This comprehensive remediation phase was successfully executed through a synchro
 - `npm run syntax`
 - `npm test` (43/43)
 - `curl http://localhost:3000/healthz` returned `ok`
+
+---
+
+## 2026-04-27 (UX Fixes — JD Validation, Optimization Safety, Preview Scaling, Scoring Clarity, Accessibility)
+
+**Scope:** Fix five confirmed UX bugs across the scan/results flow covering JD validation, resume optimizer destructiveness, preview clipping, contradictory scoring, and visual hierarchy/accessibility.
+
+### Issue 1 — Pasted JD Validation is Broken (HIGH)
+
+**Root Cause:** `hasManualJobDescription()` accepted any non-empty, non-URL string. `switchJobSourceMode('jd')` immediately called `renderJobLinkStatus` with `state: 'resolved'` before the user typed anything, showing a green "Pasted JD" badge on tab click. Switching back to URL preserved stale JD context.
+
+**Changes across `public/js/app.js`, `public/index.html`, `public/css/styles.css`:**
+
+- Replaced `hasManualJobDescription()` with `validatePastedJd(value)` that returns `{ valid, reason }`. Validates minimum 800 characters, rejects URLs in JD mode, detects gibberish (repeated chars >30%, single word, excessive uppercase), and requires at least 2 of 5 JD signals (role, responsibilities, requirements, skills, company).
+- `hasManualJobDescription()` now delegates to `validatePastedJd(value).valid` for backwards compatibility.
+- `switchJobSourceMode('jd')` no longer calls `renderJobLinkStatus` with `state: 'resolved'`. Shows idle/neutral state until validation passes.
+- `switchJobSourceMode('url')` clears stale JD context (`jdText`, `jdSource`) when no valid JD text exists.
+- `setManualJobDescriptionMode()` uses `validatePastedJd()` and shows inline error messages under the textarea via `#jd-paste-error`.
+- Form submit handler validates JD mode with `validatePastedJd()` and shows specific inline errors.
+- Added `<small id="jd-paste-error">` element in `index.html` and `.jd-paste-error` CSS rule in `styles.css`.
+
+### Issue 2 — Resume Optimization is Too Destructive (MEDIUM)
+
+**Root Cause:** `trimForSinglePage()` aggressively trimmed resumes for candidates with <5 years experience, potentially removing entire job entries. No guardrails existed to prevent excessive experience entry loss.
+
+**Changes across `lib/resume-builder.js`, `lib/agent-pipeline.js`:**
+
+- Changed `isJunior` threshold from `yearsExp < 5` to `yearsExp < 3` so bullet-level trimming is preferred for 3–7 year candidates instead of entry removal.
+- Added pre/post experience count check in `buildResumeData()`. If >25% of experience entries are dropped by `trimForSinglePage()`, dropped entries are restored.
+- Added consecutive empty paragraph stripping in `createDocxDocument()` to prevent layout gaps.
+- Added `preserveAllEntries: true` flag to bullet rewrite API calls and `_instruction` field on keyword plans specifying "rewrite and reorder, do not remove experience entries."
+
+### Issue 3 — Document Preview Scaling is Broken (HIGH)
+
+**Root Cause:** `sizeCoverLetterPreviewFrame()` resolved `availableWidth` to 0 when the container was not visible. The iframe got near-zero width and clipped. CSS `.document-iframe-wrapper` used `overflow: auto` which allowed horizontal overflow.
+
+**Changes across `public/js/app.js`, `public/css/styles.css`:**
+
+- `sizeCoverLetterPreviewFrame()` now falls back to `document.documentElement.clientWidth * 0.8` when container width resolves to < 100px.
+- Added `ResizeObserver` in `attachPreviewIframeListeners()` to re-size when container becomes visible.
+- Added `requestAnimationFrame` sizing retry after iframe load event and after iframe DOM append in `reloadCoverLetterPreview()`.
+- CSS: `.document-iframe-wrapper` changed from `overflow: auto` to `overflow-x: hidden; overflow-y: auto`.
+- CSS: `.preview-iframe` gets `max-width: 100%`.
+- CSS: `.cover-letter-preview-container` gets `max-width: 100%; overflow: hidden`.
+
+### Issue 4 — Scoring UI is Contradictory (MEDIUM)
+
+**Root Cause:** `updateResultsSummary()` showed "100% match" when `matchRate` was high but `missingKeywords > 0`, contradicting the priority card showing "Close the job-match gap." The visibility card label "Recruiter Visibility" was ambiguous.
+
+**Changes across `public/js/app.js`, `public/index.html`:**
+
+- When `missingKeywords > 0`, the visibility card now shows "X keywords missing" instead of "X% match".
+- Visibility body text shows keyword-specific guidance when keywords are missing.
+- Card label changed from "Recruiter Visibility" to "ATS Structure" to clarify it measures structure/readability.
+- Context strip now shows "X% match · Y keywords missing" when keywords are present, instead of just "X% match".
+- Gauge label changed from "JD Match" to "Keyword Match" with a sub-label "semantic score" clarifying it's an AI estimate.
+
+### Issue 5 — UI Hierarchy & Accessibility Issues (MEDIUM)
+
+**Root Cause:** Active tab used full purple gradient (looked like CTA), inactive tab labels had very low contrast (opacity 0.72 on dark background, failing WCAG AA), status pill was a filled green button competing with Download CTA, lock label was all-caps, context cards had minimal padding.
+
+**Changes across `public/css/styles.css`, `public/css/app-surfaces.css`, `public/index.html`:**
+
+- Inactive tab meta opacity raised from 0.72 to 0.85; mobile override color from `0.62` to `0.65`.
+- Active tab gradient softened from ~95%/92% opacity to ~22%/18%, with inset bottom border instead of bold CTA gradient.
+- `.results-masthead-pill[data-state='ready']` changed to transparent background, border-only style (no filled green).
+- `.download-bar-lock-label` removed `text-transform: uppercase`.
+- `.results-context-card` padding increased from `var(--sp-3) var(--sp-4)` to `var(--sp-4) var(--sp-5)`.
+- `.results-context-label` font-size increased from `0.6875rem` to `0.75rem`.
+- "AI Cover Letter" heading changed to "A.I. Cover Letter" to prevent I/l confusion in some fonts.
+
+**Verified:**
+- `npm test` passed (43/43)
+- `node -e` module load checks passed for `resume-builder.js` and `agent-pipeline.js`
+- CSS file integrity verified
