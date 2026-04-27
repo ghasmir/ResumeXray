@@ -2408,33 +2408,29 @@ This section details the migration from Stripe to Lemon Squeezy for handling one
 
 ### Key Changes and Components
 
-#### 1. Lemon Squeezy Product Configuration
+#### 1. Multi-Provider Architecture (Strategy Pattern)
 
--   **Product Setup**: Corresponding products and variants for the existing Starter, Professional, and Hustler credit packs will be configured within the Lemon Squeezy dashboard.
--   **Environment Variables**: New environment variables will be introduced to store Lemon Squeezy API keys, webhook secrets, store ID, and individual product/variant IDs for each credit pack. These will replace the existing Stripe-specific environment variables.
+The payment system has been refactored to support multiple providers simultaneously. This allows for easy switching between Stripe and Lemon Squeezy via environment variables.
+
+-   **`BILLING_PROVIDER`**: Environment variable to set the active provider (`stripe` or `lemonsqueezy`).
+-   **`lib/billing-service.js`**: A new service that acts as a factory and registry for payment providers. It standardizes the interface for creating checkouts and processing webhooks.
 
 #### 2. Backend Integration
 
-##### `config/lemonsqueezy.js` (New Module)
+##### `lib/billing-service.js` (New Module)
 
-This new module will encapsulate Lemon Squeezy-specific configurations and utility functions:
-
--   **`LEMON_SQUEEZY_API_KEY`**: API key for authenticating requests to Lemon Squeezy.
--   **`LEMON_SQUEEZY_WEBHOOK_SECRET`**: Secret for verifying incoming webhook signatures.
--   **`LEMON_SQUEEZY_STORE_ID`**: Identifier for the Lemon Squeezy store.
--   **`CREDIT_PACKS`**: A mapping that links internal credit pack identifiers (e.g., `starter`, `pro`) to their respective Lemon Squeezy product/variant IDs and credit amounts.
--   **`createCheckoutUrl(packId, userId, email)`**: A function responsible for constructing and returning the Lemon Squeezy hosted checkout URL. This function will replace the `createCheckoutSession` logic previously used for Stripe.
+This module implements the Strategy Pattern:
+-   **`registerProvider(name, provider)`**: Registers a new payment strategy.
+-   **`getProvider(name)`**: Retrieves the active or specified provider.
+-   **`createCheckout(userId, email, packId)`**: Standardized method to initiate a purchase.
+-   **`verifyWebhook(req)`**: Standardized method to verify webhook signatures.
+-   **`processWebhookEvent(event, db)`**: Standardized method to extract transaction data from webhook events.
 
 ##### `routes/billing.js`
 
--   **`POST /billing/checkout`**: This route will be modified to:
-    -   Utilize the `createCheckoutUrl` function from `config/lemonsqueezy.js` to generate a hosted checkout URL.
-    -   Redirect the user's browser to this Lemon Squeezy URL, initiating the payment process.
--   **`POST /billing/lemonsqueezy-webhook` (New Route)**: A dedicated webhook endpoint will be created to handle incoming events from Lemon Squeezy. This route will:
-    -   Verify the authenticity of the webhook request using the `LEMON_SQUEEZY_WEBHOOK_SECRET`.
-    -   Process `order_created` events, which signify a successful payment.
-    -   Extract relevant information from the webhook payload, including `user_id`, `credits` purchased, and the Lemon Squeezy `order_id`.
-    -   Invoke the `db.addCredits` function to update the user's credit balance, using the `order_id` as the idempotency key to prevent duplicate credit allocation.
+-   **`POST /billing/checkout`**: Now uses `billingService.createCheckout()` to generate the checkout URL, making it provider-agnostic.
+-   **`POST /billing/webhook`**: A unified webhook endpoint that automatically detects the provider (Stripe or Lemon Squeezy) based on request headers and processes the event accordingly.
+-   **`POST /billing/lemonsqueezy-webhook`**: Maintained for backward compatibility, internally redirects to the unified `/webhook` handler.
 
 ##### `db/database.js`
 

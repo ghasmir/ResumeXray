@@ -187,11 +187,12 @@ app.use(generalLimiter);
 const compression = require('compression');
 app.use(compression());
 
-// Stripe Webhook needs raw body — must be registered BEFORE express.json().
+// Billing Webhook needs raw body — must be registered BEFORE express.json().
 // NOTE: billing.js also registers bodyParser.raw per-route — server.js registration
 // is the belt-and-suspenders guard for the path prefix only.
 const billingRoutes = require('./routes/billing');
 app.use('/billing/webhook', require('body-parser').raw({ type: 'application/json' }));
+app.use('/billing/lemonsqueezy-webhook', require('body-parser').raw({ type: 'application/json' }));
 
 // §10.11: Parse JSON/URL bodies with explicit size limits (prevents resource exhaustion)
 app.use(express.json({ limit: '200kb' }));

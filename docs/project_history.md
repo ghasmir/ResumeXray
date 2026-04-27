@@ -881,13 +881,12 @@ This comprehensive remediation phase was successfully executed through a synchro
 - CSS file integrity verified
 
 ## Timeline: 2026-04-27
-**Focus:** Lemon Squeezy Payment Gateway Migration
+**Focus:** Scalable Multi-Provider Payment Architecture (Strategy Pattern)
 
 **Implemented (Added):**
-- **Payment Gateway Migration Plan**: Initiated migration from Stripe to Lemon Squeezy for hosted checkout. The plan involves:
-  - Setting up corresponding products in Lemon Squeezy for existing credit packs.
-  - Modifying frontend `startCheckout` function to redirect to Lemon Squeezy hosted checkout URLs.
-  - Creating/modifying backend webhook handler to process Lemon Squeezy `order_created` events, verify signatures, and add credits using existing `db.addCredits` function.
-  - Adapting `db.addCredits` and `credit_transactions` table for generic payment gateway IDs.
-  - Introducing new environment variables for Lemon Squeezy API key, webhook secret, and product variant IDs.
-- **Frontend Update**: Confirmed that the existing `startCheckout` function in `public/js/app.js` is generic and does not require modification, as it correctly handles the redirect to the provided checkout URL from the backend.
+- **Strategy Pattern Refactor**: Implemented a highly scalable `BillingService` in `lib/billing-service.js` that supports multiple payment providers (Stripe and Lemon Squeezy).
+- **Provider Registry**: Created a registry system allowing the app to switch between providers via the `BILLING_PROVIDER` environment variable without code changes.
+- **Unified Webhook Handler**: Developed a smart webhook endpoint in `routes/billing.js` that auto-detects the provider from request headers and processes events using standardized logic.
+- **Lemon Squeezy Integration**: Added full support for Lemon Squeezy hosted checkout and `order_created` webhooks while preserving the existing Stripe implementation.
+- **Database Hardening**: Added `lemon_squeezy_events` table and corresponding idempotency checks in `db/database.js` to ensure reliable credit delivery.
+- **Backward Compatibility**: Maintained existing Stripe routes and configurations, ensuring a seamless transition or rollback capability.
