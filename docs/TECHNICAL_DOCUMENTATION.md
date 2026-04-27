@@ -43,6 +43,7 @@ The repository currently has one active frontend and one active backend. All leg
 - `public/js/app.js`
 - `public/js/modules/ui-helpers.mjs`
 - `public/js/modules/pdf-preview.mjs`
+- `public/css/tokens.css`
 - `public/css/styles.css`
 - `public/css/app-surfaces.css`
 
@@ -748,6 +749,7 @@ Functions:
 - `standardizeHeader(header)`
 - `normalizeDates(text)`
 - `sanitizeForATS(text)`
+- `stripCoverLetter(text)`
 - `splitNonEmptyLines(text)`
 - `looksLikeLocationLine(line)`
 - `isLikelyContactLine(line)`
@@ -773,15 +775,16 @@ Functions:
 Pipeline summary:
 
 1. sanitize the original resume text for ATS-safe rendering
-2. normalize dates and symbols on that original text
-3. parse sections heuristically, including explicit header extraction and exact section-header matching
-4. recover cleaner header/contact/summary fields and preserve concise honest source headlines when possible
-5. highlight metrics and trim content toward the allowed page budget while the data is still in flat arrays
-6. structure flat lines into nested template-friendly objects
-7. apply optimized bullet rewrites directly to structured nodes, skipping any rewrite that already failed `contextAudit`
-8. render the Handlebars HTML template or DOCX section content from those objects
-9. use Playwright to generate PDF when PDF output is requested
-10. validate text layer and page bounds
+2. strip any embedded cover-letter content (detects `Dear …`, `To Whom It May Concern`, `Cover Letter`, etc.) so it does not leak into the resume export
+3. normalize dates and symbols on that original text
+4. parse sections heuristically, including explicit header extraction and exact section-header matching
+5. recover cleaner header/contact/summary fields and preserve concise honest source headlines when possible
+6. highlight metrics and trim content toward the allowed page budget while the data is still in flat arrays
+7. structure flat lines into nested template-friendly objects
+8. apply optimized bullet rewrites directly to structured nodes, skipping any rewrite that already failed `contextAudit`
+9. render the Handlebars HTML template or DOCX section content from those objects
+10. use Playwright to generate PDF when PDF output is requested
+11. validate text layer and page bounds
 
 Template support:
 
@@ -2128,3 +2131,227 @@ This pass implemented the approved document-quality and export-integrity plan ac
 - `node --check public/js/app.js`
 - `node --check routes/agent.js`
 - `node --test tests/core-flow.test.js`
+
+### 23.18 Phase 1 UI/UX Accessibility and Readability Pass (2026-04-24)
+
+This pass implemented the P1 quick-win changes identified in the Senior Frontend Designer UI/UX review.
+
+**CSS-only changes applied to `public/css/styles.css`:**
+
+1. **Global `prefers-reduced-motion` guard**: A comprehensive `@media (prefers-reduced-motion: reduce)` block was added that forces all animation durations to `0.01ms`, all transition durations to `0.01ms`, and explicitly neutralizes `.animate-fade-up`, `.premium-glow`, `pulse-dot`, `blink`, and `toastSlideIn` keyframes. This replaces the previous narrow rule that only suppressed `.mobile-toggle-inner span` transitions.
+
+2. **Touch-safe hover transforms**: All `transform: translateY(...)` declarations on interactive cards and buttons were removed from their default `:hover` states and consolidated into a single `@media (hover: hover) and (pointer: fine)` media query block. Affected selectors: `.card:hover`, `.card-elevated:hover`, `.step-card:hover`, `.pricing-card:hover`, `.scan-history-card:hover`, `.btn-primary:hover`, `.results-tab-btn:hover`. Touch devices now see border/shadow/color feedback only — no sticky lifted states.
+
+3. **Placeholder contrast raised**: `.form-group input::placeholder` changed from `var(--text-faint)` to `var(--text-secondary)`. `.jd-textarea::placeholder` changed from `var(--text-muted)` to `var(--text-secondary)`. Both now meet WCAG AA contrast against their respective background colors.
+
+4. **Small-text floor raised**: Multiple size values were increased to establish a minimum readable floor of approximately 12px (`0.75rem`):
+   - `--text-overline`: `0.6875rem` → `0.75rem`
+   - `.hero-proof-kicker`: `0.6875rem` → `0.75rem`
+   - `.proof-kicker`: `0.675rem` → `0.75rem`
+   - `.proof-label`: `0.84rem` → `0.875rem`
+   - `.hero-proof-card span:last-child`: `0.8125rem` → `0.875rem`
+   - `.badge`: `0.6875rem` → `0.75rem`
+   - `.ring-label` and `.ring-sub`: `0.625rem` → `0.6875rem`
+   - `.footer-bottom`: `0.7rem` → `0.8125rem`
+   - `.footer-disclaimer`: `0.75rem` → `0.8125rem`
+   - `.body-sm`: `0.9375rem` → `0.875rem`
+
+5. **Hero leading opened**: `.hero-title` changed from `clamp(2.5rem, 7vw, var(--text-display))` with `line-height: 1.05` to `clamp(2rem, 6vw, var(--text-display))` with `line-height: 1.12`. Improves readability for stressed users and small viewports.
+
+6. **`.nav-cta:hover !important` removed**: The `!important` declaration on `.nav-cta:hover` background was eliminated by increasing specificity to `a.nav-cta:hover, .nav-cta:hover`.
+
+7. **iOS Safari blur compositing guard**: Added `will-change: transform`, `-webkit-transform: translateZ(0)`, and `transform: translateZ(0)` to `.topbar`. Promotes the sticky navbar to a dedicated compositor layer, preventing the Safari flicker that occurs when the address bar collapses during scroll.
+
+**No JavaScript or HTML changes were made in this pass.**
+
+### 23.19 Phase 2 UX Flow Improvements (2026-04-24)
+
+This pass implemented all 9 Phase 2 UX flow improvements from the Senior Frontend Designer audit. Unlike Phase 1, these changes span HTML, CSS, and JavaScript.
+
+**1. Scan Page: Segmented Toggle for URL vs JD Input** (`index.html`, `styles.css`, `app.js`)
+
+The mutual-locking two-input layout (URL + JD textarea) was replaced with a segmented toggle (`Job URL` / `Paste Description`) that shows one input panel at a time. This eliminates the confusing UX where the URL input would gray out when the user pasted a JD, and vice versa.
+
+- Removed `.job-details-hint` element and its CSS rule; the segmented toggle itself serves as the mode indicator
+- Added `.job-source-toggle`, `.job-source-toggle-btn`, `.job-source-panel` CSS classes with active state styling
+- Added `setupJobSourceToggle()` and `switchJobSourceMode()` JS functions that manage `activeJobSourceMode` state
+- Updated `syncTargetInputState()` to respect the active toggle mode — no field-locking occurs in JD mode
+- Manual JD submissions now continue to forward any associated job URL so the backend can still infer company, portal, and ATS template from blocked or still-pending links
+- Form validation error messages are now context-aware per active mode ("Add a job link..." vs "Paste the job description...")
+- Progressive disclosure (`.scan-col-job-details.is-active`) now includes `.job-source-toggle` and `.job-source-panel`
+
+**2. Results: Session-Based Masthead Compression** (`app-surfaces.css`, `app.js`)
+
+On first visit to a scan result, the full masthead shows. On subsequent visits to the same scan within the same browser session, the masthead compresses to a compact view (no body copy, smaller title, reduced padding).
+
+- Added `viewedResultsSessions` `Set` to track viewed scan IDs
+- `updateResultsWorkspaceHeader()` checks the set and toggles `.is-compact` on `.results-masthead`
+- CSS `.results-masthead.is-compact` reduces padding, shrinks title, hides `.results-masthead-body`
+
+**3. Results: Priority Card Severity Accent Border** (`styles.css`, `app.js`)
+
+The Top Priority summary card now displays a colored left border based on issue severity.
+
+- Added `data-severity` attribute to `.results-summary-priority` with values: `critical`, `warning`, `good`, or default (accent)
+- CSS rules: `--red` border for critical (no target / parse < 70 / format < 70), `--amber` for warning (keyword gaps / low match), `--green` for good (near export-ready)
+- `updateResultsSummary()` computes `prioritySeverity` alongside `priorityTitle` and `priorityBody`
+
+**4. Dashboard: Re-Scan Shortcut** (`app.js`, `styles.css`)
+
+Each scan history card now has a "Re-scan" ghost button that navigates to `/scan`. The button is hidden by default and revealed on hover/focus-within, always visible on mobile.
+
+- The card template uses a non-interactive wrapper with separate result links and a separate re-scan button, avoiding invalid nested interactive markup
+- CSS: `opacity: 0` by default, `opacity: 1` on `.scan-history-card:hover` / `.scan-history-card:focus-within`, and `opacity: 1` on mobile (≤768px)
+- Uses `data-action="navigate" data-path="/scan"` for delegated click routing
+
+**5. Profile: Dynamic Momentum CTA** (`app.js`)
+
+`updateProfileMomentum()` now has four branches instead of three, adding a `scansUsed === 0` state:
+
+1. Unverified email → "Resend Verification Email"
+2. Zero scans → "Start Scan" → `/scan`
+3. Low credits (< 1) → "Buy Credits" → `/pricing`
+4. Default → "Open Dashboard" → `/dashboard`
+
+**6. Colorblind-Safe Status Icons in Recruiter Cards** (`app.js`, `app-surfaces.css`)
+
+Status badges in recruiter signal cards and overview stats now include distinguishable SVG shape icons alongside color:
+
+- Captured (success): checkmark polyline (✓)
+- Partial (warning): exclamation-mark circle (⚠)
+- Missing (error): X cross (✗)
+
+CSS `.recruiter-status-icon` class provides consistent sizing and per-tone color overrides.
+
+**7. Score Ring `aria-label` and Route Change Announcements** (`app.js`, `index.html`)
+
+- `animateGauge()` now sets `aria-label` (e.g., "Parse Rate: 85%") and `role="img"` on the parent `.score-gauge` SVG
+- `navigateTo()` now announces the destination page name via the existing `#sr-announcer` live region (`aria-live="polite"`)
+
+**8. Credit Cost Micro-Interaction** (`index.html`, `styles.css`)
+
+Download PDF and DOCX buttons now wrap their label text in `<span class="download-btn-copy">` and include a `<span class="download-cost-hint">1 credit</span>` badge.
+
+- The cost hint is hidden by default (`opacity: 0`) and revealed on hover/focus
+- On mobile (≤768px), the cost hint is always visible
+- Provides upfront cost transparency without cluttering the resting UI
+
+**9. Warm Empty States** (`app.js`)
+
+The dashboard "no recent history" empty state was redesigned:
+
+- Replaced the bare search-circle icon with a targeted document+search SVG illustration
+- Headline changed to "Your first scan starts here"
+- Body copy expanded with clearer value proposition
+- CTA button margin increased for better touch target spacing
+
+### 23.20 Phase 3 CSS Architecture & Polish (2026-04-24)
+
+This pass implemented the Phase 3 architecture and polish items from the Senior Frontend Designer audit.
+
+**1. CSS Token Extraction** (`tokens.css` new file, `styles.css`, `index.html`)
+
+Extracted all design tokens from `styles.css` into a new `public/css/tokens.css` file. This file contains:
+- All `@font-face` declarations for Inter (400, 600, 700)
+- The complete `:root` custom properties block (colors, spacing, typography, motion, radii, shadows, gradients)
+
+`index.html` now loads stylesheets in order: `tokens.css?v=1.0` → `styles.css?v=5.5` → `app-surfaces.css?v=1.2`.
+
+The `styles.css` file header was updated to note that tokens live in `tokens.css` and version bumped to 5.5.0. `FRONTEND_ARCHITECTURE.md` was updated to list `tokens.css` as a source of truth file.
+
+**2. Merged `--bg-deep` / `--bg-base`** (`styles.css`)
+
+Removed the unused `--bg-base: #0e0e14` token. Only `--bg-deep: #0a0a0f` was referenced (4 usages). The values were close enough that merging to a single variable eliminates confusion without any visual change.
+
+**3. Typography Scale Standardization** (`styles.css`)
+
+Added three new design tokens to the `:root` scale:
+- `--text-sm: 0.8125rem` (13px, compact labels)
+- `--text-xs: 0.6875rem` (11px, micro labels)
+- `--text-2xs: 0.625rem` (10px, badge minimums)
+
+These formalize sizes that were already in use as hardcoded `font-size` values throughout the CSS. Progressive migration of hardcoded values to these tokens can happen incrementally.
+
+**4. Unified Accent Family for Credits Badge** (`styles.css`)
+
+Changed `.credits-badge`, `.premium-glow`, `@keyframes pulse-glow`, and `.verify-banner` from the divergent purple `#a855f7` / `rgba(168, 85, 247)` to the app's accent family `#635bff` / `rgba(99, 91, 255)`. Specific changes:
+- `.credits-badge` background: `rgba(168, 85, 247, 0.1)` → `var(--accent-subtle)`
+- `.credits-badge` border: `rgba(168, 85, 247, 0.2)` → `rgba(99, 91, 255, 0.2)`
+- `.credits-badge` color: `#c084fc` → `#a5b4fc`
+- `@keyframes pulse-glow`: all `rgba(168, 85, 247, ...)` → `rgba(99, 91, 255, ...)`
+- `.credits-badge` hover gradient: `rgba(168, 85, 247, ...)` → accent-family values
+- `.verify-banner` gradient and border: `rgba(99, 102, 241, ...)` / `rgba(168, 85, 247, ...)` → `rgba(99, 91, 255, ...)` / `rgba(139, 92, 246, ...)`
+
+**5. Replaced Emoji Favicon with SVG Monogram** (`index.html`)
+
+Changed the favicon from an emoji magnifying glass (🔬) encoded as an SVG data URI to a proper SVG monogram: purple (`#635bff`) rounded square with white "Rx" text. This is deterministic across platforms and aligns with the brand accent color.
+
+**6. Removed Google Favicons External Dependency** (`app.js`)
+
+In `renderJobLinkStatus()`, changed the company favicon source from `https://www.google.com/s2/favicons?domain=${domain}&sz=32` to `https://${domain}/favicon.ico`. This removes the external Google dependency and aligns with the CSP `img-src: https:` directive. The `onerror` handler already hides the favicon image on failure.
+
+**7. Toast Copy Audit** (no changes)
+
+Reviewed all 30+ `showToast()` calls in `app.js`. The existing copy is already user-friendly, specific, and actionable. No modifications needed.
+
+---
+
+### 23.21 Bug Fixes — Cover Letter Leak & Preview Truncation (2026-04-24)
+
+**1. Strip Embedded Cover Letter from Resume Text (`lib/resume-builder.js`)**
+
+- Added `stripCoverLetter(text)` helper that scans line-by-line for common cover-letter start signals:
+  - `/^Dear\s+\w/i`
+  - `/^To\s+Whom\s+It\s+May\s+Concern/i`
+  - `/^Cover\s*Letter\s*$/i`
+  - `/^Letter\s+of\s+Application/i`
+  - `/^Application\s+Letter/i`
+- When a match is found, everything from that line onward is discarded. The remaining text is returned unchanged if no match is found.
+- The helper is invoked inside `buildResumeData()` immediately after `sanitizeForATS()`, which means **all** resume export paths (PDF preview, PDF download, DOCX download) are protected.
+- Rationale: users sometimes upload a single PDF that contains both a resume and a cover letter. Without stripping, the cover-letter prose leaks into the parsed resume sections (usually the last section or `other`), producing an unexpected "ADDITIONAL INFORMATION" block in exports.
+
+**2. Fix Cover Letter Preview Truncation (`public/css/styles.css`, `public/js/app.js`)**
+
+- `.cover-letter-container` CSS changed:
+  - `min-height: 100%` → `height: 100%`
+  - added `overflow-y: auto`
+  - added `-webkit-overflow-scrolling: touch`
+- This ensures the cover-letter tab pane scrolls when its content (plain-text stream or iframe-backed preview) exceeds the available viewport height. Previously the container had no scroll capability and long cover letters were clipped by the parent `overflow: hidden` on `.pdf-preview-container`.
+- `reloadCoverLetterPreview()` in `app.js` now sets `iframe.scrolling = 'auto'` on the created preview iframe, guaranteeing that the iframe itself presents scrollbars if the internal A4-sized document grows taller than the iframe bounds.
+
+**Verified:**
+- `npm run syntax:frontend` passed
+- `npm test` passed (41/41)
+
+### 23.22 Senior Review Cleanup Before Push (2026-04-27)
+
+This pass addressed the senior-review findings against the OpenCode patch before committing and pushing to `main`.
+
+**Security integration**
+
+- Fast-forwarded local `main` to `origin/main` before finalizing the OpenCode changes.
+- Preserved the upstream XSS hardening:
+  - `public/js/app.js` `safeHtml(...)` strips tags if DOMPurify is unavailable.
+  - `lib/template-renderer.js` escapes resume content before applying the `boldMetrics` helper.
+
+**Behavior fixes**
+
+- `public/js/app.js`
+  - Manual JD fallback submissions now append the associated job URL whenever one exists, even if the job-context probe is still pending or was aborted by the toggle switch. This preserves iCIMS/company/ATS inference for flows like Screwfix where the user supplies both URL and pasted JD.
+  - Dashboard scan-history markup now avoids nesting a re-scan `<button>` inside a result `<a>`. The card is a wrapper with separate result links and a separate re-scan button.
+- `lib/jd-processor.js`
+  - Narrowed the company false-positive filter so generic fragments like `Our policy` are suppressed without rejecting valid company names such as `The Trade Desk`.
+
+**Regression coverage**
+
+- Added core-flow coverage for:
+  - company names with leading `The`
+  - generic sentence fragments not becoming companies
+  - `careers-` iCIMS hostnames resolving to the customer company name
+
+**Verified**
+
+- `git diff --check`
+- `npm run syntax`
+- `npm test` (43/43)
+- local `/healthz` returned `ok`

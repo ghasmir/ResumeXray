@@ -614,3 +614,193 @@ This comprehensive remediation phase was successfully executed through a synchro
 **Removed / Fixed:**
 - **XSS Vulnerability**: Eliminated a critical Cross-Site Scripting vulnerability in the PDF rendering pipeline.
 - **Legacy Frontend Code**: Removed `src/` and `_agents/` directories, along with associated build artifacts, simplifying the frontend architecture.
+
+## Timeline: 2026-04-24 (Phase 1 UI/UX Accessibility and Readability Pass)
+**Focus:** Motion safety, touch-friendly interactions, contrast/readability floor, and Safari compositing guard
+
+**Implemented (Changed):**
+- **Global `prefers-reduced-motion` Guard Added**:
+  - updated `public/css/styles.css`
+  - added a comprehensive `@media (prefers-reduced-motion: reduce)` block that suppresses all CSS animations, transitions, and `scroll-behavior` for users who request reduced motion
+  - the block explicitly neutralizes `.animate-fade-up`, `.premium-glow`, `@keyframes pulse-dot`, `@keyframes blink`, and `@keyframes toastSlideIn`
+  - this replaces the previous narrow reduced-motion rule that only affected `.mobile-toggle-inner span`
+- **Card Hover Transforms Made Touch-Safe**:
+  - removed `transform: translateY(...)` from `.card:hover`, `.card-elevated:hover`, `.step-card:hover`, `.pricing-card:hover`, `.btn-primary:hover`, `.results-tab-btn:hover`, and `.scan-history-card:hover`
+  - moved all hover transforms into a single `@media (hover: hover) and (pointer: fine)` block so they only activate on pointer devices
+  - touch devices now see border/shadow/color hover feedback without sticky "lifted" states
+- **Placeholder Contrast Raised**:
+  - changed `.form-group input::placeholder` from `var(--text-faint)` to `var(--text-secondary)` for improved readability
+  - changed `.jd-textarea::placeholder` from `var(--text-muted)` to `var(--text-secondary)`
+- **Small-Text Floor Raised**:
+  - raised `--text-overline` token from `0.6875rem` (11px) to `0.75rem` (12px)
+  - raised `.hero-proof-kicker` from `0.6875rem` to `0.75rem`
+  - raised `.proof-kicker` from `0.675rem` to `0.75rem`
+  - raised `.proof-label` from `0.84rem` to `0.875rem`
+  - raised `.hero-proof-card span:last-child` from `0.8125rem` to `0.875rem`
+  - raised `.badge` from `0.6875rem` to `0.75rem`
+  - raised `.ring-label` and `.ring-sub` from `0.625rem` to `0.6875rem`
+  - raised `.footer-bottom` from `0.7rem` to `0.8125rem`
+  - raised `.footer-disclaimer` from `0.75rem` to `0.8125rem`
+  - standardized `.body-sm` from `0.9375rem` (15px) to `0.875rem` (14px)
+- **Hero Leading Opened**:
+  - changed `.hero-title` from `clamp(2.5rem, 7vw, ...)` with `line-height: 1.05` to `clamp(2rem, 6vw, ...)` with `line-height: 1.12`
+  - improves readability for stressed job-seekers and small viewports
+- **`.nav-cta:hover !important` Removed**:
+  - the `!important` on `.nav-cta:hover` background was a cascade smell
+  - replaced with a higher-specificity `a.nav-cta:hover, .nav-cta:hover` rule with no `!important`
+- **iOS Safari Blur Compositing Guard**:
+  - added `will-change: transform`, `-webkit-transform: translateZ(0)`, and `transform: translateZ(0)` to `.topbar`
+  - promotes the sticky navbar to its own compositor layer, preventing the known Safari flicker when the address bar collapses during scroll
+
+**Verified:**
+- `npm run syntax:frontend` passed
+- `npm test` passed (40/40)
+- visual check at 390px and 1200px: landing, scan, results, dashboard, pricing all render correctly
+- `prefers-reduced-motion: reduce` active: no animations anywhere on the page
+- `@media (hover: hover)` guard confirmed: hover lifts only appear on pointer devices
+
+**Still Open / Residual Notes:**
+- **Phase 2 (UX flow improvements) and Phase 3 (CSS architecture split) remain to be implemented**: this pass covers only the P1 accessibility and readability quick wins.
+- **Full `@media (prefers-reduced-motion)` coverage for JS-driven animations** (toast slide-in, count-up, progress dots) is now declaratively suppressed via CSS — JS-driven DOM animations still fire but produce no visible movement because their CSS properties are forced to near-zero duration.
+
+---
+
+## 2026-04-24 (Phase 2 — UX Flow Improvements)
+
+**Scope:** All 9 Phase 2 items from the Senior Frontend Designer audit.
+
+**Changes across `public/index.html`, `public/css/styles.css`, `public/css/app-surfaces.css`, `public/js/app.js`:**
+
+1. **Scan Page: Segmented Toggle for URL vs JD Input**
+   - replaced the mutual-locking two-input layout (URL + JD textarea) with a segmented toggle (`Job URL` / `Paste Description`) that shows one input panel at a time
+   - removed `.job-details-hint` element and CSS rule; toggle itself serves as mode indicator
+   - added `.job-source-toggle`, `.job-source-toggle-btn`, `.job-source-panel` CSS classes in `styles.css`
+   - added `setupJobSourceToggle()` and `switchJobSourceMode()` JS functions
+   - updated `syncTargetInputState()` to respect active toggle mode (no locking in JD mode)
+   - form validation error messages now context-aware per active mode
+   - `.scan-col-job-details:not(.is-active)` progressive disclosure now includes `.job-source-toggle` and `.job-source-panel`
+
+2. **Results: Session-Based Masthead Compression**
+   - added `viewedResultsSessions` `Set` to track which scan IDs have been viewed in the current session
+   - on first view, masthead shows full layout; on re-visits within the same session, `.is-compact` class is added
+   - compressed state hides `.results-masthead-body`, reduces padding and title size via CSS in `app-surfaces.css`
+
+3. **Results: Priority Card Severity Accent Border**
+   - added `data-severity` attribute (`critical` / `warning` / `good` / default) to `.results-summary-priority`
+   - added CSS `border-left` color per severity: `var(--red)` for critical, `var(--amber)` for warning, `var(--green)` for good
+   - JS `updateResultsSummary()` now computes severity alongside title/body text
+
+4. **Dashboard: Re-Scan Shortcut**
+   - added a `Re-scan` ghost button (`btn-ghost btn-sm`) to each scan history card, hidden by default and revealed on hover
+   - on mobile (≤768px), re-scan button is always visible
+   - added `.scan-history-rescan` CSS with opacity transition
+   - uses `data-action="navigate" data-path="/scan"` for delegated routing
+
+5. **Profile: Dynamic Momentum CTA**
+   - added `scansUsed === 0` branch to `updateProfileMomentum()`: unverified → verify, 0 scans → start scan, low credits → buy, else → open dashboard
+   - each branch sets appropriate title, body, CTA text, and navigation path
+
+6. **Colorblind-Safe Status Icons in Recruiter Cards & Summary Strip**
+   - added SVG shape icons (checkmark ✓, warning ⚠, cross ✗) next to status text in `.recruiter-signal-status`
+   - added matching SVG icons in `.recruiter-overview-stat` for Captured/Partial/Missing counts
+   - added `.recruiter-status-icon` CSS class with per-status color variants
+
+7. **Score Ring `aria-label` and Route Change Announcements**
+   - `animateGauge()` now sets `aria-label` and `role="img"` on the parent `.score-gauge` SVG when a value is rendered
+   - added route label map to `navigateTo()` that announces page changes via `#sr-announcer` live region
+
+8. **Credit Cost Micro-Interaction Near Export Buttons**
+   - added `1 credit` hint badge inside Download PDF and DOCX buttons (`.download-cost-hint`)
+   - hint is hidden by default (`opacity: 0`), revealed on hover/focus, always visible on mobile
+   - added CSS transition and mobile override
+
+9. **Warm Empty States with SVG + CTA**
+   - replaced bare search-circle icon in dashboard empty state with a targeted document+search illustration
+   - warmed up copy: "Your first scan starts here" headline, expanded body text, larger SVG icon
+   - increased bottom margin on CTA button for better spacing
+
+**Verified:**
+- `npm run syntax:frontend` passed
+- `npm test` passed (40/40)
+
+**Still Open:**
+- Progressive migration of hardcoded `font-size` values to `var(--text-*)` tokens (incremental, not blocking)
+
+---
+
+## 2026-04-24 (Phase 3 — CSS Architecture & Polish)
+
+**Scope:** CSS architecture cleanup, design token consolidation, favicon and dependency improvements.
+
+**Changes across `public/css/tokens.css` (new), `public/css/styles.css`, `public/css/app-surfaces.css`, `public/js/app.js`, `public/index.html`, `docs/FRONTEND_ARCHITECTURE.md`:**
+
+1. **CSS Token Extraction**: Extracted `@font-face` declarations and `:root` design tokens (colors, spacing, typography, motion, shadows, radii) into a dedicated `tokens.css` file. This file must load before `styles.css`. Updated `index.html` to include `<link rel="stylesheet" href="/css/tokens.css?v=1.0">` as the first stylesheet. Updated `FRONTEND_ARCHITECTURE.md` to reflect the new file. Removed the equivalent content from `styles.css` (lines 32–182), replacing with a header comment noting that tokens live in `tokens.css`.
+
+2. **Merged `--bg-deep` / `--bg-base`**: Removed the unused `--bg-base: #0e0e14` token. Only `--bg-deep: #0a0a0f` was referenced in the codebase (4 usages in `styles.css`). The two values were close enough that merging to a single variable eliminates confusion.
+
+3. **Typography Scale Standardization**: Added three new design tokens to the `:root` scale: `--text-sm: 0.8125rem` (13px, compact labels), `--text-xs: 0.6875rem` (11px, micro labels), and `--text-2xs: 0.625rem` (10px, badge minimums). These formalize sizes that were already in use as hardcoded values throughout the CSS.
+
+4. **Unified Accent Family for Credits Badge**: Changed `.credits-badge` and `.premium-glow` from the divergent purple `#a855f7` / `rgba(168, 85, 247)` to the app's accent family `#635bff` / `rgba(99, 91, 255)`. This includes:
+   - `.credits-badge` background, border, hover state, and text color
+   - `@keyframes pulse-glow` shadow colors
+   - `.verify-banner` gradient and border
+
+5. **Replaced Emoji Favicon with SVG Monogram**: Changed the favicon from an emoji magnifying glass (🔬) to an SVG data URI with a purple "Rx" monogram on a rounded square (matching `--accent` color). More professional, more deterministic across platforms.
+
+6. **Removed Google Favicons External Dependency**: Changed `renderJobLinkStatus()` in `app.js` from `https://www.google.com/s2/favicons?domain=${domain}&sz=32` to `https://${domain}/favicon.ico`. This removes the dependency on an external Google service and respects the CSP `img-src` policy.
+
+7. **Toast Copy Audit**: Reviewed all 30+ `showToast()` calls. The existing copy is already user-friendly, specific, and actionable. No changes needed.
+
+**Verified:**
+- `npm run syntax:frontend` passed
+- `npm test` passed (40/40)
+- `tokens.css` file verified at `/public/css/tokens.css`
+- HTML loads stylesheets in correct order: tokens.css → styles.css → app-surfaces.css
+
+---
+
+## 2026-04-24 (Bug Fixes — Cover Letter Leak & Preview Truncation)
+
+**Scope:** Fix production bugs identified during the Senior Frontend Designer audit: cover letter text bleeding into resume exports, and cover letter preview being truncated in the tab pane.
+
+**Changes across `lib/resume-builder.js`, `tests/core-flow.test.js`, `public/css/styles.css`, `public/js/app.js`:**
+
+1. **Strip Embedded Cover Letter from Resume Text**
+   - Added `stripCoverLetter(text)` helper in `resume-builder.js` that detects common cover-letter boundaries (`Dear Name`, `To Whom It May Concern`, `Cover Letter`, `Letter of Application`, `Application Letter`) and truncates everything from the first matched line onward.
+   - Integrated the helper into `buildResumeData()` immediately after `sanitizeForATS()` so all export paths (PDF preview, PDF download, DOCX download) exclude cover-letter content.
+   - Added test: `strips embedded cover letter from resume text before parsing` in `core-flow.test.js`.
+
+2. **Fix Cover Letter Preview Truncation in Tab Pane**
+   - Changed `.cover-letter-container` from `min-height: 100%` to `height: 100%` and added `overflow-y: auto` with `-webkit-overflow-scrolling: touch` in `styles.css`. This ensures the container scrolls when content (plain text or iframe) exceeds the available viewport.
+   - Added `iframe.scrolling = 'auto'` in `app.js` when creating the cover-letter preview iframe, ensuring the iframe itself scrolls if internal content overflows.
+
+**Verified:**
+- `npm run syntax:frontend` passed
+- `npm test` passed (41/41)
+
+## 2026-04-27 (Senior Review Cleanup Before Main Push)
+
+**Scope:** Clean up the unpushed OpenCode patch after senior review, integrate upstream security fixes, and resolve the review regressions before pushing to `main`.
+
+**Changed:**
+- **Upstream Security Fixes Preserved**:
+  - fast-forwarded local `main` to `origin/main` before continuing the OpenCode work
+  - kept the `safeHtml(...)` DOMPurify fallback hardening in `public/js/app.js`
+  - kept `escape-html` protection in `lib/template-renderer.js` before `boldMetrics` returns a `SafeString`
+- **Pasted JD + URL Flow Fixed**:
+  - updated `public/js/app.js` so manual JD submissions still forward any associated job URL
+  - this preserves company, portal, and ATS template inference when a user pastes a fallback JD while a job URL probe is pending, aborted, blocked, or failed
+- **Company False-Positive Filter Narrowed**:
+  - updated `lib/jd-processor.js` so generic fragments like `Our policy` are filtered without rejecting real leading-`The` company names such as `The Trade Desk`
+- **Dashboard Scan History Markup Repaired**:
+  - replaced the invalid nested `button` inside result-card `a` markup with a non-interactive card wrapper
+  - the result title/arrow are separate links and the `Re-scan` control remains a separate button
+  - focus styles now use `.scan-history-card:focus-within` so keyboard users see the re-scan shortcut
+- **Regression Coverage Added**:
+  - added tests for leading-`The` company extraction, generic-fragment suppression, and `careers-` iCIMS customer name extraction
+
+**Verified:**
+- `git diff --check`
+- `npm run syntax`
+- `npm test` (43/43)
+- `curl http://localhost:3000/healthz` returned `ok`

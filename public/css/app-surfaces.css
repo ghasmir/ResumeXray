@@ -71,6 +71,23 @@
     radial-gradient(circle at top right, rgba(99, 91, 255, 0.14), transparent 32%),
     linear-gradient(145deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015));
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
+  transition: padding var(--duration-normal) var(--ease),
+              gap var(--duration-normal) var(--ease);
+}
+
+/* ── Session-based masthead compression ──────────────────────── */
+.results-masthead.is-compact {
+  padding: var(--sp-4) var(--sp-6);
+  gap: var(--sp-4);
+}
+.results-masthead.is-compact .results-masthead-kicker {
+  margin-bottom: 0;
+}
+.results-masthead.is-compact .results-masthead-title {
+  font-size: 1.1rem;
+}
+.results-masthead.is-compact .results-masthead-body {
+  display: none;
 }
 
 .results-masthead-copy {
@@ -347,6 +364,10 @@ body.pdf-focus-mode {
   background: rgba(255, 255, 255, 0.035);
 }
 
+.recruiter-overview-stat .recruiter-status-icon {
+  margin-bottom: 2px;
+}
+
 .recruiter-overview-stat.is-found {
   border-color: rgba(74, 222, 128, 0.16);
 }
@@ -437,7 +458,7 @@ body.pdf-focus-mode {
 .recruiter-signal-status {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 4px;
   padding: 6px 10px;
   border-radius: var(--radius-full);
   font-size: 0.6875rem;
@@ -463,6 +484,17 @@ body.pdf-focus-mode {
   background: rgba(248, 113, 113, 0.12);
   color: #fca5a5;
 }
+
+.recruiter-status-icon {
+  flex-shrink: 0;
+  vertical-align: -1px;
+}
+.recruiter-signal-card.is-found .recruiter-status-icon { color: #4ade80; }
+.recruiter-signal-card.is-partial .recruiter-status-icon { color: #facc15; }
+.recruiter-signal-card.is-missing .recruiter-status-icon { color: #f87171; }
+.recruiter-overview-stat.is-found .recruiter-status-icon { color: #4ade80; }
+.recruiter-overview-stat.is-partial .recruiter-status-icon { color: #facc15; }
+.recruiter-overview-stat.is-missing .recruiter-status-icon { color: #f87171; }
 
 .recruiter-signal-detail {
   margin: 0;

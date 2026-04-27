@@ -1,0 +1,162 @@
+/* ═══════════════════════════════════════════════════════════════
+   ResumeXray V5 — Design Tokens
+   ═══════════════════════════════════════════════════════════════
+ *
+ *  Self-contained design token definitions:
+ *  @font-face, :root custom properties, color palette,
+ *  spacing, typography scale, motion, radii, shadows.
+ *
+ *  This file MUST load before all other CSS files.
+ *  ═══════════════════════════════════════════════════════════════ */
+
+/* Self-hosted Inter font — eliminates Google Fonts CDN dependency (saves ~300ms LCP)
+ * Downloaded from: https://fonts.google.com/specimen/Inter
+ * Latin subset only, 3 weights: 400 (body), 600 (headings), 700 (display)
+ * font-display: swap — renders fallback immediately, swaps when loaded */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/inter-latin-400.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/inter-latin-600.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/inter-latin-700.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ── Design Tokens ─────────────────────────────────────────── */
+:root {
+  /* Zinc-based neutrals (warm undertone, premium feel) */
+  --bg-deep: #0a0a0f;
+  --bg-card: #18181b;
+  --bg-card-hover: #1f1f23;
+  --bg-elevated: #27272a;
+  --bg-input: #131316;
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.14);
+  --border-bright: rgba(99, 91, 255, 0.35);
+  --border-focus: rgba(99, 91, 255, 0.5);
+
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #7e7e8a;
+  --text-faint: #9191a1;
+
+  /* Single accent family (indigo-purple — trust + intelligence) */
+  --accent: #635bff;
+  --accent-hover: #5046e4;
+  --accent-subtle: rgba(99, 91, 255, 0.1);
+  --accent-glow: rgba(99, 91, 255, 0.25);
+
+  /* Semantic colors */
+  --green: #22c55e;
+  --green-subtle: rgba(34, 197, 94, 0.1);
+  --amber: #f59e0b;
+  --amber-subtle: rgba(245, 158, 11, 0.1);
+  --red: #ef4444;
+  --red-subtle: rgba(239, 68, 68, 0.1);
+  --blue: #3b82f6;
+  --blue-subtle: rgba(59, 130, 246, 0.1);
+  --purple: #a78bfa;
+  --purple-subtle: rgba(167, 139, 250, 0.1);
+
+  /* Gradients */
+  --gradient-accent: linear-gradient(135deg, #635bff 0%, #8b5cf6 100%);
+  --gradient-text: linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f472b6 100%);
+  --gradient-card: linear-gradient(135deg, rgba(99, 91, 255, 0.04), rgba(139, 92, 246, 0.02));
+  --gradient-shine: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 50%,
+    transparent 100%
+  );
+
+  /* Border radius — consistent scale */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows — subtle, layered (Stripe-style) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 20px rgba(99, 91, 255, 0.15);
+
+  /* Motion — Material Design 3 Standards */
+  /* Standard easing for general transitions */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Decelerate for entering elements */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  /* Accelerate for exiting elements */
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  /* Emphasized for important transitions */
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  /* Spring for playful interactions */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Duration scale */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-emphasis: 400ms;
+
+  /* Spacing — 4px base, 8px grid */
+  --sp-1: 0.25rem; /* 4px */
+  --sp-2: 0.5rem; /* 8px */
+  --sp-3: 0.75rem; /* 12px */
+  --sp-4: 1rem; /* 16px */
+  --sp-5: 1.25rem; /* 20px */
+  --sp-6: 1.5rem; /* 24px */
+  --sp-8: 2rem; /* 32px */
+  --sp-10: 2.5rem; /* 40px */
+  --sp-12: 3rem; /* 48px */
+  --sp-16: 4rem; /* 64px */
+  --sp-20: 5rem; /* 80px */
+  --sp-24: 6rem; /* 96px */
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Georgia', 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Typography Scale — Golden Ratio (1.618) */
+  --text-display: 3.5rem; /* 56px - Hero/Display */
+  --text-display-sm: 2.5rem; /* 40px - Large headlines */
+  --text-headline: 2rem; /* 32px - Headlines */
+  --text-title-lg: 1.5rem; /* 24px - Large titles */
+  --text-title: 1.25rem; /* 20px - Titles */
+  --text-body-lg: 1.125rem; /* 18px - Large body */
+  --text-body: 1rem; /* 16px - Body (base) */
+  --text-body-sm: 0.875rem; /* 14px - Small body */
+  --text-sm: 0.8125rem; /* 13px - Compact labels */
+  --text-caption: 0.75rem; /* 12px - Captions */
+  --text-overline: 0.75rem; /* 12px — minimum readable size */
+  --text-xs: 0.6875rem; /* 11px — micro labels */
+  --text-2xs: 0.625rem; /* 10px — badge minimums */
+}

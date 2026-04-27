@@ -6,7 +6,9 @@ ResumeXray uses a single frontend: the server-rendered SPA shell in `public/`.
 
 - `public/index.html`
 - `public/js/app.js`
-- `public/css/styles.css`
+- `public/css/tokens.css` — Design tokens and @font-face (MUST load first)
+- `public/css/styles.css` — Layer 1 base definitions + Layer 2 premium overrides
+- `public/css/app-surfaces.css` — View-level surface styles (results, recruiter, dashboard, profile)
 
 `server.js` serves these files directly. There is no separate client build pipeline required for the active app.
 

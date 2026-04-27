@@ -258,7 +258,8 @@
     </script>
 
     <!-- Critical resource hints (LCP optimization) -->
-    <link rel="preload" href="/css/styles.css?v=3.6" as="style" />
+    <link rel="preload" href="/css/tokens.css?v=1.0" as="style" />
+    <link rel="preload" href="/css/styles.css?v=5.5" as="style" />
     <!-- §4.8: Self-hosted fonts loaded via CSS @font-face — no external CDN -->
     <!-- §1.5: Preconnect to Stripe API only (the only allowed third-party) -->
     <link rel="dns-prefetch" href="https://api.stripe.com" />
@@ -266,12 +267,13 @@
     <!-- PDF.js: canvas-based renderer — prevents native browser PDF toolbar from appearing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs" type="module"></script>
 
-    <link rel="stylesheet" href="/css/styles.css?v=3.6" />
-    <link rel="stylesheet" href="/css/app-surfaces.css?v=1.1" />
+    <link rel="stylesheet" href="/css/tokens.css?v=1.0" />
+    <link rel="stylesheet" href="/css/styles.css?v=5.5" />
+    <link rel="stylesheet" href="/css/app-surfaces.css?v=1.2" />
     <link
       rel="icon"
       type="image/svg+xml"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🔬%3C/text%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23635bff'/%3E%3Ctext x='50' y='68' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='52' font-weight='700' fill='white'%3ERx%3C/text%3E%3C/svg%3E"
     />
     <link
       rel="apple-touch-icon"
@@ -1545,67 +1547,90 @@
                   </svg>
                   Target Job
                 </div>
-                <div class="job-details-hint" id="job-details-hint">
-                  Add a job link so we can fetch the role, detect the hiring
-                  portal, and optimize for the right ATS flow automatically.
-                </div>
-
-                <!-- URL Input with company detection -->
-                <div class="form-group" style="margin-bottom: var(--sp-3)">
-                  <label class="form-label" for="job-url-input">
+                <!-- Segmented toggle: URL vs JD -->
+                <div class="job-source-toggle" role="radiogroup" aria-label="Job source input mode">
+                  <button
+                    type="button"
+                    class="job-source-toggle-btn active"
+                    id="toggle-url-mode"
+                    role="radio"
+                    aria-checked="true"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
                     Job URL
-                    <span class="form-label-optional">fetches company, role, and portal</span>
-                  </label>
-                  <div class="job-url-wrapper">
-                    <div class="job-url-icon" aria-hidden="true">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-                        <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-                      </svg>
-                    </div>
-                    <input
-                      type="url"
-                      id="job-url-input"
-                      class="job-url-input"
-                      placeholder="https://jobs.lever.co/company/role-title"
-                      autocomplete="off"
-                      spellcheck="false"
-                    />
-                  </div>
-                  <div id="company-preview" class="company-preview" style="display: none">
-                    <img
-                      id="company-favicon"
-                      class="company-favicon"
-                      src=""
-                      alt=""
-                      width="16"
-                      height="16"
-                    />
-                    <span id="company-name-preview" class="company-name-preview"></span>
-                    <span class="company-preview-tick">✓ Company detected</span>
-                  </div>
-                  <div id="job-link-status" class="job-link-status" style="display: none"></div>
+                  </button>
+                  <button
+                    type="button"
+                    class="job-source-toggle-btn"
+                    id="toggle-jd-mode"
+                    role="radio"
+                    aria-checked="false"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Paste Description
+                  </button>
                 </div>
 
-                <!-- JD Textarea -->
-                <div class="form-group">
-                  <label class="form-label" for="job-input">
-                    Job Description
-                    <span class="form-label-optional">paste only if the portal blocks auto-fetch</span>
-                  </label>
-                  <textarea
-                    id="job-input"
-                    class="jd-textarea"
-                    rows="4"
-                    placeholder="Paste the job description only if the link is blocked or you want to add missing details..."
-                  ></textarea>
+                <!-- URL Input with company detection (shown in URL mode) -->
+                <div class="job-source-panel" id="panel-url-mode">
+                  <div class="form-group" style="margin-bottom: var(--sp-3)">
+                    <label class="form-label" for="job-url-input">
+                      Job URL
+                      <span class="form-label-optional">fetches company, role, and portal</span>
+                    </label>
+                    <div class="job-url-wrapper">
+                      <div class="job-url-icon" aria-hidden="true">
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                          <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                        </svg>
+                      </div>
+                      <input
+                        type="url"
+                        id="job-url-input"
+                        class="job-url-input"
+                        placeholder="https://jobs.lever.co/company/role-title"
+                        autocomplete="off"
+                        spellcheck="false"
+                      />
+                    </div>
+                    <div id="company-preview" class="company-preview" style="display: none">
+                      <img
+                        id="company-favicon"
+                        class="company-favicon"
+                        src=""
+                        alt=""
+                        width="16"
+                        height="16"
+                      />
+                      <span id="company-name-preview" class="company-name-preview"></span>
+                      <span class="company-preview-tick">✓ Company detected</span>
+                    </div>
+                    <div id="job-link-status" class="job-link-status" style="display: none"></div>
+                  </div>
+                </div>
+
+                <!-- JD Textarea (shown in JD mode) -->
+                <div class="job-source-panel" id="panel-jd-mode" style="display: none">
+                  <div class="form-group">
+                    <label class="form-label" for="job-input">
+                      Job Description
+                      <span class="form-label-optional">paste the full job posting</span>
+                    </label>
+                    <textarea
+                      id="job-input"
+                      class="jd-textarea"
+                      rows="4"
+                      placeholder="Paste the job description here..."
+                    ></textarea>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2266,8 +2291,14 @@
                         </svg>
                         0</span
                       >
-                      <button id="download-pdf" class="btn btn-primary">Download PDF</button>
-                      <button id="download-docx" class="btn btn-secondary btn-sm">DOCX</button>
+                      <button id="download-pdf" class="btn btn-primary">
+                        <span class="download-btn-copy">Download PDF</span>
+                        <span class="download-cost-hint">1 credit</span>
+                      </button>
+                      <button id="download-docx" class="btn btn-secondary btn-sm">
+                        <span class="download-btn-copy">DOCX</span>
+                        <span class="download-cost-hint">1 credit</span>
+                      </button>
                     </div>
                   </div>
                 </div>

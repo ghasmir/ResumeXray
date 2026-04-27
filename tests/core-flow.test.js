@@ -6,6 +6,7 @@ const path = require('path');
 const JSZip = require('jszip');
 const {
   detectATS,
+  extractCompanyFromUrl,
   processJobDescription,
   sanitizeCompanyNameValue,
 } = require('../lib/jd-processor');
@@ -188,6 +189,29 @@ Excellent attention to detail`;
     assert.equal(result.jobTitle, 'Operations Booking Agent');
     assert.equal(result.companyName, 'Lock Doctor');
     assert.equal(sanitizeCompanyNameValue('ie.indeed.com'), '');
+  });
+
+  it('keeps real company names while filtering generic sentence fragments', async () => {
+    const realCompany = await processJobDescription(
+      'The Trade Desk is looking for a Senior Product Manager.\n\nResponsibilities include customer discovery and roadmap ownership.',
+      '',
+      ''
+    );
+    const genericFragment = await processJobDescription(
+      'Our policy is to serve customers with care.\n\nRetail Assistant\n\nResponsibilities include store operations.',
+      '',
+      ''
+    );
+
+    assert.equal(realCompany.companyName, 'The Trade Desk');
+    assert.equal(genericFragment.companyName, '');
+  });
+
+  it('extracts customer iCIMS company names without careers prefixes', () => {
+    assert.equal(
+      extractCompanyFromUrl('https://careers-screwfix.icims.com/jobs/143097/job'),
+      'Screwfix'
+    );
   });
 
   it('does not surface short ambiguous keywords like go and r without programming context', () => {
@@ -495,6 +519,18 @@ B.Sc. Business 2015`;
     assert.equal(source, 'structured_fallback');
     assert.match(resumeText, /Alex Morgan/);
     assert.match(resumeText, /EXPERIENCE/);
+  });
+
+  it('strips embedded cover letter from resume text before parsing', () => {
+    const resumeWithCl = `Alex Morgan\nalex@example.com\n\nPROFESSIONAL SUMMARY\nResults-driven manager with 5+ years of experience delivering professional results. Known for clear execution and strong communication.\n\nEXPERIENCE\nManager - Northstar\n• Led team.\n\nDear Hiring Manager,\n\nI am excited to apply...\n\nSincerely,\nAlex`;
+    const data = buildResumeData(resumeWithCl, {}, [], []);
+    assert.equal(data.sections.name, 'Alex Morgan');
+    assert.match(data.sections.summary, /Results-driven manager/);
+    assert.equal(data.sections.experience.length, 1);
+    assert.equal(data.sections.other, '');
+    const rawOther = JSON.stringify(data.sections).toLowerCase();
+    assert.ok(!rawOther.includes('dear hiring manager'), 'cover letter content should be stripped');
+    assert.ok(!rawOther.includes('i am excited to apply'), 'cover letter content should be stripped');
   });
 
   it('normalizes persisted job context', () => {
