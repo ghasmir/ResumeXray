@@ -88,7 +88,8 @@ ATS Workflows, Workday, Lever, LinkedIn Jobs, SQL, Analytics, Process Design, St
       },
       sectionData: {
         name: 'Alex Morgan',
-        contact: 'alex.morgan@example.com | +353 87 555 0142 | linkedin.com/in/alexmorgan | Dublin, Ireland',
+        contact:
+          'alex.morgan@example.com | +353 87 555 0142 | linkedin.com/in/alexmorgan | Dublin, Ireland',
         sections: {
           summary: { found: true, label: 'Professional Summary' },
           experience: { found: true, label: 'Work Experience' },
@@ -118,7 +119,8 @@ ATS Workflows, Workday, Lever, LinkedIn Jobs, SQL, Analytics, Process Design, St
         {
           keyword: 'portal completion',
           section: 'Experience',
-          suggestion: 'Mention how you reduced candidate drop-off or manual field correction after upload.',
+          suggestion:
+            'Mention how you reduced candidate drop-off or manual field correction after upload.',
         },
       ],
       optimizedResumeText: baseResumeText,
@@ -137,16 +139,20 @@ Sincerely,`,
     const existing = db
       .prepare('SELECT id FROM scans WHERE user_id = ? AND job_url = ? LIMIT 1')
       .get(userId, payload.jobUrl);
-    if (existing) return existing.id;
+    if (existing) {
+      return existing.id;
+    }
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO scans (
         user_id, resume_id, access_token, job_description, job_url, job_title, company_name,
         ats_platform, job_context, parse_rate, format_health, match_rate, xray_data, format_issues,
         keyword_data, section_data, recommendations, ai_suggestions, optimized_bullets, keyword_plan,
         optimized_resume_text, cover_letter_text, render_meta
       ) VALUES (?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `
+    ).run(
       userId,
       payload.jobDescription,
       payload.jobUrl,
@@ -186,22 +192,28 @@ Sincerely,`,
   const proPassword = await bcrypt.hash('pro12345', 12);
 
   // Free tier demo user
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR IGNORE INTO users (email, name, password_hash, tier, credit_balance, is_verified)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run('demo@resumexray.pro', 'Demo User', demoPassword, 'free', 3, 1);
+  `
+  ).run('demo@resumexray.pro', 'Demo User', demoPassword, 'free', 3, 1);
 
   // Pro tier demo user
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR IGNORE INTO users (email, name, password_hash, tier, credit_balance, is_verified)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run('pro@resumexray.pro', 'Pro User', proPassword, 'pro', 25, 1);
+  `
+  ).run('pro@resumexray.pro', 'Pro User', proPassword, 'pro', 25, 1);
 
   // Hustler tier demo user
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR IGNORE INTO users (email, name, password_hash, tier, credit_balance, is_verified)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run('hustler@resumexray.pro', 'Hustler User', proPassword, 'hustler', 100, 1);
+  `
+  ).run('hustler@resumexray.pro', 'Hustler User', proPassword, 'hustler', 100, 1);
 
   console.log('  ✓ Demo users created');
   console.log('    demo@resumexray.pro / demo1234 (free, 3 credits)');
@@ -211,19 +223,23 @@ Sincerely,`,
   // ── Credit Transactions ───────────────────────────────────────
   const proUser = db.prepare('SELECT id FROM users WHERE email = ?').get('pro@resumexray.pro');
   if (proUser) {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO credit_transactions (user_id, amount, type, description)
       VALUES (?, ?, ?, ?)
-    `).run(proUser.id, 25, 'purchase', 'Pro plan — 25 credits');
+    `
+    ).run(proUser.id, 25, 'purchase', 'Pro plan — 25 credits');
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO credit_transactions (user_id, amount, type, description)
       VALUES (?, ?, ?, ?)
-    `).run(proUser.id, -1, 'scan', 'ATS scan — Software Engineer at Google');
+    `
+    ).run(proUser.id, -1, 'scan', 'ATS scan — Software Engineer at Google');
   }
 
   console.log('  ✓ Sample credit transactions created');
-  
+
   // ── Representative Portal Scans ─────────────────────────────
   if (proUser) {
     const existingResume = db
@@ -232,10 +248,12 @@ Sincerely,`,
     const resumeId =
       existingResume?.id ||
       db
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO resumes (user_id, name, file_name, file_type, file_size, raw_text, parsed_data)
           VALUES (?, ?, ?, ?, ?, ?, ?)
-        `)
+        `
+        )
         .run(
           proUser.id,
           'Alex Morgan Base Resume',
@@ -252,7 +270,8 @@ Sincerely,`,
 
     const seedScans = [
       {
-        jobUrl: 'https://northstar.wd5.myworkdayjobs.com/en-US/Careers/job/Senior-Program-Manager_R-48211',
+        jobUrl:
+          'https://northstar.wd5.myworkdayjobs.com/en-US/Careers/job/Senior-Program-Manager_R-48211',
         jobTitle: 'Senior Program Manager',
         companyName: 'Northstar',
         jobDescription:
@@ -377,10 +396,12 @@ Sincerely,`,
       if (scanId) {
         insertedCount++;
         db.prepare('UPDATE scans SET resume_id = ? WHERE id = ?').run(resumeId, scanId);
-        db.prepare(`
+        db.prepare(
+          `
           INSERT OR IGNORE INTO jobs (user_id, scan_id, company, title, url, status, location, remote)
           VALUES (?, ?, ?, ?, ?, 'saved', 'Ireland', 'hybrid')
-        `).run(proUser.id, scanId, scan.companyName, scan.jobTitle, scan.jobUrl);
+        `
+        ).run(proUser.id, scanId, scan.companyName, scan.jobTitle, scan.jobUrl);
       }
     }
     console.log(`  ✓ Representative scan fixtures ready (${insertedCount} new)`);

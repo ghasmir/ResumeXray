@@ -32,37 +32,33 @@ function configureHelmet() {
       "'self'",
       (req, res) => `'nonce-${res.locals.cspNonce}'`,
       "'strict-dynamic'",
-      "https://js.stripe.com",
-      "https://accounts.google.com",
+      'https://js.stripe.com',
+      'https://accounts.google.com',
     ],
     scriptSrcAttr: ["'none'"], // block all inline event handlers
     // §4.8: Google Fonts removed — fonts are self-hosted
     styleSrc: ["'self'", "'unsafe-inline'"],
-    fontSrc: ["'self'", "data:"],
-    imgSrc: ["'self'", "data:", "https:", "blob:"],
+    fontSrc: ["'self'", 'data:'],
+    imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
     connectSrc: [
       "'self'",
-      "https://api.stripe.com",
-      "https://accounts.google.com",
-      "https://*.ingest.sentry.io",      // §MED: Sentry error reporting
-      "https://*.ingest.de.sentry.io",   // Sentry EU datacenter
+      'https://api.stripe.com',
+      'https://accounts.google.com',
+      'https://*.ingest.sentry.io', // §MED: Sentry error reporting
+      'https://*.ingest.de.sentry.io', // Sentry EU datacenter
     ],
     frameSrc: [
       "'self'",
-      "blob:",
-      "https://js.stripe.com",
-      "https://hooks.stripe.com",
-      "https://accounts.google.com",
+      'blob:',
+      'https://js.stripe.com',
+      'https://hooks.stripe.com',
+      'https://accounts.google.com',
     ],
     objectSrc: ["'none'"],
     baseUri: ["'self'"],
-    formAction: [
-      "'self'",
-      "https://accounts.google.com",
-      "https://checkout.stripe.com",
-    ],
+    formAction: ["'self'", 'https://accounts.google.com', 'https://checkout.stripe.com'],
     frameAncestors: ["'self'"],
-    workerSrc: ["'self'", "blob:"],
+    workerSrc: ["'self'", 'blob:'],
     manifestSrc: ["'self'"],
     mediaSrc: ["'self'"],
     // CSP violation reports (wire to Sentry or a dedicated collector)
@@ -128,7 +124,7 @@ function permissionsPolicyMiddleware(req, res, next) {
       'sync-xhr=()',
       'usb=()',
       'xr-spatial-tracking=()',
-    ].join(', '),
+    ].join(', ')
   );
   // Note: X-Frame-Options is intentionally NOT set here.
   // clickjackingProtection middleware (registered after this) sets SAMEORIGIN,
@@ -151,8 +147,11 @@ function buildRateLimitStore(prefix) {
         const msg =
           'Rate limiters using in-memory store (UPSTASH_REDIS_URL not set). ' +
           'This is UNSAFE under PM2 cluster mode — limits are per-worker, not global.';
-        if (process.env.NODE_ENV === 'production') log.error(msg);
-        else log.warn(msg);
+        if (process.env.NODE_ENV === 'production') {
+          log.error(msg);
+        } else {
+          log.warn(msg);
+        }
         fallbackLogged = true;
       }
       rateLimitStoreBuilder = false;
@@ -166,7 +165,7 @@ function buildRateLimitStore(prefix) {
         rateLimitStoreBuilder = false;
         return undefined;
       }
-      rateLimitStoreBuilder = (p) =>
+      rateLimitStoreBuilder = p =>
         new RedisStore({
           sendCommand: (...args) => client.call(...args),
           prefix: `rl:${p}:`,
@@ -185,12 +184,21 @@ function buildRateLimitStore(prefix) {
 
 // ── Key Generator (user id preferred, IP fallback) ────────────────────────────
 function keyByUserOrIp(req) {
-  if (req.user && req.user.id) return `u:${req.user.id}`;
+  if (req.user && req.user.id) {
+    return `u:${req.user.id}`;
+  }
   // express-rate-limit already strips proxy chain if `trust proxy` is set.
   return `ip:${req.ip || 'unknown'}`;
 }
 
-function makeLimiter({ prefix, windowMs, max, message, skipSuccessfulRequests = false, keyByIp = false }) {
+function makeLimiter({
+  prefix,
+  windowMs,
+  max,
+  message,
+  skipSuccessfulRequests = false,
+  keyByIp = false,
+}) {
   return rateLimit({
     windowMs,
     max,
@@ -198,7 +206,7 @@ function makeLimiter({ prefix, windowMs, max, message, skipSuccessfulRequests = 
     legacyHeaders: false,
     message: { error: message },
     skipSuccessfulRequests,
-    keyGenerator: keyByIp ? (req) => `ip:${req.ip || 'unknown'}` : keyByUserOrIp,
+    keyGenerator: keyByIp ? req => `ip:${req.ip || 'unknown'}` : keyByUserOrIp,
     store: buildRateLimitStore(prefix),
   });
 }
@@ -253,10 +261,16 @@ const downloadLimiter = makeLimiter({
 // Strips ALL HTML from plain-text user inputs (job title, JD, company name, …).
 // Uses `sanitize-html` with an empty allowlist — regex-free, bypass-resistant.
 function sanitizeInput(text) {
-  if (text === null || text === undefined) return '';
-  if (typeof text !== 'string') text = String(text);
+  if (text === null || text === undefined) {
+    return '';
+  }
+  if (typeof text !== 'string') {
+    text = String(text);
+  }
   // Clamp length first to prevent resource exhaustion.
-  if (text.length > 50_000) text = text.slice(0, 50_000);
+  if (text.length > 50_000) {
+    text = text.slice(0, 50_000);
+  }
   return sanitizeHtml(text, {
     allowedTags: [],
     allowedAttributes: {},

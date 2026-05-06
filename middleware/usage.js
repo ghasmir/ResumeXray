@@ -1,6 +1,6 @@
 /**
  * Usage Middleware — Credit-Based Limits (v3)
- * 
+ *
  * Credit Economy v3:
  *   - Scans are FREE (hooks the user with ATS score + knockout risks)
  *   - AI bullet rewrites are FREE (sandbox — show full value before paying)
@@ -21,11 +21,11 @@ async function checkScanLimit(req, res, next) {
     // the raw x-forwarded-for header is unsafe and can be spoofed.
     const ip = req.ip || 'unknown';
     const count = await getGuestScanCount(ip);
-    
+
     if (count >= 2) {
       return res.status(429).json({
         error: "You've used your 2 free scans. Create a free account to continue scanning!",
-        signup: true
+        signup: true,
       });
     }
     return next();
@@ -83,7 +83,9 @@ async function checkExportCredit(req, res, next) {
  * Legacy compatibility: resume save limit (no limit in credit system).
  */
 function checkResumeLimit(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'Please log in to save resumes.' });
+  if (!req.user) {
+    return res.status(401).json({ error: 'Please log in to save resumes.' });
+  }
   next(); // No resume limit in credit system
 }
 

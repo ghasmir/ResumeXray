@@ -123,12 +123,24 @@ const PROVIDER_COLUMNS = Object.freeze({
   github: 'github_id',
 });
 
+function advisoryLockKey(value) {
+  const digest = crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 16);
+  const unsigned = BigInt(`0x${digest}`);
+  const maxSigned = BigInt('0x7fffffffffffffff');
+  const signed = unsigned > maxSigned ? unsigned - BigInt('0x10000000000000000') : unsigned;
+  return signed.toString();
+}
+
 async function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
   const column = PROVIDER_COLUMNS[provider];
-  if (!column) throw new Error(`Unknown OAuth provider: ${provider}`);
+  if (!column) {
+    throw new Error(`Unknown OAuth provider: ${provider}`);
+  }
 
   let user = await queryOne(`SELECT * FROM users WHERE ${column} = $1`, [profileId]);
-  if (user) return decryptUserEmail(user);
+  if (user) {
+    return decryptUserEmail(user);
+  }
 
   // Check if email already exists (link account) — try hash first, then plaintext
   const hash = emailHash(email);
@@ -137,9 +149,17 @@ async function findOrCreateUser({ provider, profileId, email, name, avatarUrl })
     user = await queryOne('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
   }
   if (user) {
-    // Auto-link OAuth provider to existing account (including password accounts).
-    // This is safe because Google/LinkedIn/GitHub all verify email ownership before
-    // issuing OAuth tokens — the provider has already proven the user owns this email.
+    if (user.password_hash && !user[column]) {
+      const pendingUser = decryptUserEmail(user);
+      pendingUser.requiresLinking = true;
+      pendingUser.pendingProvider = provider;
+      pendingUser.pendingProfileId = profileId;
+      pendingUser.pendingAvatarUrl = avatarUrl || null;
+      return pendingUser;
+    }
+
+    // SSO-only accounts can link another verified OAuth provider automatically.
+    // Password accounts must complete /auth/link-account first.
     await pool.query(
       `UPDATE users
        SET ${column} = $1,
@@ -220,7 +240,9 @@ async function verifyUser(userId) {
       'SELECT is_verified, email_verified_at FROM users WHERE id = $1 FOR UPDATE',
       [userId]
     );
-    if (!rows[0]) return;
+    if (!rows[0]) {
+      return;
+    }
 
     const alreadyVerified = rows[0].email_verified_at !== null;
 
@@ -328,7 +350,9 @@ async function deductCredit(userId, type, description = '') {
       'SELECT credit_balance FROM users WHERE id = $1 FOR UPDATE',
       [userId]
     );
-    if (!rows[0] || (rows[0].credit_balance ?? 0) < 1) return false;
+    if (!rows[0] || (rows[0].credit_balance ?? 0) < 1) {
+      return false;
+    }
 
     await client.query(
       'UPDATE users SET credit_balance = credit_balance - 1, updated_at = NOW() WHERE id = $1',
@@ -344,8 +368,13 @@ async function deductCredit(userId, type, description = '') {
 
 async function deductCreditAtomic(userId, type, idempotencyKey, description = '') {
   return withTx(async client => {
-    // §CRIT: Idempotency check INSIDE transaction — prevents TOCTOU race.
-    // Two concurrent requests can no longer both pass the check before insert.
+    // Serialize identical export keys before checking the history table.
+    // SELECT FOR UPDATE cannot lock a missing row, so use a transaction-scoped
+    // advisory lock to prevent duplicate credit deductions under concurrency.
+    await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [
+      advisoryLockKey(idempotencyKey),
+    ]);
+
     const { rows: existing } = await client.query(
       'SELECT id FROM download_history WHERE idempotency_key = $1 FOR UPDATE',
       [idempotencyKey]
@@ -373,7 +402,7 @@ async function deductCreditAtomic(userId, type, idempotencyKey, description = ''
     );
 
     const parts = idempotencyKey.split('-');
-    const scanId = parts[1] ? parseInt(parts[1]) : null;
+    const scanId = parts[1] ? parseInt(parts[1], 10) : null;
     const format = parts[2] || 'pdf';
     const exportType = parts[3] || 'resume';
 
@@ -502,11 +531,15 @@ async function updateScan(scanId, data) {
   let idx = 1;
   for (const [key, val] of Object.entries(data)) {
     const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-    if (!ALLOWED_COLS.includes(col)) continue;
+    if (!ALLOWED_COLS.includes(col)) {
+      continue;
+    }
     fields.push(`${col} = $${idx++}`);
     values.push(typeof val === 'object' && val !== null ? JSON.stringify(val) : val);
   }
-  if (fields.length === 0) return;
+  if (fields.length === 0) {
+    return;
+  }
   values.push(scanId);
   await pool.query(`UPDATE scans SET ${fields.join(', ')} WHERE id = $${idx}`, values);
 }
@@ -526,7 +559,9 @@ async function getScan(id, userId, accessToken = null) {
   if (userId !== null && userId !== undefined) {
     return queryOne('SELECT * FROM scans WHERE id = $1 AND user_id = $2', [id, Number(userId)]);
   }
-  if (!accessToken) return null;
+  if (!accessToken) {
+    return null;
+  }
   return queryOne('SELECT * FROM scans WHERE id = $1 AND user_id IS NULL AND access_token = $2', [
     id,
     accessToken,
@@ -535,7 +570,15 @@ async function getScan(id, userId, accessToken = null) {
 
 async function updateScanWithOptimizations(
   scanId,
-  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform = null, jobContext = null, renderMeta = null }
+  {
+    optimizedBullets,
+    keywordPlan,
+    optimizedResumeText,
+    coverLetterText,
+    atsPlatform = null,
+    jobContext = null,
+    renderMeta = null,
+  }
 ) {
   await pool.query(
     'UPDATE scans SET optimized_bullets = $1, keyword_plan = $2, optimized_resume_text = $3, cover_letter_text = $4, ats_platform = $5, job_context = COALESCE($6, job_context), render_meta = COALESCE($7, render_meta) WHERE id = $8',
@@ -560,13 +603,17 @@ async function getFullScan(scanId, userId = null, accessToken = null) {
       Number(userId),
     ]);
   } else {
-    if (!accessToken) return null;
+    if (!accessToken) {
+      return null;
+    }
     scan = await queryOne(
       'SELECT * FROM scans WHERE id = $1 AND user_id IS NULL AND access_token = $2',
       [scanId, accessToken]
     );
   }
-  if (!scan) return null;
+  if (!scan) {
+    return null;
+  }
   const jsonCols = [
     'xray_data',
     'format_issues',
@@ -583,7 +630,9 @@ async function getFullScan(scanId, userId = null, accessToken = null) {
     if (scan[col] && typeof scan[col] === 'string') {
       try {
         scan[col] = JSON.parse(scan[col]);
-      } catch {}
+      } catch {
+        // Preserve malformed legacy JSON as its original string value.
+      }
     }
   }
   return scan;
@@ -640,11 +689,15 @@ async function updateJob(id, userId, data) {
   let idx = 1;
   for (const [key, val] of Object.entries(data)) {
     const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-    if (!ALLOWED_COLS.includes(col)) continue;
+    if (!ALLOWED_COLS.includes(col)) {
+      continue;
+    }
     fields.push(`${col} = $${idx++}`);
     values.push(val);
   }
-  if (fields.length === 0) return;
+  if (fields.length === 0) {
+    return;
+  }
   fields.push('updated_at = NOW()');
   values.push(id, userId);
   await pool.query(
@@ -763,7 +816,9 @@ function emailHash(email) {
 }
 
 function decryptUserEmail(user) {
-  if (!user) return user;
+  if (!user) {
+    return user;
+  }
   user.email = decryptPii(user.email);
   return user;
 }
@@ -774,14 +829,20 @@ const PII_ALGORITHM = 'aes-256-gcm';
 
 function getPiiKey() {
   const hex = process.env.PII_ENCRYPTION_KEY;
-  if (!hex || hex.length !== 64) return null;
+  if (!hex || hex.length !== 64) {
+    return null;
+  }
   return Buffer.from(hex, 'hex');
 }
 
 function encryptPii(plaintext) {
-  if (!plaintext || typeof plaintext !== 'string') return plaintext;
+  if (!plaintext || typeof plaintext !== 'string') {
+    return plaintext;
+  }
   const key = getPiiKey();
-  if (!key) return plaintext;
+  if (!key) {
+    return plaintext;
+  }
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv(PII_ALGORITHM, key, iv);
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
@@ -791,11 +852,17 @@ function encryptPii(plaintext) {
 }
 
 function decryptPii(ciphertext) {
-  if (!ciphertext || typeof ciphertext !== 'string') return ciphertext;
+  if (!ciphertext || typeof ciphertext !== 'string') {
+    return ciphertext;
+  }
   const key = getPiiKey();
-  if (!key) return ciphertext;
+  if (!key) {
+    return ciphertext;
+  }
   const parts = ciphertext.split(':');
-  if (parts.length !== 3) return ciphertext;
+  if (parts.length !== 3) {
+    return ciphertext;
+  }
   try {
     const [ivHex, authTagHex, encrypted] = parts;
     const decipher = crypto.createDecipheriv(PII_ALGORITHM, key, Buffer.from(ivHex, 'hex'));
@@ -853,7 +920,9 @@ async function createUser({ email, name, passwordHash, verificationToken }) {
 }
 
 async function claimGuestScans(userId, accessTokens) {
-  if (!accessTokens || accessTokens.length === 0) return 0;
+  if (!accessTokens || accessTokens.length === 0) {
+    return 0;
+  }
   const placeholders = accessTokens.map((_, i) => `$${i + 2}`).join(',');
   const result = await pool.query(
     `UPDATE scans SET user_id = $1 WHERE user_id IS NULL AND access_token IN (${placeholders})`,

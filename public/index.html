@@ -263,9 +263,8 @@
     <!-- §4.8: Self-hosted fonts loaded via CSS @font-face — no external CDN -->
     <!-- §1.5: Preconnect to Stripe API only (the only allowed third-party) -->
     <link rel="dns-prefetch" href="https://api.stripe.com" />
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
     <!-- PDF.js: canvas-based renderer — prevents native browser PDF toolbar from appearing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs" type="module"></script>
+    <script src="/js/vendor/pdfjs/pdf.min.mjs" type="module"></script>
 
     <link rel="stylesheet" href="/css/tokens.css?v=1.0" />
     <link rel="stylesheet" href="/css/styles.css?v=5.5" />
@@ -535,7 +534,9 @@
         <div class="hero">
           <div class="hero-badge animate-fade-up">BUILT AROUND REAL ATS PARSING PATTERNS</div>
           <h1 class="hero-title animate-fade-up">
-            Paste One Job Link.<br /><span class="gradient-text">Preview the Portal-Ready Resume.</span>
+            Paste One Job Link.<br /><span class="gradient-text"
+              >Preview the Portal-Ready Resume.</span
+            >
           </h1>
           <p class="hero-sub animate-fade-up" style="animation-delay: 0.05s">
             Upload your resume once, let ResumeXray fetch the company and job details, detect the
@@ -545,7 +546,9 @@
             <button class="btn btn-primary btn-lg" data-action="navigate" data-path="/scan">
               Build My ATS-Ready Resume
             </button>
-            <span class="hero-note">2 free previews/day · Job link in · Export only when ready</span>
+            <span class="hero-note"
+              >2 free previews/day · Job link in · Export only when ready</span
+            >
           </div>
           <div class="hero-proof-strip animate-fade-up" style="animation-delay: 0.14s">
             <div class="hero-proof-card">
@@ -604,7 +607,14 @@
             <div class="step-card animate-fade-up">
               <div class="step-number">1</div>
               <div class="step-icon" aria-hidden="true">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
@@ -618,7 +628,14 @@
             <div class="step-card animate-fade-up" style="animation-delay: 0.1s">
               <div class="step-number">2</div>
               <div class="step-icon" aria-hidden="true">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
                   <circle cx="11" cy="11" r="7" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
@@ -632,7 +649,14 @@
             <div class="step-card animate-fade-up" style="animation-delay: 0.2s">
               <div class="step-number">3</div>
               <div class="step-icon" aria-hidden="true">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
                   <path d="M12 20h9" />
                   <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
                 </svg>
@@ -1203,7 +1227,8 @@
                 Protect your account before export day
               </h3>
               <p class="profile-guidance-body" id="profile-security-body">
-                Review password and sign-in settings so last-minute account issues do not slow you down.
+                Review password and sign-in settings so last-minute account issues do not slow you
+                down.
               </p>
             </div>
             <div class="profile-guidance-card">
@@ -1212,7 +1237,8 @@
                 Keep one export ready
               </h3>
               <p class="profile-guidance-body" id="profile-export-body">
-                Credits are only used when you download, so keep one ready when your resume is strong enough to send.
+                Credits are only used when you download, so keep one ready when your resume is
+                strong enough to send.
               </p>
             </div>
           </div>
@@ -1471,7 +1497,13 @@
                   </svg>
                   Your Resume
                 </div>
-                <div id="upload-area" class="upload-zone">
+                <div
+                  id="upload-area"
+                  class="upload-zone"
+                  role="button"
+                  tabindex="0"
+                  aria-controls="resume-file"
+                >
                   <div class="upload-icon">
                     <svg
                       aria-hidden="true"
@@ -1556,7 +1588,18 @@
                     role="radio"
                     aria-checked="true"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      aria-hidden="true"
+                    >
+                      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                    </svg>
                     Job URL
                   </button>
                   <button
@@ -1566,7 +1609,20 @@
                     role="radio"
                     aria-checked="false"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      aria-hidden="true"
+                    >
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                    </svg>
                     Paste Description
                   </button>
                 </div>
@@ -1630,7 +1686,7 @@
                       rows="4"
                       placeholder="Paste the job description here..."
                     ></textarea>
-                    <small id="jd-paste-error" class="jd-paste-error" style="display:none"></small>
+                    <small id="jd-paste-error" class="jd-paste-error" style="display: none"></small>
                   </div>
                 </div>
               </div>
@@ -1642,21 +1698,21 @@
                 class="btn btn-primary btn-lg scan-submit-btn"
                 id="scan-submit-btn"
                 disabled
-                >
-                  <svg
-                    width="17"
+              >
+                <svg
+                  width="17"
                   height="17"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="2.5"
                   aria-hidden="true"
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  Build ATS-Ready Resume
-                </button>
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                Build ATS-Ready Resume
+              </button>
               <span class="body-xs" style="color: var(--text-faint)"
                 >2 free preview scans/day · No login required</span
               >
@@ -1761,7 +1817,11 @@
                   Diagnose blockers, check recruiter visibility, and confirm export readiness from
                   one workspace.
                 </p>
-                <div id="results-context-strip" class="results-context-strip" style="display: none"></div>
+                <div
+                  id="results-context-strip"
+                  class="results-context-strip"
+                  style="display: none"
+                ></div>
               </div>
               <div class="results-masthead-meta">
                 <span class="results-masthead-pill" id="results-masthead-status">
@@ -1900,14 +1960,16 @@
                 <div class="results-summary-label">ATS Structure</div>
                 <div class="results-summary-value" id="results-visibility-value">Waiting</div>
                 <p class="results-summary-body" id="results-visibility-body">
-                  Match rate and extracted fields will show how visible you are in recruiter searches.
+                  Match rate and extracted fields will show how visible you are in recruiter
+                  searches.
                 </p>
               </div>
               <div class="results-summary-card">
                 <div class="results-summary-label">Export Readiness</div>
                 <div class="results-summary-value" id="results-export-value">In progress</div>
                 <p class="results-summary-body" id="results-export-body">
-                  Parsing quality and formatting health will tell you when the resume is ready to export.
+                  Parsing quality and formatting health will tell you when the resume is ready to
+                  export.
                 </p>
               </div>
             </div>
@@ -2040,7 +2102,12 @@
                     />
                   </svg>
                   <div class="gauge-label">Keyword Match</div>
-                  <div class="gauge-sublabel" style="font-size:0.65rem;color:var(--text-faint);margin-top:2px">semantic score</div>
+                  <div
+                    class="gauge-sublabel"
+                    style="font-size: 0.65rem; color: var(--text-faint); margin-top: 2px"
+                  >
+                    semantic score
+                  </div>
                   <div class="gauge-value" id="score-job-match">--</div>
                 </div>
                 <div class="score-gauge-card" id="score-after-card" style="display: none">
@@ -2223,11 +2290,7 @@
                     </div>
                     <div class="pdf-control-divider"></div>
                     <div class="pdf-control-group">
-                      <button
-                        type="button"
-                        class="btn btn-ghost btn-sm"
-                        id="pdf-toggle-fullscreen"
-                      >
+                      <button type="button" class="btn btn-ghost btn-sm" id="pdf-toggle-fullscreen">
                         Focus View
                       </button>
                     </div>
@@ -2253,11 +2316,22 @@
                   <div class="download-bar-inner">
                     <div class="download-bar-text">
                       <div class="download-bar-lock-row">
-                        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--accent);flex-shrink:0">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                          <path d="M7 11V7a5 5 0 0110 0v4"/>
+                        <svg
+                          aria-hidden="true"
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          style="color: var(--accent); flex-shrink: 0"
+                        >
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0110 0v4" />
                         </svg>
-                        <span class="download-bar-lock-label">1 credit unlocks this exact export variant</span>
+                        <span class="download-bar-lock-label"
+                          >1 credit unlocks this exact export variant</span
+                        >
                       </div>
                       <div
                         style="
@@ -2333,7 +2407,9 @@
                         stroke-width="2"
                         style="color: var(--accent); flex-shrink: 0"
                       >
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <path
+                          d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
+                        />
                         <polyline points="22,6 12,13 2,6" />
                       </svg>
                       <h3 class="pdf-toolbar-heading">Role-Matched Cover Letter</h3>
@@ -2357,17 +2433,31 @@
                     <div class="pdf-control-group">
                       <span class="pdf-control-label">Format</span>
                       <div class="pdf-pill-group">
-                        <button type="button" class="pdf-pill" data-template="refined">Refined</button>
-                        <button type="button" class="pdf-pill" data-template="executive">Executive</button>
-                        <button type="button" class="pdf-pill" data-template="corporate">Corporate</button>
-                        <button type="button" class="pdf-pill" data-template="modern">Modern</button>
-                        <button type="button" class="pdf-pill" data-template="classic">Classic</button>
-                        <button type="button" class="pdf-pill" data-template="minimal">Minimal</button>
+                        <button type="button" class="pdf-pill" data-template="refined">
+                          Refined
+                        </button>
+                        <button type="button" class="pdf-pill" data-template="executive">
+                          Executive
+                        </button>
+                        <button type="button" class="pdf-pill" data-template="corporate">
+                          Corporate
+                        </button>
+                        <button type="button" class="pdf-pill" data-template="modern">
+                          Modern
+                        </button>
+                        <button type="button" class="pdf-pill" data-template="classic">
+                          Classic
+                        </button>
+                        <button type="button" class="pdf-pill" data-template="minimal">
+                          Minimal
+                        </button>
                       </div>
                     </div>
                     <div class="pdf-control-divider"></div>
                     <div class="pdf-control-group">
-                      <span class="pdf-toolbar-inline-note">Cover letter preview follows the selected resume family.</span>
+                      <span class="pdf-toolbar-inline-note"
+                        >Cover letter preview follows the selected resume family.</span
+                      >
                     </div>
                   </div>
                 </div>
@@ -2404,13 +2494,26 @@
                   <div class="download-bar-inner">
                     <div class="download-bar-text">
                       <div class="download-bar-lock-row">
-                        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--accent);flex-shrink:0">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                          <path d="M7 11V7a5 5 0 0110 0v4"/>
+                        <svg
+                          aria-hidden="true"
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          style="color: var(--accent); flex-shrink: 0"
+                        >
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0110 0v4" />
                         </svg>
-                        <span class="download-bar-lock-label">1 credit unlocks this exact cover-letter variant</span>
+                        <span class="download-bar-lock-label"
+                          >1 credit unlocks this exact cover-letter variant</span
+                        >
                       </div>
-                      <span class="body-sm">Selected style + file type stay reusable without another charge.</span>
+                      <span class="body-sm"
+                        >Selected style + file type stay reusable without another charge.</span
+                      >
                     </div>
                     <div class="download-bar-actions">
                       <button class="btn btn-primary" id="download-cover-letter-pdf">
@@ -2424,7 +2527,6 @@
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </section>
@@ -2437,8 +2539,8 @@
           </h1>
           <p class="body-md animate-fade-up" style="max-width: 640px; margin: 0 auto 1rem">
             ATS scans, recruiter-view diagnostics, job-link fetching, and AI rewrites stay
-            <strong>free</strong>. Credits are only used when you download the final resume or
-            cover letter.
+            <strong>free</strong>. Credits are only used when you download the final resume or cover
+            letter.
           </p>
           <p class="body-sm animate-fade-up" style="opacity: 0.82; margin-bottom: 1.25rem">
             No subscription, no auto-renewal, and no card required to try the product first.
@@ -2491,7 +2593,9 @@
               <div class="pricing-price">$19.99</div>
               <div class="pricing-credits">50 Export Credits</div>
               <div class="pricing-per-credit">$0.40 per export</div>
-              <div class="pricing-plan-note">Best for multi-role searches and frequent exports.</div>
+              <div class="pricing-plan-note">
+                Best for multi-role searches and frequent exports.
+              </div>
               <ul class="pricing-features">
                 <li>50 resume or cover letter exports</li>
                 <li>Everything in Professional</li>
@@ -2535,7 +2639,8 @@
                 <div>
                   <div class="credits-feature-name">ATS Scanning</div>
                   <p class="credits-feature-desc">
-                    Preview scans are free. Guests can run two per day before creating an account, then export only when the result is worth it.
+                    Preview scans are free. Guests can run two per day before creating an account,
+                    then export only when the result is worth it.
                   </p>
                 </div>
                 <span class="credits-feature-tag tag-free">FREE</span>
@@ -2644,7 +2749,8 @@
               <div class="dash-focus-kicker">Next Action</div>
               <h2 class="dash-focus-title" id="dash-next-step-title">Run a targeted scan</h2>
               <p class="dash-focus-body" id="dash-next-step-body">
-                Upload your latest resume and a real job description to see recruiter gaps before you export.
+                Upload your latest resume and a real job description to see recruiter gaps before
+                you export.
               </p>
               <div class="dash-focus-actions">
                 <button
@@ -2717,10 +2823,10 @@
               style="animation-delay: 0.1s"
             >
               <div class="bento-label">CREDIT BALANCE</div>
-                <div id="dash-plan-bento" class="bento-value">
-                  <span id="dash-tier-badge" class="dash-tier-badge tier-free">FREE</span>
-                  0 credits
-                </div>
+              <div id="dash-plan-bento" class="bento-value">
+                <span id="dash-tier-badge" class="dash-tier-badge tier-free">FREE</span>
+                0 credits
+              </div>
               <div id="dash-manage-btn" style="margin-top: 1.5rem">
                 <button class="btn btn-primary btn-sm" data-action="navigate" data-path="/pricing">
                   Get More Credits →
@@ -2742,7 +2848,6 @@
               </div>
             </div>
           </div>
-
 
           <div class="dash-section-header">
             <div class="dash-section-header-left">

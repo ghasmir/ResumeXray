@@ -365,15 +365,15 @@ body.pdf-ultra-tight .bullet-list li {
     width: auto;
     max-width: none;
   }
-  
+
   .watermark-overlay {
     position: fixed;
   }
-  
+
   .entry {
     page-break-inside: avoid;
   }
-  
+
   .section-title {
     page-break-after: avoid;
   }

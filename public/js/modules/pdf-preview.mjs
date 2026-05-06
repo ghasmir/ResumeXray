@@ -1,10 +1,10 @@
 import { el, esc, safeHtml, uiIcon } from './ui-helpers.mjs';
 
 // ── PDF.js bootstrap ─────────────────────────────────────────────
-// PDF.js is loaded as a <script type="module"> from the CDN in index.html.
+// PDF.js is loaded as a self-hosted <script type="module"> in index.html.
 // We access it via the global `pdfjsLib` it exposes.
-// The worker URL must match the CDN version exactly.
-const PDFJS_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155';
+// The worker URL stays same-origin so it passes the production worker-src CSP.
+const PDFJS_BASE = '/js/vendor/pdfjs';
 
 function getPdfjsLib() {
   return window.pdfjsLib || null;
@@ -12,9 +12,11 @@ function getPdfjsLib() {
 
 function ensurePdfjsWorker() {
   const lib = getPdfjsLib();
-  if (!lib) return false;
+  if (!lib) {
+    return false;
+  }
   if (!lib.GlobalWorkerOptions.workerSrc) {
-    lib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}/pdf.worker.min.mjs`;
+    lib.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE}/pdf.worker.min.mjs`;
   }
   return true;
 }
@@ -35,7 +37,11 @@ async function renderPdfPages(pdfDoc, container, devicePixelRatio = 1) {
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'pdf-page-wrapper';
     if (totalPages === 1) {
-      const fittedWidth = Math.min(860, containerWidth, containerHeight * (viewport.width / viewport.height));
+      const fittedWidth = Math.min(
+        860,
+        containerWidth,
+        containerHeight * (viewport.width / viewport.height)
+      );
       pageWrapper.style.width = `${Math.max(280, Math.round(fittedWidth))}px`;
       pageWrapper.style.maxWidth = '100%';
     }
@@ -76,7 +82,9 @@ export function createPdfPreviewController({
   let _currentPdfDoc = null;
 
   function applyCanvasContainerSize(container) {
-    if (!container) return;
+    if (!container) {
+      return;
+    }
     const viewportFactor = state.focusMode ? 0.9 : 0.75;
     const maxH = state.focusMode ? 1400 : 1100;
     const height = Math.max(420, Math.min(maxH, window.innerHeight * viewportFactor));
@@ -90,9 +98,13 @@ export function createPdfPreviewController({
     const focusBtn = el('pdf-toggle-fullscreen');
     const container = el('pdf-canvas-container');
 
-    if (viewerOverlay) viewerOverlay.classList.toggle('is-focus-mode', active);
+    if (viewerOverlay) {
+      viewerOverlay.classList.toggle('is-focus-mode', active);
+    }
     document.body.classList.toggle('pdf-focus-mode', active);
-    if (focusBtn) focusBtn.textContent = active ? 'Exit Focus View' : 'Focus View';
+    if (focusBtn) {
+      focusBtn.textContent = active ? 'Exit Focus View' : 'Focus View';
+    }
     applyCanvasContainerSize(container);
   }
 
@@ -107,7 +119,9 @@ export function createPdfPreviewController({
     fullscreenBtn?.addEventListener('click', () => setFocusMode(!state.focusMode));
 
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && state.focusMode) setFocusMode(false);
+      if (event.key === 'Escape' && state.focusMode) {
+        setFocusMode(false);
+      }
     });
 
     window.addEventListener('resize', () => {
@@ -122,7 +136,9 @@ export function createPdfPreviewController({
 
   async function reloadPreview(scanId, { force = false } = {}) {
     const container = el('pdf-canvas-container');
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const resolvedScanId = Number.parseInt(String(scanId || getActiveScanId() || ''), 10);
     const previewKey = getPreviewVariantKey
@@ -154,13 +170,20 @@ export function createPdfPreviewController({
 
     // Tear down previous pdfjs doc to free memory
     if (_currentPdfDoc) {
-      try { _currentPdfDoc.destroy(); } catch { /* ignore */ }
+      try {
+        _currentPdfDoc.destroy();
+      } catch {
+        /* ignore */
+      }
       _currentPdfDoc = null;
     }
 
     // Handle invalid scan ID
     if (!Number.isInteger(resolvedScanId) || resolvedScanId <= 0) {
-      _showError(container, 'We could not resolve this scan preview. Start a new targeted scan and try again.');
+      _showError(
+        container,
+        'We could not resolve this scan preview. Start a new targeted scan and try again.'
+      );
       return;
     }
 
@@ -178,7 +201,9 @@ export function createPdfPreviewController({
         signal: abortController.signal,
       });
 
-      if (container.dataset.previewRequestKey !== requestKey) return;
+      if (container.dataset.previewRequestKey !== requestKey) {
+        return;
+      }
 
       const contentType = (response.headers.get('content-type') || '').toLowerCase();
       if (!response.ok || !contentType.includes('application/pdf')) {
@@ -188,7 +213,9 @@ export function createPdfPreviewController({
           try {
             const payload = JSON.parse(bodyText);
             errorMessage = payload.error || errorMessage;
-          } catch { /* keep fallback */ }
+          } catch {
+            /* keep fallback */
+          }
         } else if (bodyText) {
           const match = bodyText.match(/<p[^>]*>(.*?)<\/p>/i);
           if (match) {
@@ -204,22 +231,34 @@ export function createPdfPreviewController({
 
       const blob = await response.blob();
       if (!blob || blob.size === 0) {
-        _showError(container, 'The preview file was empty. Please regenerate this scan.', resolvedScanId);
+        _showError(
+          container,
+          'The preview file was empty. Please regenerate this scan.',
+          resolvedScanId
+        );
         state.loadingPdfPreviewKey = null;
         return;
       }
 
-      if (container.dataset.previewRequestKey !== requestKey) return;
+      if (container.dataset.previewRequestKey !== requestKey) {
+        return;
+      }
 
       // ── Hand blob to PDF.js — never touch iframe or blob:// URLs ──
       if (!ensurePdfjsWorker()) {
-        _showError(container, 'PDF renderer is still loading. Please wait a moment and try again.', resolvedScanId);
+        _showError(
+          container,
+          'PDF renderer is still loading. Please wait a moment and try again.',
+          resolvedScanId
+        );
         state.loadingPdfPreviewKey = null;
         return;
       }
 
       const arrayBuffer = await blob.arrayBuffer();
-      if (container.dataset.previewRequestKey !== requestKey) return;
+      if (container.dataset.previewRequestKey !== requestKey) {
+        return;
+      }
 
       const pdfjsLib = getPdfjsLib();
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
@@ -235,11 +274,16 @@ export function createPdfPreviewController({
       await renderPdfPages(pdfDoc, container, window.devicePixelRatio || 1);
       state.lastRenderedPdfPreviewKey = previewKey;
       state.loadingPdfPreviewKey = null;
-
     } catch (error) {
-      if (error?.name === 'AbortError') return;
+      if (error?.name === 'AbortError') {
+        return;
+      }
       _hideSkeleton(container);
-      _showError(container, error?.message || 'Unable to load the PDF preview right now.', resolvedScanId);
+      _showError(
+        container,
+        error?.message || 'Unable to load the PDF preview right now.',
+        resolvedScanId
+      );
       state.loadingPdfPreviewKey = null;
     }
   }
@@ -276,12 +320,16 @@ export function createPdfPreviewController({
       <div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.5">${uiIcon('file', { size: 40, stroke: 1.8 })}</div>
       <h4 style="color:var(--text-main);margin-bottom:0.5rem">Preview not available</h4>
       <p class="body-sm">${esc(message || 'Unable to load preview.')}</p>
-      ${resolvedScanId ? `<button
+      ${
+        resolvedScanId
+          ? `<button
         class="btn btn-primary btn-sm"
         style="margin-top:1rem"
         data-action="reload-pdf-preview"
         data-scan-id="${esc(String(resolvedScanId))}"
-      >Retry</button>` : ''}
+      >Retry</button>`
+          : ''
+      }
     `);
     container.appendChild(errorDiv);
   }
@@ -289,7 +337,7 @@ export function createPdfPreviewController({
   return {
     reloadPreview,
     setFocusMode,
-    setMode,   // no-op, kept for compat
+    setMode, // no-op, kept for compat
     setupControls,
   };
 }

@@ -102,8 +102,11 @@ async function main() {
     console.log(`\n   ✅ Migration complete.\n`);
   }
 
-  if (DB_ENGINE === 'pg') await db.closeDb();
-  else db.closeDb();
+  if (DB_ENGINE === 'pg') {
+    await db.closeDb();
+  } else {
+    db.closeDb();
+  }
 }
 
 main().catch(err => {

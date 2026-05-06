@@ -1,0 +1,4 @@
+node_modules/
+dist/
+public/js/purify.min.js
+public/js/vendor/

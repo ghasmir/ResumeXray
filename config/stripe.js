@@ -54,9 +54,9 @@ const CREDIT_PACKS = {
  * v3: AI sandbox is FREE — credits only consumed on final export
  */
 const CREDIT_COSTS = {
-  scan: 0,       // Free — hooks the user (shows ATS score + knockout risks)
-  ai_fix: 0,     // FREE — sandbox mode, user sees full value before paying
-  export: 1,     // Per PDF/DOCX + Cover Letter download bundle
+  scan: 0, // Free — hooks the user (shows ATS score + knockout risks)
+  ai_fix: 0, // FREE — sandbox mode, user sees full value before paying
+  export: 1, // Per PDF/DOCX + Cover Letter download bundle
 };
 
 /**
@@ -64,10 +64,14 @@ const CREDIT_COSTS = {
  */
 async function createCheckoutSession(userId, email, packId) {
   const s = getStripe();
-  if (!s) throw new Error('Stripe not configured');
+  if (!s) {
+    throw new Error('Stripe not configured');
+  }
 
   const pack = CREDIT_PACKS[packId];
-  if (!pack) throw new Error(`Invalid credit pack: ${packId}`);
+  if (!pack) {
+    throw new Error(`Invalid credit pack: ${packId}`);
+  }
 
   const session = await s.checkout.sessions.create({
     mode: 'payment', // One-time, not subscription

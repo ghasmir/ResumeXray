@@ -32,7 +32,9 @@ async function migrate() {
   // Validate env
   if (!process.env.DATABASE_URL) {
     console.error('ERROR: DATABASE_URL environment variable is required.');
-    console.error('Example: DATABASE_URL=postgresql://postgres.xxxx:password@aws-0-us-east-1.pooler.supabase.com:6543/postgres');
+    console.error(
+      'Example: DATABASE_URL=postgresql://postgres.xxxx:password@aws-0-us-east-1.pooler.supabase.com:6543/postgres'
+    );
     process.exit(1);
   }
 
@@ -104,10 +106,20 @@ async function migrate() {
 
   // Reset sequences for BIGSERIAL columns
   console.log('\nResetting PostgreSQL sequences...');
-  const serialTables = ['users', 'credit_transactions', 'resumes', 'scans', 'jobs', 'cover_letters', 'guest_scans'];
+  const serialTables = [
+    'users',
+    'credit_transactions',
+    'resumes',
+    'scans',
+    'jobs',
+    'cover_letters',
+    'guest_scans',
+  ];
   for (const table of serialTables) {
     try {
-      await pg.query(`SELECT setval(pg_get_serial_sequence('${table}', 'id'), COALESCE(MAX(id), 1)) FROM ${table}`);
+      await pg.query(
+        `SELECT setval(pg_get_serial_sequence('${table}', 'id'), COALESCE(MAX(id), 1)) FROM ${table}`
+      );
       console.log(`  ${table}_id_seq: reset`);
     } catch (err) {
       console.log(`  ${table}_id_seq: ${err.message}`);

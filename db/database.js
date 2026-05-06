@@ -63,7 +63,9 @@ function runMigrations(database) {
   );
 
   function migrate(version, sql) {
-    if (applied.has(version)) return;
+    if (applied.has(version)) {
+      return;
+    }
     try {
       database.exec(sql);
     } catch (err) {
@@ -144,7 +146,9 @@ function runMigrations(database) {
       database.exec('UPDATE users SET credit_balance = 0 WHERE credit_balance < 0');
       log.warn('Repaired negative credit balances', { count: negatives.length });
     }
-  } catch {}
+  } catch {
+    // Legacy databases may not have the credits column before migrations finish.
+  }
 
   // Create credit_transactions table if missing
   database.exec(`
@@ -206,7 +210,9 @@ function runMigrations(database) {
       }
       log.info('Backfilled access tokens for guest scans', { count: guestScans.length });
     }
-  } catch {}
+  } catch {
+    // Older local databases may not have guest scan access-token columns yet.
+  }
 
   // ── INTEGRITY: Prevent negative credit balances ────────────────────────────
   try {
@@ -215,7 +221,9 @@ function runMigrations(database) {
       database.exec('UPDATE users SET credit_balance = 0 WHERE credit_balance < 0');
       log.warn('Repaired negative credit balances', { count: negatives.length });
     }
-  } catch {}
+  } catch {
+    // Legacy databases may not have the credits column before migrations finish.
+  }
 
   // ── Phase 3: Scan Sessions Table (replaces in-memory Map) ──────────────────
   database.exec(`
@@ -293,12 +301,16 @@ const PROVIDER_COLUMNS = Object.freeze({
 function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
   const db = getDb();
   const column = PROVIDER_COLUMNS[provider];
-  if (!column) throw new Error(`Unknown OAuth provider: ${provider}`);
+  if (!column) {
+    throw new Error(`Unknown OAuth provider: ${provider}`);
+  }
 
   // Use a transaction to prevent race conditions between SELECT and INSERT
   return db.transaction(() => {
     let user = db.prepare(`SELECT * FROM users WHERE ${column} = ?`).get(profileId);
-    if (user) return decryptUserEmail(user);
+    if (user) {
+      return decryptUserEmail(user);
+    }
 
     // Check if email already exists (link account) — try hash first, then plaintext
     const hash = emailHash(email);
@@ -307,6 +319,15 @@ function findOrCreateUser({ provider, profileId, email, name, avatarUrl }) {
       user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
     }
     if (user) {
+      if (user.password_hash && !user[column]) {
+        const pendingUser = decryptUserEmail(user);
+        pendingUser.requiresLinking = true;
+        pendingUser.pendingProvider = provider;
+        pendingUser.pendingProfileId = profileId;
+        pendingUser.pendingAvatarUrl = avatarUrl || null;
+        return pendingUser;
+      }
+
       db.prepare(
         `UPDATE users
          SET ${column} = ?,
@@ -439,7 +460,9 @@ function updatePassword(userId, passwordHash) {
 function linkOAuthProvider(userId, provider, profileId, avatarUrl) {
   const d = getDb();
   const column = PROVIDER_COLUMNS[provider];
-  if (!column) throw new Error(`Unknown OAuth provider: ${provider}`);
+  if (!column) {
+    throw new Error(`Unknown OAuth provider: ${provider}`);
+  }
   d.prepare(
     `UPDATE users
      SET ${column} = ?,
@@ -477,7 +500,9 @@ function createUser({ email, name, passwordHash, verificationToken }) {
 }
 
 function claimGuestScans(userId, accessTokens) {
-  if (!accessTokens || accessTokens.length === 0) return 0;
+  if (!accessTokens || accessTokens.length === 0) {
+    return 0;
+  }
   const placeholders = accessTokens.map(() => '?').join(',');
   const result = getDb()
     .prepare(
@@ -602,7 +627,7 @@ function deductCreditAtomic(userId, type, idempotencyKey, description = '') {
 
     // Parse scan info from idempotency key
     const parts = idempotencyKey.split('-');
-    const scanId = parts[1] ? parseInt(parts[1]) : null;
+    const scanId = parts[1] ? parseInt(parts[1], 10) : null;
     const format = parts[2] || 'pdf';
     const exportType = parts[3] || 'resume';
 
@@ -747,13 +772,19 @@ function updateScan(scanId, data) {
   const values = [];
   for (const [key, val] of Object.entries(data)) {
     const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-    if (!ALLOWED_COLS.includes(col)) continue; // Skip unknown columns
+    if (!ALLOWED_COLS.includes(col)) {
+      continue;
+    } // Skip unknown columns
     fields.push(`${col} = ?`);
     let finalVal = val;
-    if (typeof val === 'object' && val !== null) finalVal = JSON.stringify(val);
+    if (typeof val === 'object' && val !== null) {
+      finalVal = JSON.stringify(val);
+    }
     values.push(finalVal);
   }
-  if (fields.length === 0) return;
+  if (fields.length === 0) {
+    return;
+  }
   values.push(scanId);
   getDb()
     .prepare(`UPDATE scans SET ${fields.join(', ')} WHERE id = ?`)
@@ -782,7 +813,9 @@ function getScan(id, userId, accessToken = null) {
       .prepare('SELECT * FROM scans WHERE id = ? AND user_id = ?')
       .get(id, Number(userId));
   }
-  if (!accessToken) return null;
+  if (!accessToken) {
+    return null;
+  }
   // Guest scan: require the access token, not just a NULL user_id.
   return getDb()
     .prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL AND access_token = ?')
@@ -791,7 +824,15 @@ function getScan(id, userId, accessToken = null) {
 
 function updateScanWithOptimizations(
   scanId,
-  { optimizedBullets, keywordPlan, optimizedResumeText, coverLetterText, atsPlatform, jobContext, renderMeta }
+  {
+    optimizedBullets,
+    keywordPlan,
+    optimizedResumeText,
+    coverLetterText,
+    atsPlatform,
+    jobContext,
+    renderMeta,
+  }
 ) {
   // H-9 Fix: atsPlatform is now persisted so the frontend can show
   // "Optimised for Greenhouse / Workday / etc."
@@ -818,12 +859,16 @@ function getFullScan(scanId, userId = null, accessToken = null) {
       .prepare('SELECT * FROM scans WHERE id = ? AND user_id = ?')
       .get(scanId, Number(userId));
   } else {
-    if (!accessToken) return null;
+    if (!accessToken) {
+      return null;
+    }
     scan = getDb()
       .prepare('SELECT * FROM scans WHERE id = ? AND user_id IS NULL AND access_token = ?')
       .get(scanId, accessToken);
   }
-  if (!scan) return null;
+  if (!scan) {
+    return null;
+  }
   const jsonCols = [
     'xray_data',
     'format_issues',
@@ -840,7 +885,9 @@ function getFullScan(scanId, userId = null, accessToken = null) {
     if (scan[col]) {
       try {
         scan[col] = JSON.parse(scan[col]);
-      } catch {}
+      } catch {
+        // Preserve malformed legacy JSON as its original string value.
+      }
     }
   }
   return scan;
@@ -896,11 +943,15 @@ function updateJob(id, userId, data) {
   const values = [];
   for (const [key, val] of Object.entries(data)) {
     const col = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-    if (!ALLOWED_COLS.includes(col)) continue; // Skip unknown columns
+    if (!ALLOWED_COLS.includes(col)) {
+      continue;
+    } // Skip unknown columns
     fields.push(`${col} = ?`);
     values.push(val);
   }
-  if (fields.length === 0) return;
+  if (fields.length === 0) {
+    return;
+  }
   fields.push("updated_at = datetime('now')");
   values.push(id, userId);
   getDb()
@@ -1048,7 +1099,9 @@ function emailHash(email) {
 }
 
 function decryptUserEmail(user) {
-  if (!user) return user;
+  if (!user) {
+    return user;
+  }
   user.email = decryptPii(user.email);
   return user;
 }
@@ -1064,7 +1117,9 @@ const PII_KEY_ENV = 'PII_ENCRYPTION_KEY'; // 32-byte hex key in .env
  */
 function getPiiKey() {
   const hex = process.env[PII_KEY_ENV];
-  if (!hex || hex.length !== 64) return null; // Require 32-byte (64 hex chars)
+  if (!hex || hex.length !== 64) {
+    return null;
+  } // Require 32-byte (64 hex chars)
   return Buffer.from(hex, 'hex');
 }
 
@@ -1073,9 +1128,13 @@ function getPiiKey() {
  * Returns 'iv:authTag:ciphertext' or the original string if key not configured.
  */
 function encryptPii(plaintext) {
-  if (!plaintext || typeof plaintext !== 'string') return plaintext;
+  if (!plaintext || typeof plaintext !== 'string') {
+    return plaintext;
+  }
   const key = getPiiKey();
-  if (!key) return plaintext; // Encryption disabled — pass through
+  if (!key) {
+    return plaintext;
+  } // Encryption disabled — pass through
 
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv(PII_ALGORITHM, key, iv);
@@ -1090,12 +1149,18 @@ function encryptPii(plaintext) {
  * Returns the plaintext or the original string if not encrypted.
  */
 function decryptPii(ciphertext) {
-  if (!ciphertext || typeof ciphertext !== 'string') return ciphertext;
+  if (!ciphertext || typeof ciphertext !== 'string') {
+    return ciphertext;
+  }
   const key = getPiiKey();
-  if (!key) return ciphertext; // Encryption disabled — pass through
+  if (!key) {
+    return ciphertext;
+  } // Encryption disabled — pass through
 
   const parts = ciphertext.split(':');
-  if (parts.length !== 3) return ciphertext; // Not encrypted — return as-is
+  if (parts.length !== 3) {
+    return ciphertext;
+  } // Not encrypted — return as-is
 
   try {
     const [ivHex, authTagHex, encrypted] = parts;
@@ -1135,7 +1200,9 @@ function recordStripeEvent(eventId, eventType, payloadHash = null) {
     ).run(eventId, eventType, payloadHash);
   } catch (err) {
     // UNIQUE constraint violation = already recorded, safe to ignore
-    if (!err.message.includes('UNIQUE')) throw err;
+    if (!err.message.includes('UNIQUE')) {
+      throw err;
+    }
   }
 }
 
@@ -1163,7 +1230,9 @@ function recordLemonSqueezyEvent(eventId, eventType, payloadHash = null) {
     ).run(eventId, eventType, payloadHash);
   } catch (err) {
     // UNIQUE constraint violation = already recorded, safe to ignore
-    if (!err.message.includes('UNIQUE')) throw err;
+    if (!err.message.includes('UNIQUE')) {
+      throw err;
+    }
   }
 }
 

@@ -6,8 +6,7 @@ export function uiIcon(name, { size = 18, stroke = 2 } = {}) {
   const icons = {
     lock: '<rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />',
     file: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />',
-    search:
-      '<circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />',
+    search: '<circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />',
     mail: '<rect x="2" y="4" width="20" height="16" rx="2" /><polyline points="22,6 12,13 2,6" />',
     spark: '<path d="M12 2l2.3 5.4L20 10l-5.7 2.6L12 18l-2.3-5.4L4 10l5.7-2.6L12 2z" />',
     warning:
@@ -64,7 +63,9 @@ function addToNotificationLog(message, type) {
 }
 
 export function dismissToast(toast) {
-  if (!toast || toast._dismissing) return;
+  if (!toast || toast._dismissing) {
+    return;
+  }
   toast._dismissing = true;
 
   if (toast._onEscapeDismiss) {
@@ -82,7 +83,9 @@ export function dismissToast(toast) {
 
 export function showToast(message, type = 'info', options = {}) {
   const container = el('toast-container');
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   const duration = options.duration || (type === 'error' ? 6000 : 4000);
   const dismissible = options.dismissible !== false;
@@ -125,16 +128,22 @@ export function showToast(message, type = 'info', options = {}) {
   toast.addEventListener('mouseenter', () => {
     window.clearTimeout(timeout);
     const bar = toast.querySelector('.toast-timer-bar');
-    if (bar) bar.style.animationPlayState = 'paused';
+    if (bar) {
+      bar.style.animationPlayState = 'paused';
+    }
   });
   toast.addEventListener('mouseleave', () => {
     const bar = toast.querySelector('.toast-timer-bar');
-    if (bar) bar.style.animationPlayState = 'running';
+    if (bar) {
+      bar.style.animationPlayState = 'running';
+    }
     window.setTimeout(() => dismissToast(toast), 2000);
   });
 
   function onEscapeDismiss(event) {
-    if (event.key === 'Escape') dismissToast(toast);
+    if (event.key === 'Escape') {
+      dismissToast(toast);
+    }
   }
   toast._onEscapeDismiss = onEscapeDismiss;
   document.addEventListener('keydown', onEscapeDismiss);
@@ -167,7 +176,9 @@ export function copyToClipboard(text, btn) {
 }
 
 export function esc(str) {
-  if (typeof str !== 'string') str = String(str || '');
+  if (typeof str !== 'string') {
+    str = String(str || '');
+  }
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -177,7 +188,9 @@ export function esc(str) {
 }
 
 export function decodeHtml(str) {
-  if (!str || typeof str !== 'string') return str || '';
+  if (!str || typeof str !== 'string') {
+    return str || '';
+  }
   const textarea = document.createElement('textarea');
   textarea.innerHTML = str;
   return textarea.value;
@@ -192,6 +205,8 @@ export function safeHtml(html) {
 }
 
 export function truncate(str, len) {
-  if (!str) return '';
+  if (!str) {
+    return '';
+  }
   return str.length > len ? str.substring(0, len) + '…' : str;
 }

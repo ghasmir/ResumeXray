@@ -1,167 +1,166 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <style>{{{baseCss}}}</style>
-  <style>
-    /* ── Cover Letter Template ───────────────────────────────────────────
-     * Single-page professional cover letter.
-     * Theme inherits the active resume family so the document set feels cohesive.
-     * ───────────────────────────────────────────────────────────────────── */
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      {{{baseCss}}}
+    </style>
+    <style>
+      /* ── Cover Letter Template ───────────────────────────────────────────
+       * Single-page professional cover letter.
+       * Theme inherits the active resume family so the document set feels cohesive.
+       * ───────────────────────────────────────────────────────────────────── */
 
-    @page {
-      size: A4;
-      margin: 0;
-    }
+      @page {
+        size: A4;
+        margin: 0;
+      }
 
-    body {
-      font-family: {{{coverLetterTheme.bodyFont}}};
-      font-size: 11pt;
-      line-height: 1.5;
-      color: {{coverLetterTheme.bodyColor}};
-      margin: 0;
-      padding: 0;
-      background: #eef0f3;
-      overflow-wrap: anywhere;
-    }
-
-    .letter-sheet {
-      width: 210mm;
-      min-height: 297mm;
-      margin: 0 auto;
-      background: #ffffff;
-      padding: 0.5in 0.7in 0.4in 0.7in;
-      box-sizing: border-box;
-    }
-
-    .letter-header {
-      text-align: {{coverLetterTheme.align}};
-      margin-bottom: 2pt;
-    }
-
-    .sender-name {
-      font-size: 22pt;
-      font-weight: 700;
-      color: {{coverLetterTheme.accentColor}};
-      margin-bottom: 3pt;
-      font-family: {{{coverLetterTheme.nameFont}}};
-    }
-
-    .sender-contact {
-      font-size: 8pt;
-      color: {{coverLetterTheme.metaColor}};
-      line-height: 1.4;
-    }
-
-    .sender-contact .sep {
-      margin: 0 4px;
-      color: #999;
-    }
-
-    .divider {
-      border: none;
-      border-top: 1.5pt solid {{coverLetterTheme.dividerColor}};
-      margin: 6pt 0 10pt 0;
-    }
-
-    .letter-date {
-      margin-bottom: 8pt;
-      font-size: 10pt;
-      color: {{coverLetterTheme.metaColor}};
-      font-style: italic;
-    }
-
-    .greeting {
-      margin-bottom: 8pt;
-      font-size: 10.5pt;
-      color: {{coverLetterTheme.bodyColor}};
-    }
-
-    .letter-body {
-      margin-bottom: 6pt;
-    }
-
-    .letter-body p {
-      margin-bottom: 8pt;
-      text-align: left;
-      font-size: 10pt;
-      line-height: 1.45;
-    }
-
-    .letter-body p strong {
-      font-weight: 700;
-    }
-
-    .closing {
-      margin-top: 14pt;
-      font-size: 10.5pt;
-    }
-
-    .closing-phrase {
-      margin-bottom: 18pt;
-      color: {{coverLetterTheme.bodyColor}};
-    }
-
-    .signature-name {
-      font-weight: 700;
-      font-size: 10.5pt;
-      color: {{coverLetterTheme.accentColor}};
-    }
-
-    @media print {
       body {
-        background: transparent;
+        font-family: {{{coverLetterTheme.bodyFont}}};
+        font-size: 11pt;
+        line-height: 1.5;
+        color: {{coverLetterTheme.bodyColor}};
+        margin: 0;
+        padding: 0;
+        background: #eef0f3;
+        overflow-wrap: anywhere;
       }
 
       .letter-sheet {
-        width: auto;
-        min-height: auto;
-        margin: 0;
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        background: #ffffff;
         padding: 0.5in 0.7in 0.4in 0.7in;
-        box-shadow: none;
+        box-sizing: border-box;
       }
-    }
-  </style>
-</head>
-<body class="{{#if compact}}density-compact{{/if}}">
 
-  {{#if watermark}}
-  <div class="watermark-overlay">PREVIEW ONLY – DOWNLOAD TO UNLOCK</div>
-  {{/if}}
+      .letter-header {
+        text-align: {{coverLetterTheme.align}};
+        margin-bottom: 2pt;
+      }
 
-  <div class="letter-sheet">
-  <!-- Centered Name Header -->
-  <div class="letter-header">
-    <div class="sender-name">{{name}}</div>
-    {{#if contact}}
-    <div class="sender-contact">
-      {{#each contact}}
-        {{#unless @first}}<span class="sep">|</span>{{/unless}}{{this}}
-      {{/each}}
-    </div>
+      .sender-name {
+        font-size: 22pt;
+        font-weight: 700;
+        color: {{coverLetterTheme.accentColor}};
+        margin-bottom: 3pt;
+        font-family: {{{coverLetterTheme.nameFont}}};
+      }
+
+      .sender-contact {
+        font-size: 8pt;
+        color: {{coverLetterTheme.metaColor}};
+        line-height: 1.4;
+      }
+
+      .sender-contact .sep {
+        margin: 0 4px;
+        color: #999;
+      }
+
+      .divider {
+        border: none;
+        border-top: 1.5pt solid {{coverLetterTheme.dividerColor}};
+        margin: 6pt 0 10pt 0;
+      }
+
+      .letter-date {
+        margin-bottom: 8pt;
+        font-size: 10pt;
+        color: {{coverLetterTheme.metaColor}};
+        font-style: italic;
+      }
+
+      .greeting {
+        margin-bottom: 8pt;
+        font-size: 10.5pt;
+        color: {{coverLetterTheme.bodyColor}};
+      }
+
+      .letter-body {
+        margin-bottom: 6pt;
+      }
+
+      .letter-body p {
+        margin-bottom: 8pt;
+        text-align: left;
+        font-size: 10pt;
+        line-height: 1.45;
+      }
+
+      .letter-body p strong {
+        font-weight: 700;
+      }
+
+      .closing {
+        margin-top: 14pt;
+        font-size: 10.5pt;
+      }
+
+      .closing-phrase {
+        margin-bottom: 18pt;
+        color: {{coverLetterTheme.bodyColor}};
+      }
+
+      .signature-name {
+        font-weight: 700;
+        font-size: 10.5pt;
+        color: {{coverLetterTheme.accentColor}};
+      }
+
+      @media print {
+        body {
+          background: transparent;
+        }
+
+        .letter-sheet {
+          width: auto;
+          min-height: auto;
+          margin: 0;
+          padding: 0.5in 0.7in 0.4in 0.7in;
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body class="{{#if compact}}density-compact{{/if}}">
+    {{#if watermark}}
+    <div class="watermark-overlay">PREVIEW ONLY – DOWNLOAD TO UNLOCK</div>
     {{/if}}
-  </div>
-  <hr class="divider">
 
-  <!-- Date -->
-  <div class="letter-date">{{date}}</div>
+    <div class="letter-sheet">
+      <!-- Centered Name Header -->
+      <div class="letter-header">
+        <div class="sender-name">{{name}}</div>
+        {{#if contact}}
+        <div class="sender-contact">
+          {{#each contact}} {{#unless @first}}<span class="sep">|</span>{{/unless}}{{this}}
+          {{/each}}
+        </div>
+        {{/if}}
+      </div>
+      <hr class="divider" />
 
-  <!-- Greeting -->
-  <div class="greeting">Dear Hiring Team,</div>
+      <!-- Date -->
+      <div class="letter-date">{{date}}</div>
 
-  <!-- Letter Body — supports **bold** markdown -->
-  <div class="letter-body">
-    {{#each paragraphs}}
-    <p>{{{boldMetrics this}}}</p>
-    {{/each}}
-  </div>
+      <!-- Greeting -->
+      <div class="greeting">Dear Hiring Team,</div>
 
-  <!-- Closing -->
-  <div class="closing">
-    <div class="closing-phrase">Sincerely,</div>
-    <div class="signature-name">{{name}}</div>
-  </div>
-  </div>
+      <!-- Letter Body — supports **bold** markdown -->
+      <div class="letter-body">
+        {{#each paragraphs}}
+        <p>{{{boldMetrics this}}}</p>
+        {{/each}}
+      </div>
 
-</body>
+      <!-- Closing -->
+      <div class="closing">
+        <div class="closing-phrase">Sincerely,</div>
+        <div class="signature-name">{{name}}</div>
+      </div>
+    </div>
+  </body>
 </html>

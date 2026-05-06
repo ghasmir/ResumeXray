@@ -39,55 +39,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Syntax check (all source files)
-        run: |
-          for f in server.js routes/*.js db/*.js lib/*.js config/*.js middleware/*.js; do
-            node -c "$f" || exit 1
-          done
-          # Also check nested lib dirs
-          for f in lib/llm/*.js lib/llm/prompts/*.js lib/llm/providers/*.js; do
-            [ -f "$f" ] && (node -c "$f" || exit 1)
-          done
-          echo "✅ All source files pass syntax check"
+      - name: Build / syntax check
+        run: npm run build
 
       - name: Dependency audit (critical/high only)
-        run: npm audit --audit-level=high --omit=dev || true
+        run: npm audit --audit-level=high --omit=dev
 
-      - name: Check for known vulnerable packages
-        run: |
-          # Fail on critical vulnerabilities only
-          npm audit --audit-level=critical --omit=dev || true
+      - name: Lint
+        run: npm run lint
 
-      - name: Smoke test (server starts and responds)
-        run: |
-          # Start server in background (SQLite mode for CI)
-          node server.js &
-          SERVER_PID=$!
-          
-          # Wait for server to be ready (better-sqlite3 needs a moment)
-          for i in $(seq 1 15); do
-            if curl -sf http://localhost:3000/healthz > /dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
+      - name: Format check
+        run: npm run format:check
 
-          # Health checks
-          curl -sf http://localhost:3000/healthz || (kill $SERVER_PID; exit 1)
-          echo "✅ /healthz passed"
-
-          READYZ=$(curl -sf http://localhost:3000/readyz)
-          echo "$READYZ"
-          echo "✅ /readyz passed"
-
-          # SPA routing
-          STATUS=$(curl -sf -o /dev/null -w '%{http_code}' http://localhost:3000/scan)
-          [ "$STATUS" = "200" ] || (kill $SERVER_PID; exit 1)
-          echo "✅ SPA routing passed"
-
-          # API 404
-          curl -sf http://localhost:3000/api/nonexistent 2>&1 | grep -q 'NOT_FOUND' || true
-          echo "✅ API 404 passed"
-
-          kill $SERVER_PID 2>/dev/null
-          echo "✅ All smoke tests passed"
+      - name: Test
+        run: npm test

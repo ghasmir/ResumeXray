@@ -17,7 +17,9 @@ const storage = multer.memoryStorage();
  * DOCX/ZIP: PK (0x504B0304)
  */
 function validateMagicBytes(buffer, mimetype) {
-  if (!buffer || buffer.length < 4) return false;
+  if (!buffer || buffer.length < 4) {
+    return false;
+  }
 
   if (mimetype === 'application/pdf') {
     // PDF magic: %PDF
@@ -26,7 +28,7 @@ function validateMagicBytes(buffer, mimetype) {
 
   if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
     // DOCX is a ZIP archive: PK\x03\x04
-    return buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04;
+    return buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04;
   }
 
   return false;
@@ -34,11 +36,11 @@ function validateMagicBytes(buffer, mimetype) {
 
 const upload = multer({
   storage,
-  limits: { 
+  limits: {
     fileSize: MAX_SIZE,
-    files: 1,          // Only 1 file per request
-    fields: 10,        // Max 10 non-file fields
-    fieldSize: 50000,  // Max 50KB per field (prevents JD text bombs)
+    files: 1, // Only 1 file per request
+    fields: 10, // Max 10 non-file fields
+    fieldSize: 50000, // Max 50KB per field (prevents JD text bombs)
   },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -46,7 +48,10 @@ const upload = multer({
     // Strict: must match BOTH extension AND MIME type
     if (ext === '.pdf' && file.mimetype === 'application/pdf') {
       cb(null, true);
-    } else if (ext === '.docx' && file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    } else if (
+      ext === '.docx' &&
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ) {
       cb(null, true);
     } else {
       cb(

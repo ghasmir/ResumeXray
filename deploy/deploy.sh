@@ -14,10 +14,12 @@ LOG_FILE="/var/log/resumexray-deploy.log"
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [DEPLOY] Starting deployment" | tee -a "$LOG_FILE"
 
 cd "$APP_DIR"
+mkdir -p uploads tmp_uploads logs
 
 # 1. Install dependencies (production only, no devDependencies)
 echo "[1/5] Installing dependencies..."
 npm ci --omit=dev --ignore-scripts 2>&1 | tail -1
+npx --no-install playwright-core install chromium
 
 # 2. Verify syntax of critical files
 echo "[2/5] Syntax check..."

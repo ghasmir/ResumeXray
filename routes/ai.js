@@ -1,6 +1,6 @@
 /**
  * AI Routes — v5.0 (Free Sandbox Mode)
- * 
+ *
  * ALL AI features are FREE — no credit deduction for any AI operation.
  * Credits are ONLY consumed on final PDF/DOCX/Cover Letter EXPORT.
  * This is the core v3+ design: hook users with free value, charge on export.
@@ -21,18 +21,24 @@ router.post('/rewrite-bullet', async (req, res) => {
   try {
     if (!req.user) {
       // Allow 3 free fixes for guests
-      if (!req.session.freeAiRewrites) req.session.freeAiRewrites = 0;
+      if (!req.session.freeAiRewrites) {
+        req.session.freeAiRewrites = 0;
+      }
       if (req.session.freeAiRewrites >= 3) {
-        return res.status(403).json({ error: 'Sign up for unlimited free AI bullet rewrites!', signup: true });
+        return res
+          .status(403)
+          .json({ error: 'Sign up for unlimited free AI bullet rewrites!', signup: true });
       }
       req.session.freeAiRewrites++;
     }
 
     const { originalText, jobDescription } = req.body;
-    if (!originalText) return res.status(400).json({ error: 'Missing originalText' });
+    if (!originalText) {
+      return res.status(400).json({ error: 'Missing originalText' });
+    }
 
     const rewritten = await llm.rewriteBulletPoint(originalText, jobDescription);
-    
+
     // v5: NO credit deduction — AI sandbox is free
     const creditBalance = req.user ? await db.getCreditBalance(req.user.id) : 0;
     res.json({ success: true, rewritten, creditBalance });
@@ -46,7 +52,9 @@ router.post('/rewrite-bullet', async (req, res) => {
 router.post('/cover-letter', async (req, res) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ error: 'Please sign up to generate cover letters.', signup: true });
+      return res
+        .status(401)
+        .json({ error: 'Please sign up to generate cover letters.', signup: true });
     }
 
     const { resumeId, jobDescription } = req.body;
@@ -54,14 +62,16 @@ router.post('/cover-letter', async (req, res) => {
       return res.status(400).json({ error: 'Missing resumeId or jobDescription' });
     }
 
-    const resume = await db.getResume(parseInt(resumeId), req.user.id);
-    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+    const resume = await db.getResume(parseInt(resumeId, 10), req.user.id);
+    if (!resume) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
 
     const coverLetterText = await llm.generateCoverLetter(resume.raw_text, jobDescription);
 
     await db.saveCoverLetter(req.user.id, {
       title: 'Generated Cover Letter',
-      content: coverLetterText
+      content: coverLetterText,
     });
 
     // v5: NO credit deduction for generation — only export costs credits
@@ -85,8 +95,10 @@ router.post('/interview-prep', async (req, res) => {
       return res.status(400).json({ error: 'Missing resumeId or jobDescription' });
     }
 
-    const resume = await db.getResume(parseInt(resumeId), req.user.id);
-    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+    const resume = await db.getResume(parseInt(resumeId, 10), req.user.id);
+    if (!resume) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
 
     const questions = await llm.generateInterviewPrep(resume.raw_text, jobDescription);
 
@@ -103,7 +115,9 @@ router.post('/interview-prep', async (req, res) => {
 router.post('/linkedin', async (req, res) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ error: 'Please sign up for LinkedIn optimization.', signup: true });
+      return res
+        .status(401)
+        .json({ error: 'Please sign up for LinkedIn optimization.', signup: true });
     }
 
     const { resumeId, linkedinText } = req.body;
@@ -111,8 +125,10 @@ router.post('/linkedin', async (req, res) => {
       return res.status(400).json({ error: 'Missing resumeId or linkedinText' });
     }
 
-    const resume = await db.getResume(parseInt(resumeId), req.user.id);
-    if (!resume) return res.status(404).json({ error: 'Resume not found' });
+    const resume = await db.getResume(parseInt(resumeId, 10), req.user.id);
+    if (!resume) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
 
     const suggestions = await llm.optimizeLinkedIn(resume.raw_text, linkedinText);
 

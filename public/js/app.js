@@ -81,7 +81,8 @@ function announceToScreenReader(message, priority = 'polite') {
     if (errorCount >= MAX_ERRORS) return;
     errorCount++;
     try {
-      navigator.sendBeacon('/api/client-error', JSON.stringify(payload));
+      const body = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      navigator.sendBeacon('/api/client-error', body);
     } catch {}
   }
 
@@ -135,6 +136,7 @@ window.fetch = function (url, options = {}) {
       if (body?.code?.startsWith('CSRF_TOKEN')) {
         await fetchCsrfToken();
         options._csrfRetried = true;
+        options.headers = options.headers || {};
         if (options.headers instanceof Headers) {
           options.headers.set('X-CSRF-Token', _csrfToken);
         } else {
@@ -396,7 +398,9 @@ function navigateTo(path, push = true) {
   const announcer = el('sr-announcer');
   if (announcer) {
     const label = routeLabels[path] || (path.startsWith('/results/') ? 'Scan results' : 'Page');
-    requestAnimationFrame(() => { announcer.textContent = `Navigated to ${label}`; });
+    requestAnimationFrame(() => {
+      announcer.textContent = `Navigated to ${label}`;
+    });
   }
 
   // SPA focus management — move focus to active view's heading for screen readers
@@ -748,6 +752,8 @@ async function verifyEmail(token) {
 // ── Global Event Delegation ────────────────────────────────────
 function setupGlobalDelegation() {
   document.body.addEventListener('click', e => {
+    if (e.defaultPrevented) return;
+
     // Tab switching
     const tabBtn = e.target.closest('[data-tab]');
     if (tabBtn) {
@@ -921,7 +927,7 @@ function switchTab(tabId) {
   if (tabId === 'tab-cover-letter' || tabId === 'cover-letter') {
     const bar = el('agent-download-bar');
     const scanId = getActiveScanId();
-    const canGenerateCoverLetter = scanHasTargetJob(currentScan);
+    const hasCoverLetter = scanHasCoverLetter(currentScan);
 
     if (scanId) {
       // Update the bar dataset if needed
@@ -930,7 +936,7 @@ function switchTab(tabId) {
       }
 
       const actions = el('cover-letter-actions');
-      if (!canGenerateCoverLetter) {
+      if (!hasCoverLetter) {
         renderCoverLetter('');
         if (actions) actions.style.display = 'none';
         return;
@@ -1091,8 +1097,12 @@ function looksLikeJobUrl(value = '') {
 
 function validatePastedJd(value = '') {
   const trimmed = String(value || '').trim();
-  if (!trimmed) { return { valid: false, reason: 'empty' }; }
-  if (looksLikeJobUrl(trimmed)) { return { valid: false, reason: 'url' }; }
+  if (!trimmed) {
+    return { valid: false, reason: 'empty' };
+  }
+  if (looksLikeJobUrl(trimmed)) {
+    return { valid: false, reason: 'url' };
+  }
 
   if (trimmed.replace(/\s/g, '').length < 800) {
     return { valid: false, reason: 'too_short' };
@@ -1104,23 +1114,46 @@ function validatePastedJd(value = '') {
   }
   const totalChars = trimmed.length;
   const maxRepeatRatio = Math.max(...Object.values(charCounts)) / totalChars;
-  if (maxRepeatRatio > 0.3) { return { valid: false, reason: 'gibberish' }; }
+  if (maxRepeatRatio > 0.3) {
+    return { valid: false, reason: 'gibberish' };
+  }
 
   const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length <= 1) { return { valid: false, reason: 'gibberish' }; }
+  if (words.length <= 1) {
+    return { valid: false, reason: 'gibberish' };
+  }
 
   const upperRatio = (trimmed.match(/[A-Z]/g) || []).length / totalChars;
-  if (upperRatio > 0.5) { return { valid: false, reason: 'gibberish' }; }
+  if (upperRatio > 0.5) {
+    return { valid: false, reason: 'gibberish' };
+  }
 
   const signals = {
-    hasRole: /\b(role|position|title|job\s+title|hiring|looking\s+for|seeking|opening|vacancy|opportunity)\b/i.test(trimmed),
-    hasResponsibilities: /\b(responsibilit|duties|what\s+you.ll\s+do|what\s+you\s+will\s+do|you\s+will\s+be\s+responsible|accountable\s+for|day-to-day|day\s+to\s+day|key\s+deliverables)\b/i.test(trimmed),
-    hasRequirements: /\b(require|qualif|must\s+have|essential|mandatory|necessary|preferred|desired|nice\s+to\s+have|skills|competenc|criteria)\b/i.test(trimmed),
-    hasSkills: /\b(skills|technologies|tools|frameworks|languages|proficiency|familiarity|experience\s+with|knowledge\s+of)\b/i.test(trimmed),
-    hasCompany: /\b(company|location|remote|onsite|hybrid|full-?time|part-?time|contract|salary|benefits|team|department|about\s+us)\b/i.test(trimmed),
+    hasRole:
+      /\b(role|position|title|job\s+title|hiring|looking\s+for|seeking|opening|vacancy|opportunity)\b/i.test(
+        trimmed
+      ),
+    hasResponsibilities:
+      /\b(responsibilit|duties|what\s+you.ll\s+do|what\s+you\s+will\s+do|you\s+will\s+be\s+responsible|accountable\s+for|day-to-day|day\s+to\s+day|key\s+deliverables)\b/i.test(
+        trimmed
+      ),
+    hasRequirements:
+      /\b(require|qualif|must\s+have|essential|mandatory|necessary|preferred|desired|nice\s+to\s+have|skills|competenc|criteria)\b/i.test(
+        trimmed
+      ),
+    hasSkills:
+      /\b(skills|technologies|tools|frameworks|languages|proficiency|familiarity|experience\s+with|knowledge\s+of)\b/i.test(
+        trimmed
+      ),
+    hasCompany:
+      /\b(company|location|remote|onsite|hybrid|full-?time|part-?time|contract|salary|benefits|team|department|about\s+us)\b/i.test(
+        trimmed
+      ),
   };
   const signalCount = Object.values(signals).filter(Boolean).length;
-  if (signalCount < 2) { return { valid: false, reason: 'not_jd' }; }
+  if (signalCount < 2) {
+    return { valid: false, reason: 'not_jd' };
+  }
 
   return { valid: true };
 }
@@ -1167,7 +1200,8 @@ function syncTargetInputState() {
 
   if (activeJobSourceMode === 'url') {
     const pastedJobDescriptionActive = hasManualJobDescription(jobInput.value);
-    const resolvedJobLinkActive = !pastedJobDescriptionActive && hasResolvedJobContext(currentJobContext);
+    const resolvedJobLinkActive =
+      !pastedJobDescriptionActive && hasResolvedJobContext(currentJobContext);
 
     setLockedFieldState(urlInput, {
       locked: pastedJobDescriptionActive,
@@ -1271,13 +1305,13 @@ function renderJobLinkStatus(jobContext, options = {}) {
       ? 'Fetching job details'
       : jobContext.scrapeStatus === 'blocked'
         ? 'Portal blocked automatic fetch'
-          : jobContext.scrapeStatus === 'failed'
-            ? 'Automatic fetch needs a fallback'
-            : jobContext.jdSource === 'pasted_fallback' || jobContext.jdSource === 'pasted_text'
-              ? 'Using your pasted job description'
-              : jobContext.jdSource === 'scraped_url'
-                ? 'Job link resolved'
-                : 'Target role ready';
+        : jobContext.scrapeStatus === 'failed'
+          ? 'Automatic fetch needs a fallback'
+          : jobContext.jdSource === 'pasted_fallback' || jobContext.jdSource === 'pasted_text'
+            ? 'Using your pasted job description'
+            : jobContext.jdSource === 'scraped_url'
+              ? 'Job link resolved'
+              : 'Target role ready';
 
   const pills = [
     {
@@ -1287,15 +1321,15 @@ function renderJobLinkStatus(jobContext, options = {}) {
           ? 'Fetching JD'
           : jobContext.jdSource === 'pasted_text'
             ? 'Pasted JD'
-          : jobContext.jdSource === 'pasted_fallback'
-            ? 'Fallback active'
-          : jobContext.scrapeStatus === 'ready'
-            ? 'JD captured'
-            : jobContext.scrapeStatus === 'blocked'
-              ? 'Fallback needed'
-              : jobContext.jdSource === 'pasted_fallback'
-                ? 'Fallback active'
-                : 'JD pending',
+            : jobContext.jdSource === 'pasted_fallback'
+              ? 'Fallback active'
+              : jobContext.scrapeStatus === 'ready'
+                ? 'JD captured'
+                : jobContext.scrapeStatus === 'blocked'
+                  ? 'Fallback needed'
+                  : jobContext.jdSource === 'pasted_fallback'
+                    ? 'Fallback active'
+                    : 'JD pending',
     },
     {
       tone: jobContext.companyName ? 'is-success' : 'is-info',
@@ -1313,9 +1347,7 @@ function renderJobLinkStatus(jobContext, options = {}) {
       <div class="job-link-status-title">${esc(statusTitle)}</div>
       <div class="job-link-status-pills">
         ${pills
-          .map(
-            pill => `<span class="job-link-pill ${pill.tone}">${esc(pill.label)}</span>`
-          )
+          .map(pill => `<span class="job-link-pill ${pill.tone}">${esc(pill.label)}</span>`)
           .join('')}
       </div>
     </div>
@@ -1344,12 +1376,12 @@ function renderScanLoadingContext(jobContext) {
     jobContext.jdSource === 'pasted_fallback'
       ? 'Fallback active'
       : jobContext.scrapeStatus === 'ready'
-      ? 'Job details ready'
-      : jobContext.scrapeStatus === 'blocked'
-        ? 'Paste JD to finish targeting'
-        : jobContext.scrapeStatus === 'failed'
-          ? 'Retrying fetch logic'
-          : 'Fetching job details';
+        ? 'Job details ready'
+        : jobContext.scrapeStatus === 'blocked'
+          ? 'Paste JD to finish targeting'
+          : jobContext.scrapeStatus === 'failed'
+            ? 'Retrying fetch logic'
+            : 'Fetching job details';
 
   titleEl.textContent = jobContext.jobTitle
     ? `Optimizing for ${jobContext.jobTitle}`
@@ -1528,10 +1560,7 @@ function setupCompanyDetection() {
             scrapeStatus: 'failed',
             scrapeError: err.message,
           };
-          renderJobLinkStatus(
-            currentJobContext,
-            { state: 'warning', note: err.message }
-          );
+          renderJobLinkStatus(currentJobContext, { state: 'warning', note: err.message });
           syncTargetInputState();
         });
     }, 350);
@@ -1575,9 +1604,10 @@ function switchJobSourceMode(mode) {
     setLockedFieldState(urlInput, { locked: false });
     setLockedFieldState(jobInput, { locked: false });
     if (currentJobContext?.jdSource === 'pasted_text' && !jobInput?.value?.trim()) {
-      currentJobContext = currentJobContext?.jobUrl || currentJobContext?.scrapeStatus === 'ready'
-        ? { ...currentJobContext, jdText: '', jdSource: '' }
-        : null;
+      currentJobContext =
+        currentJobContext?.jobUrl || currentJobContext?.scrapeStatus === 'ready'
+          ? { ...currentJobContext, jdText: '', jdSource: '' }
+          : null;
       if (!currentJobContext) {
         renderJobLinkStatus({}, { state: 'idle' });
       } else if (looksLikeJobUrl(currentJobContext.jobUrl)) {
@@ -1717,11 +1747,16 @@ function setupFileUpload() {
         const messages = {
           empty: '',
           url: 'Please paste the job description text, not a URL. Use the URL tab above to provide a link.',
-          too_short: 'Job description is too short — paste the full posting (at least 800 characters) for accurate analysis.',
-          gibberish: 'This doesn\'t look like a real job description. Please paste the complete job posting text.',
-          not_jd: 'This doesn\'t appear to be a job description. Please include role details, requirements, and responsibilities.',
+          too_short:
+            'Job description is too short — paste the full posting (at least 800 characters) for accurate analysis.',
+          gibberish:
+            "This doesn't look like a real job description. Please paste the complete job posting text.",
+          not_jd:
+            "This doesn't appear to be a job description. Please include role details, requirements, and responsibilities.",
         };
-        jdPasteError.textContent = pastedText ? (messages[validation.reason] || 'Please paste a valid job description.') : '';
+        jdPasteError.textContent = pastedText
+          ? messages[validation.reason] || 'Please paste a valid job description.'
+          : '';
         jdPasteError.style.display = pastedText ? 'block' : 'none';
       }
       if (!pastedText) {
@@ -1771,6 +1806,12 @@ function setupFileUpload() {
   }
 
   area.addEventListener('click', () => fileInput.click());
+  area.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileInput.click();
+    }
+  });
   area.addEventListener('dragover', e => {
     e.preventDefault();
     area.classList.add('dragover');
@@ -1825,14 +1866,19 @@ function setupFileUpload() {
       const jdPasteError = el('jd-paste-error');
       const messages = {
         url: 'Please paste the job description text, not a URL. Use the URL tab above to provide a link.',
-        too_short: 'Job description is too short — paste the full posting (at least 800 characters) for accurate analysis.',
-        gibberish: 'This doesn\'t look like a real job description. Please paste the complete job posting text.',
-        not_jd: 'This doesn\'t appear to be a job description. Please include role details, requirements, and responsibilities.',
+        too_short:
+          'Job description is too short — paste the full posting (at least 800 characters) for accurate analysis.',
+        gibberish:
+          "This doesn't look like a real job description. Please paste the complete job posting text.",
+        not_jd:
+          "This doesn't appear to be a job description. Please include role details, requirements, and responsibilities.",
       };
-      el('scan-error').textContent = messages[jdValidation.reason] || 'Please paste a valid job description.';
+      el('scan-error').textContent =
+        messages[jdValidation.reason] || 'Please paste a valid job description.';
       el('scan-error').style.display = 'block';
       if (jdPasteError) {
-        jdPasteError.textContent = messages[jdValidation.reason] || 'Please paste a valid job description.';
+        jdPasteError.textContent =
+          messages[jdValidation.reason] || 'Please paste a valid job description.';
         jdPasteError.style.display = 'block';
       }
       return;
@@ -1854,8 +1900,7 @@ function setupFileUpload() {
     }
 
     if (urlInputVal && !looksLikeJobUrl(urlInputVal) && !hasPastedJobDescription) {
-      el('scan-error').textContent =
-        'Enter a full job link starting with http:// or https://.';
+      el('scan-error').textContent = 'Enter a full job link starting with http:// or https://.';
       el('scan-error').style.display = 'block';
       return;
     }
@@ -2586,8 +2631,16 @@ function updateAgentScores(scores) {
       const svg = gauge.closest('.score-gauge');
       if (svg) {
         const label = gaugeId.replace('gauge-', '').replace(/-/g, ' ');
-        const labelMap = { parse: 'Parse Rate', format: 'Format Health', match: 'JD Match', after: 'Projected Match' };
-        svg.setAttribute('aria-label', `${labelMap[gaugeId.replace('gauge-', '')] || label}: ${Math.round(limited)}%`);
+        const labelMap = {
+          parse: 'Parse Rate',
+          format: 'Format Health',
+          match: 'JD Match',
+          after: 'Projected Match',
+        };
+        svg.setAttribute(
+          'aria-label',
+          `${labelMap[gaugeId.replace('gauge-', '')] || label}: ${Math.round(limited)}%`
+        );
         svg.setAttribute('role', 'img');
       }
     }
@@ -2681,13 +2734,12 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
     priorityTitle = 'Your resume is close, keep one export credit ready';
     priorityBody =
       'The analysis is trending well. The main remaining friction is having a credit available when you decide to ship the final version.';
-  prioritySeverity = 'warning';
+    prioritySeverity = 'warning';
   } else if (matchRate !== null) {
     priorityTitle = 'You are close to an export-ready pass';
-    priorityBody =
-      jobContext.atsDisplayName
-        ? `The current scan now targets ${jobContext.atsDisplayName}, so the next step is validating recruiter visibility and the export preview.`
-        : 'The current scan is readable and job-aware, so the next step is validating the recruiter view and exporting with confidence.';
+    priorityBody = jobContext.atsDisplayName
+      ? `The current scan now targets ${jobContext.atsDisplayName}, so the next step is validating recruiter visibility and the export preview.`
+      : 'The current scan is readable and job-aware, so the next step is validating the recruiter view and exporting with confidence.';
     prioritySeverity = 'good';
   }
 
@@ -2701,10 +2753,9 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
     if (missingKeywords > 0) {
       visibilityValueEl.textContent = `${missingKeywords} keyword${missingKeywords === 1 ? '' : 's'} missing`;
     } else {
-      visibilityValueEl.textContent =
-        !hasTargetJob
-          ? 'Structural review only'
-          : lowVisibilityFields > 0
+      visibilityValueEl.textContent = !hasTargetJob
+        ? 'Structural review only'
+        : lowVisibilityFields > 0
           ? `${lowVisibilityFields} field${lowVisibilityFields === 1 ? '' : 's'} at risk`
           : matchRate !== null
             ? `${Math.round(matchRate)}% match`
@@ -2713,13 +2764,11 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
   }
   if (visibilityBodyEl) {
     if (missingKeywords > 0) {
-      visibilityBodyEl.textContent =
-        `${missingKeywords} keyword${missingKeywords === 1 ? '' : 's'} from the job description are still missing from this resume. Address these to improve search and ranking.`;
+      visibilityBodyEl.textContent = `${missingKeywords} keyword${missingKeywords === 1 ? '' : 's'} from the job description are still missing from this resume. Address these to improve search and ranking.`;
     } else {
-      visibilityBodyEl.textContent =
-        !hasTargetJob
-          ? 'Recruiter view can confirm parser coverage, but role match and portal-specific guidance stay limited without a target job.'
-          : lowVisibilityFields > 0
+      visibilityBodyEl.textContent = !hasTargetJob
+        ? 'Recruiter view can confirm parser coverage, but role match and portal-specific guidance stay limited without a target job.'
+        : lowVisibilityFields > 0
           ? 'Recruiters may still miss part of your profile in search because extracted fields are incomplete or partial.'
           : 'The recruiter view looks structurally stronger, so focus shifts toward keyword fit and final polish.';
     }
@@ -2727,11 +2776,12 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
 
   if (exportValueEl) {
     const exportScore =
-      parseRate !== null && formatHealth !== null ? Math.round((parseRate + formatHealth) / 2) : null;
-    exportValueEl.textContent =
-      !hasTargetJob
-        ? 'Target job required'
-        : exportScore === null
+      parseRate !== null && formatHealth !== null
+        ? Math.round((parseRate + formatHealth) / 2)
+        : null;
+    exportValueEl.textContent = !hasTargetJob
+      ? 'Target job required'
+      : exportScore === null
         ? 'Evaluating'
         : exportScore >= 80
           ? 'Ready for final review'
@@ -2740,10 +2790,9 @@ function updateResultsSummary({ scores = null, scan = null } = {}) {
             : 'Hold export for now';
   }
   if (exportBodyEl) {
-    exportBodyEl.textContent =
-      !hasTargetJob
-        ? 'Preview the structure for free, then rerun with a target job before you spend a credit on export.'
-        : creditBalance < 1
+    exportBodyEl.textContent = !hasTargetJob
+      ? 'Preview the structure for free, then rerun with a target job before you spend a credit on export.'
+      : creditBalance < 1
         ? 'Scans stay free, but keep one credit available so a strong result can turn into a same-day export.'
         : jobContext.atsDisplayName
           ? `Preview the ${jobContext.atsDisplayName}-ready layout first, then export once the recruiter table and job match feel believable.`
@@ -2783,7 +2832,9 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
   const roleTitle = decodeHtml(jobContext.jobTitle || scan?.job_title || '');
 
   titleEl.textContent =
-    roleTitle && !isNoisyJobFacingTitle(roleTitle) && roleTitle.toLowerCase() !== 'no job description'
+    roleTitle &&
+    !isNoisyJobFacingTitle(roleTitle) &&
+    roleTitle.toLowerCase() !== 'no job description'
       ? roleTitle
       : scanTitle;
   bodyEl.textContent = hasJobContext
@@ -2811,10 +2862,15 @@ function updateResultsWorkspaceHeader({ scan = null, source = 'live' } = {}) {
 
   if (scan) {
     const scanData = scan || currentScan;
-    const kwMissing = Array.isArray(scanData?.keywordData?.missing) ? scanData.keywordData.missing.length : 0;
-    const matchLabel = matchRate !== null && hasJobContext
-      ? (kwMissing > 0 ? `${Math.round(matchRate)}% match · ${kwMissing} keyword${kwMissing === 1 ? '' : 's'} missing` : `${Math.round(matchRate)}% match`)
-      : null;
+    const kwMissing = Array.isArray(scanData?.keywordData?.missing)
+      ? scanData.keywordData.missing.length
+      : 0;
+    const matchLabel =
+      matchRate !== null && hasJobContext
+        ? kwMissing > 0
+          ? `${Math.round(matchRate)}% match · ${kwMissing} keyword${kwMissing === 1 ? '' : 's'} missing`
+          : `${Math.round(matchRate)}% match`
+        : null;
     const contextParts = [
       source === 'history' ? 'Saved scan' : 'Live workspace',
       hasJobContext
@@ -2927,11 +2983,11 @@ async function finalizeAgentUI(data) {
               clContainer.innerHTML = safeHtml(
                 hasTargetJob
                   ? '<div class="preview-empty" style="padding:2rem;text-align:center;color:var(--text-muted);"><div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.34">' +
-                    uiIcon('mail', { size: 44, stroke: 1.7 }) +
-                    '</div><h4 style="margin-bottom:0.5rem">Cover letter preview unavailable</h4><p class="body-sm" style="margin-bottom:1rem">We resolved the target role, but this scan did not return a usable cover letter yet. Run a fresh targeted scan to regenerate it cleanly.</p><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Start New Targeted Scan</button></div>'
+                      uiIcon('mail', { size: 44, stroke: 1.7 }) +
+                      '</div><h4 style="margin-bottom:0.5rem">Cover letter preview unavailable</h4><p class="body-sm" style="margin-bottom:1rem">We resolved the target role, but this scan did not return a usable cover letter yet. Run a fresh targeted scan to regenerate it cleanly.</p><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Start New Targeted Scan</button></div>'
                   : '<div class="preview-empty" style="padding:2rem;text-align:center;color:var(--text-muted);"><div style="display:flex;justify-content:center;margin-bottom:1rem;opacity:0.34">' +
-                    uiIcon('mail', { size: 44, stroke: 1.7 }) +
-                    '</div><h4 style="margin-bottom:0.5rem">No cover letter for this scan</h4><p class="body-sm" style="margin-bottom:1rem">This scan only reviewed the resume structure. Add a target job link or paste the job description to generate a cover letter.</p><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Start Targeted Scan</button></div>'
+                      uiIcon('mail', { size: 44, stroke: 1.7 }) +
+                      '</div><h4 style="margin-bottom:0.5rem">No cover letter for this scan</h4><p class="body-sm" style="margin-bottom:1rem">This scan only reviewed the resume structure. Add a target job link or paste the job description to generate a cover letter.</p><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Start Targeted Scan</button></div>'
               );
             const clActions = el('cover-letter-actions');
             if (clActions) clActions.style.display = 'none';
@@ -3139,7 +3195,14 @@ function syncTemplateSelectionUI() {
 }
 
 function setSelectedTemplate(template) {
-  const nextTemplate = ['refined', 'executive', 'corporate', 'modern', 'classic', 'minimal'].includes(template)
+  const nextTemplate = [
+    'refined',
+    'executive',
+    'corporate',
+    'modern',
+    'classic',
+    'minimal',
+  ].includes(template)
     ? template
     : 'refined';
   currentRenderProfile = {
@@ -3147,8 +3210,7 @@ function setSelectedTemplate(template) {
     template: nextTemplate,
     density: getSelectedDensity(),
     atsPlatform: currentRenderProfile?.atsPlatform || currentJobContext?.atsPlatform || '',
-    atsDisplayName:
-      currentRenderProfile?.atsDisplayName || currentJobContext?.atsDisplayName || '',
+    atsDisplayName: currentRenderProfile?.atsDisplayName || currentJobContext?.atsDisplayName || '',
   };
   syncTemplateSelectionUI();
 }
@@ -3166,7 +3228,12 @@ function getPreviewVariantKey(scanId, type = 'resume') {
   const resolvedScanId = Number.parseInt(String(scanId || getActiveScanId() || ''), 10);
   const density = getSelectedDensity();
   const template = getSelectedTemplate();
-  return [type, Number.isInteger(resolvedScanId) ? resolvedScanId : 'invalid', template, density].join(':');
+  return [
+    type,
+    Number.isInteger(resolvedScanId) ? resolvedScanId : 'invalid',
+    template,
+    density,
+  ].join(':');
 }
 
 async function reloadPdfPreview(scanId, options = {}) {
@@ -3192,7 +3259,9 @@ async function downloadOptimized(format) {
     const query = new URLSearchParams({ format, template: getSelectedTemplate() });
     const density = getSelectedDensity();
     if (density) query.set('density', density);
-    const res = await fetch(`/api/agent/download/${scanId}?${query.toString()}`);
+    const res = await fetch(`/api/agent/download/${scanId}?${query.toString()}`, {
+      method: 'POST',
+    });
     if (!res.ok) {
       const data = await res.json();
       if (data.upgrade) navigateTo('/pricing');
@@ -3312,12 +3381,13 @@ async function loadResults(scanId, retryCount = 0) {
   if (!results) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     el('view-results').classList.add('active');
-    // Show error in the dashboard area (results-content was removed in HTML restructure)
     const dashboard = el('results-dashboard');
-    if (dashboard) {
-      dashboard.style.display = 'block';
-      dashboard.innerHTML = safeHtml(
-        '<div class="card text-center" style="padding:3rem"><h3>Scan not found</h3><p class="body-sm" style="margin:1rem 0">This scan may have been deleted or doesn\'t exist.</p><button class="btn btn-primary" data-action="navigate" data-path="/scan">New Scan</button></div>'
+    if (dashboard) dashboard.style.display = 'none';
+    const errorView = el('results-error');
+    if (errorView) {
+      errorView.style.display = 'block';
+      errorView.innerHTML = safeHtml(
+        `<div class="card text-center" style="padding:3rem"><h3>Scan not found</h3><p class="body-sm" style="margin:1rem 0">This scan may have been deleted or doesn't exist.</p><button class="btn btn-primary" data-action="navigate" data-path="/scan">New Scan</button></div>`
       );
     }
     if (el('results-initializing')) el('results-initializing').style.display = 'none';
@@ -3330,6 +3400,7 @@ async function loadResults(scanId, retryCount = 0) {
 
   // Hide init block, show dashboard
   if (el('results-initializing')) el('results-initializing').style.display = 'none';
+  if (el('results-error')) el('results-error').style.display = 'none';
   if (el('results-dashboard')) el('results-dashboard').style.display = 'block';
 
   setupAgentHistoricalView(results);
@@ -3734,7 +3805,9 @@ function updateDashboardFocus(data, user) {
   const resumes = Array.isArray(data?.resumes) ? data.resumes : [];
   const latest = scans[0] || null;
   const creditBalance = data?.creditBalance ?? user?.creditBalance ?? 0;
-  const targetedScanCount = scans.filter(scan => scanHasTargetJob(scan, getJobContext(scan))).length;
+  const targetedScanCount = scans.filter(scan =>
+    scanHasTargetJob(scan, getJobContext(scan))
+  ).length;
 
   const titleEl = el('dash-next-step-title');
   const bodyEl = el('dash-next-step-body');
@@ -3758,11 +3831,13 @@ function updateDashboardFocus(data, user) {
 
   if (momentumEl) {
     if (!scans.length) {
-      momentumEl.textContent = 'Build one strong scan first, then export when the recruiter view looks clean.';
+      momentumEl.textContent =
+        'Build one strong scan first, then export when the recruiter view looks clean.';
     } else if (targetedScanCount > 0) {
       momentumEl.textContent = `You have ${targetedScanCount} targeted scan${targetedScanCount === 1 ? '' : 's'} ready for follow-up and export review.`;
     } else {
-      momentumEl.textContent = 'Run a targeted scan against a live job link or pasted JD to build a stronger benchmark before exporting.';
+      momentumEl.textContent =
+        'Run a targeted scan against a live job link or pasted JD to build a stronger benchmark before exporting.';
     }
   }
 
@@ -3792,7 +3867,11 @@ function updateDashboardJourney(data, user) {
   const winMetaEl = el('dash-win-meta');
 
   const targetState = latest ? 'complete' : 'current';
-  const reviewState = latest ? (latest.match_rate >= 70 || latest.parse_rate >= 75 ? 'complete' : 'current') : 'pending';
+  const reviewState = latest
+    ? latest.match_rate >= 70 || latest.parse_rate >= 75
+      ? 'complete'
+      : 'current'
+    : 'pending';
   const exportState =
     latest && creditBalance > 0 && (latest.match_rate || 0) >= 75 && (latest.parse_rate || 0) >= 75
       ? 'complete'
@@ -3922,9 +4001,7 @@ function isNoisyJobFacingTitle(title = '') {
   if (clean.split(/\s+/).length > 9) return true;
   if (/^[a-z0-9-]+\.[a-z]{2,}/i.test(clean)) return true;
   if (
-    /^(provide|responsible|join|working|support|ensure|maintain|this|we|you|our|the)\b/i.test(
-      clean
-    )
+    /^(provide|responsible|join|working|support|ensure|maintain|this|we|you|our|the)\b/i.test(clean)
   ) {
     return true;
   }
@@ -3946,7 +4023,11 @@ function extractTitleFromJobUrl(jobUrl = '') {
       return cleaned.replace(/\b\w/g, c => c.toUpperCase()).replace(/\bAt\b/g, 'at');
     }
 
-    if (!/(linkedin|indeed|greenhouse|lever|workday|naukri|glassdoor|smartrecruiters|icims|cezannehr)\./i.test(host)) {
+    if (
+      !/(linkedin|indeed|greenhouse|lever|workday|naukri|glassdoor|smartrecruiters|icims|cezannehr)\./i.test(
+        host
+      )
+    ) {
       return host;
     }
   } catch {
@@ -3992,7 +4073,12 @@ async function renderProfile() {
   );
 
   // Tier badge
-  const tierNames = { free: 'Free', starter: 'Starter', pro: 'Professional', hustler: 'Career Plus' };
+  const tierNames = {
+    free: 'Free',
+    starter: 'Starter',
+    pro: 'Professional',
+    hustler: 'Career Plus',
+  };
   const badge = el('profile-tier-badge');
   badge.textContent = tierNames[tier] || 'Free';
   badge.className = `tier-badge tier-${tier}`;
@@ -4221,8 +4307,15 @@ async function renderProfile() {
         } else {
           el('password-modal').style.display = 'none';
           document.body.classList.remove('modal-open');
-          showToast('Password updated!', 'success');
           pwForm.reset();
+          if (data.requireRelogin) {
+            currentUser = null;
+            renderAuth();
+            showToast(data.message || 'Password updated. Please log in again.', 'success');
+            setTimeout(() => navigateTo('/login'), 900);
+            return;
+          }
+          showToast('Password updated!', 'success');
         }
       } catch {
         errEl.textContent = 'Something went wrong. Please try again.';
@@ -4303,7 +4396,9 @@ function updateProfileGuidance(user, creditBalance) {
   }
 
   if (securityTitleEl && securityBodyEl) {
-    securityTitleEl.textContent = user.hasPassword ? 'Password protection is enabled' : providerLabel;
+    securityTitleEl.textContent = user.hasPassword
+      ? 'Password protection is enabled'
+      : providerLabel;
     securityBodyEl.textContent = user.hasPassword
       ? 'You can update your password here before a busy application week so you are not locked out at the wrong moment.'
       : 'This account uses connected sign-in only, so access depends on your external provider staying available.';
@@ -4494,7 +4589,10 @@ function summarizeRecruiterField(fieldName, rawValue) {
     default:
       return {
         title: truncate(cleaned, 110),
-        detail: cleaned.length > 110 ? truncate(cleaned, 180) : 'Searchable value extracted for recruiter review.',
+        detail:
+          cleaned.length > 110
+            ? truncate(cleaned, 180)
+            : 'Searchable value extracted for recruiter review.',
       };
   }
 }
@@ -4542,11 +4640,13 @@ function buildRecruiterRows(fieldAccuracy, extractedFields) {
   return entries
     .map(entry => {
       const maskedValue = maskValue(entry.fieldName, String(entry.rawValue || ''));
-      const summary = entry.rawValue
-        ? summarizeRecruiterField(entry.fieldName, maskedValue)
-        : null;
+      const summary = entry.rawValue ? summarizeRecruiterField(entry.fieldName, maskedValue) : null;
       const statusLabel =
-        entry.status === 'success' ? 'Captured' : entry.status === 'warning' ? 'Partial' : 'Missing';
+        entry.status === 'success'
+          ? 'Captured'
+          : entry.status === 'warning'
+            ? 'Partial'
+            : 'Missing';
       const toneClass =
         entry.status === 'success'
           ? 'is-found'
@@ -4650,7 +4750,10 @@ function renderSearchVisibilitySummary(keywordData = {}) {
             ${
               matched.length
                 ? matched
-                    .map(keyword => `<span class="keyword-tag matched">${esc(keyword.term || keyword)}</span>`)
+                    .map(
+                      keyword =>
+                        `<span class="keyword-tag matched">${esc(keyword.term || keyword)}</span>`
+                    )
                     .join('')
                 : '<span class="search-visibility-empty">No strong keyword matches yet.</span>'
             }
@@ -4662,7 +4765,10 @@ function renderSearchVisibilitySummary(keywordData = {}) {
             ${
               missing.length
                 ? missing
-                    .map(keyword => `<span class="keyword-tag missing">${esc(keyword.term || keyword)}</span>`)
+                    .map(
+                      keyword =>
+                        `<span class="keyword-tag missing">${esc(keyword.term || keyword)}</span>`
+                    )
                     .join('')
                 : '<span class="search-visibility-empty">No major missing keywords in this snapshot.</span>'
             }
@@ -5068,6 +5174,11 @@ function scanHasTargetJob(scan = currentScan, jobContext = getJobContext(scan)) 
   );
 }
 
+function scanHasCoverLetter(scan = currentScan) {
+  const text = scan?.coverLetterText || scan?.cover_letter_text || currentCoverLetterText || '';
+  return typeof text === 'string' && text.trim().length > 0;
+}
+
 function persistCurrentScanToken(token) {
   if (token) localStorage.setItem('resumeXray_currentScanToken', token);
   else localStorage.removeItem('resumeXray_currentScanToken');
@@ -5136,7 +5247,10 @@ function sizeCoverLetterPreviewFrame(wrapper, iframe) {
     availableWidth = Math.max(280, document.documentElement.clientWidth * 0.8);
   }
   availableWidth = Math.max(280, availableWidth - 32);
-  const availableHeight = Math.max(420, (previewContainer.clientHeight || wrapper.clientHeight || 0) - 32);
+  const availableHeight = Math.max(
+    420,
+    (previewContainer.clientHeight || wrapper.clientHeight || 0) - 32
+  );
   const pageRatio = 210 / 297;
   const fittedWidth = Math.min(860, availableWidth, availableHeight * pageRatio);
   const frameWidth = Math.max(280, Math.round(fittedWidth));
@@ -5257,12 +5371,16 @@ function renderCoverLetter(text) {
 
   const scanId = getActiveScanId();
   const canGenerateCoverLetter = scanHasTargetJob(currentScan);
+  const hasCoverLetter = scanHasCoverLetter(currentScan);
   const usesHistoricalPreview = window.location.pathname.startsWith('/results/');
 
-  if (!scanId || !canGenerateCoverLetter) {
+  if (!scanId || !canGenerateCoverLetter || !hasCoverLetter) {
     currentCoverLetterPreviewKey = '';
+    const message = canGenerateCoverLetter
+      ? 'This scan has target-job context, but no usable cover letter was generated. Start a fresh targeted scan to regenerate it.'
+      : 'Cover letters are generated when you include a target job link or paste the job description with your scan.';
     clContainer.innerHTML = safeHtml(
-      '<div class="document-text-preview"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>No cover letter yet</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">Cover letters are generated when you include a target job link or paste the job description with your scan.</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Target Job</button></div></div></div>'
+      `<div class="document-text-preview"><div class="cover-letter-placeholder"><div style="margin-bottom:1rem;opacity:0.4"><svg aria-hidden="true" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg></div><h4>${canGenerateCoverLetter ? 'Cover letter unavailable' : 'No cover letter yet'}</h4><p class="body-sm text-muted" style="margin-top:0.5rem;margin-bottom:1.5rem">${message}</p><div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" data-action="navigate" data-path="/scan">Scan with Target Job</button></div></div></div>`
     );
     if (actions) actions.style.display = 'none';
     return;
@@ -5316,6 +5434,11 @@ async function downloadCoverLetter(format) {
     showToast('No scan data available. Please run a new scan first.', 'warning');
     return;
   }
+  if (!scanHasCoverLetter(currentScan)) {
+    showToast('No cover letter is available for this scan.', 'warning');
+    renderCoverLetter('');
+    return;
+  }
 
   try {
     const query = new URLSearchParams({
@@ -5325,7 +5448,9 @@ async function downloadCoverLetter(format) {
     });
     const density = getSelectedDensity();
     if (density) query.set('density', density);
-    const res = await fetch(`/api/agent/download/${scanId}?${query.toString()}`);
+    const res = await fetch(`/api/agent/download/${scanId}?${query.toString()}`, {
+      method: 'POST',
+    });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       if (data.upgrade) {

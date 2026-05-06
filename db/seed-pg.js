@@ -28,7 +28,13 @@ B.Sc. Business Information Systems - University College Dublin 2018
 TECHNICAL SKILLS
 ATS Workflows, Workday, Lever, LinkedIn Jobs, SQL, Analytics, Process Design, Stakeholder Management`;
 
-function buildSeedAnalysis({ companyName, jobTitle, atsPlatform, atsDisplayName, missingKeywords }) {
+function buildSeedAnalysis({
+  companyName,
+  jobTitle,
+  atsPlatform,
+  atsDisplayName,
+  missingKeywords,
+}) {
   const summary = `Product-minded leader with experience optimizing resume workflows for ${companyName}.`;
   const xrayData = {
     engines: {
@@ -112,7 +118,8 @@ function buildSeedAnalysis({ companyName, jobTitle, atsPlatform, atsDisplayName,
       {
         keyword: 'portal completion',
         section: 'Experience',
-        suggestion: 'Mention how you reduced candidate drop-off or manual field correction after upload.',
+        suggestion:
+          'Mention how you reduced candidate drop-off or manual field correction after upload.',
       },
     ],
     optimizedResumeText: baseResumeText,
@@ -182,7 +189,8 @@ async function seed() {
     rawText: baseResumeText,
     parsedData: {
       name: 'Alex Morgan',
-      contact: 'alex.morgan@example.com | +353 87 555 0142 | linkedin.com/in/alexmorgan | Dublin, Ireland',
+      contact:
+        'alex.morgan@example.com | +353 87 555 0142 | linkedin.com/in/alexmorgan | Dublin, Ireland',
     },
   });
 

@@ -23,20 +23,25 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
 
     // Security: Validate file magic bytes (prevents MIME spoofing)
     if (!validateMagicBytes(req.file.buffer, req.file.mimetype)) {
-      return res.status(400).json({ 
-        error: 'File integrity check failed. The file appears corrupted or is not a valid PDF/DOCX.' 
+      return res.status(400).json({
+        error:
+          'File integrity check failed. The file appears corrupted or is not a valid PDF/DOCX.',
       });
     }
 
     const rawText = await parser.parseResume(req.file.buffer, req.file.mimetype);
     if (!rawText || rawText.trim() === '') {
-      return res.status(400).json({ error: 'Could not extract text from the file. Ensure it is not an image-based PDF.' });
+      return res.status(400).json({
+        error: 'Could not extract text from the file. Ensure it is not an image-based PDF.',
+      });
     }
 
     // Content validation: reject non-resume files
     const resumeCheck = validateResumeContent(rawText);
     if (!resumeCheck.isResume) {
-      return res.status(400).json({ error: `This doesn't appear to be a resume. Please upload your resume file (PDF or DOCX) containing your work experience, education, and skills.` });
+      return res.status(400).json({
+        error: `This doesn't appear to be a resume. Please upload your resume file (PDF or DOCX) containing your work experience, education, and skills.`,
+      });
     }
 
     // Smart JD handling — Security: sanitize all user-text inputs
@@ -63,7 +68,11 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
       companyName = jobContext.companyName || companyName;
     }
 
-    if (jobContext.jobUrl && !jobContext.jdText && ['blocked', 'failed'].includes(jobContext.scrapeStatus)) {
+    if (
+      jobContext.jobUrl &&
+      !jobContext.jdText &&
+      ['blocked', 'failed'].includes(jobContext.scrapeStatus)
+    ) {
       return res.status(400).json({
         error:
           jobContext.scrapeError ||
@@ -84,7 +93,7 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
         fileType: req.file.mimetype === 'application/pdf' ? 'pdf' : 'docx',
         fileSize: req.file.size,
         rawText: rawText,
-        parsedData: analysis.sectionData
+        parsedData: analysis.sectionData,
       });
     }
 
@@ -106,7 +115,7 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
       recommendations: analysis.recommendations,
       aiSuggestions: {
         biasShield: analysis.biasShield,
-        aiShieldData: analysis.aiShieldData
+        aiShieldData: analysis.aiShieldData,
       },
       renderMeta: {
         renderStatus: 'pending',
@@ -135,7 +144,7 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
     res.json({
       success: true,
       scanId,
-      accessToken: accessToken || undefined,  // Only present for guest scans
+      accessToken: accessToken || undefined, // Only present for guest scans
       results: analysis,
       jobContext,
       creditBalance,
@@ -144,7 +153,6 @@ router.post('/analyze', apiLimiter, upload.single('resume'), checkScanLimit, asy
           ? jobContext.scrapeError
           : undefined,
     });
-
   } catch (err) {
     log.error('Analysis error', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'An error occurred during analysis.' });
@@ -157,16 +165,18 @@ router.get('/scan/:id', async (req, res) => {
     const scanId = req.params.id;
     const userId = req.user ? req.user.id : null;
     const accessToken = typeof req.query.token === 'string' ? req.query.token : null;
-    
+
     log.debug('Scan fetch request', { scanId, userId, email: req.user?.email || 'guest' });
     const scan = await db.getScan(scanId, userId, accessToken);
     log.debug('Scan fetch result', { scanId, found: !!scan });
-    if (!scan) return res.status(404).json({ error: 'Scan not found' });
-    
+    if (!scan) {
+      return res.status(404).json({ error: 'Scan not found' });
+    }
+
     if (scan.user_id !== null && (!req.user || req.user.id !== scan.user_id)) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    
+
     const parsedAi = JSON.parse(scan.ai_suggestions || '{}') || {};
 
     const analysis = {
@@ -186,7 +196,10 @@ router.get('/scan/:id', async (req, res) => {
       sectionData: JSON.parse(scan.section_data || '{}') || {},
       recommendations: JSON.parse(scan.recommendations || '[]') || [],
       biasShield: (parsedAi && parsedAi.biasShield) || { riskScore: 0, flags: [] },
-      aiShieldData: (parsedAi && parsedAi.aiShieldData) || { ghostingBullets: [], knockoutRisks: [] },
+      aiShieldData: (parsedAi && parsedAi.aiShieldData) || {
+        ghostingBullets: [],
+        knockoutRisks: [],
+      },
       // Agent (Premium) fields — strictly camelCase for frontend detection
       optimizedResumeText: scan.optimized_resume_text || null,
       optimizedBullets: scan.optimized_bullets ? JSON.parse(scan.optimized_bullets) : null,
@@ -194,7 +207,7 @@ router.get('/scan/:id', async (req, res) => {
       coverLetterText: scan.cover_letter_text || null,
     };
     res.json({ success: true, results: analysis });
-  } catch(e) {
+  } catch (e) {
     log.error('Fetch scan error', { error: e.message, scanId: req.params.id });
     res.status(500).json({ error: 'Failed to fetch scan' });
   }
@@ -203,7 +216,9 @@ router.get('/scan/:id', async (req, res) => {
 // AI Bullet Fixer — FREE (sandbox mode, v3)
 router.post('/fix-bullet', apiLimiter, async (req, res) => {
   const { bulletText, jobDescription } = req.body;
-  if (!bulletText) return res.status(400).json({ error: 'Bullet text is required.' });
+  if (!bulletText) {
+    return res.status(400).json({ error: 'Bullet text is required.' });
+  }
 
   // Security: Sanitize text inputs
   const safeBulletText = sanitizeInput(bulletText);
@@ -211,9 +226,13 @@ router.post('/fix-bullet', apiLimiter, async (req, res) => {
 
   if (!req.user) {
     // Allow 3 free fixes for guests (encourage signup)
-    if (!req.session.freeFixes) req.session.freeFixes = 0;
+    if (!req.session.freeFixes) {
+      req.session.freeFixes = 0;
+    }
     if (req.session.freeFixes >= 3) {
-      return res.status(403).json({ error: 'Sign up for unlimited free AI bullet rewrites!', signup: true });
+      return res
+        .status(403)
+        .json({ error: 'Sign up for unlimited free AI bullet rewrites!', signup: true });
     }
     req.session.freeFixes++;
   }
@@ -221,7 +240,7 @@ router.post('/fix-bullet', apiLimiter, async (req, res) => {
   try {
     const { rewriteBulletWithCAR } = require('../lib/llm/llm-service');
     const result = await rewriteBulletWithCAR(safeBulletText, safeJobDescription);
-    
+
     // v3: No credit deduction — AI sandbox is free
     const creditBalance = req.user ? await db.getCreditBalance(req.user.id) : 0;
     res.json({ success: true, ...result, creditBalance });

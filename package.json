@@ -23,9 +23,9 @@
     "test:ci": "node --test --test-reporter spec tests/smoke.test.js tests/core-flow.test.js",
     "seed": "node db/seed.js",
     "db:reset": "rm -f db/resumexray.db db/resumexray.db-shm db/resumexray.db-wal && node db/seed.js",
-    "postinstall": "npx playwright install chromium",
-    "lint": "eslint . --ext .js,.mjs --ignore-pattern 'node_modules/**' --ignore-pattern 'dist/**' --ignore-pattern 'public/js/app.js' --ignore-pattern 'public/js/purify.min.js'",
-    "lint:fix": "eslint . --ext .js,.mjs --fix --ignore-pattern 'node_modules/**' --ignore-pattern 'dist/**' --ignore-pattern 'public/js/app.js' --ignore-pattern 'public/js/purify.min.js'",
+    "postinstall": "npx playwright-core install chromium",
+    "lint": "eslint . --ext .js,.mjs --ignore-pattern 'node_modules/**' --ignore-pattern 'dist/**' --ignore-pattern 'public/js/app.js' --ignore-pattern 'public/js/purify.min.js' --ignore-pattern 'public/js/vendor/**'",
+    "lint:fix": "eslint . --ext .js,.mjs --fix --ignore-pattern 'node_modules/**' --ignore-pattern 'dist/**' --ignore-pattern 'public/js/app.js' --ignore-pattern 'public/js/purify.min.js' --ignore-pattern 'public/js/vendor/**'",
     "format": "prettier --write \"{public,routes,lib,db,middleware,config}/**/*.{js,mjs,css,html}\" \"server.js\" \"*.js\"",
     "format:check": "prettier --check \"{public,routes,lib,db,middleware,config}/**/*.{js,mjs,css,html}\" \"server.js\" \"*.js\""
   },
@@ -41,12 +41,12 @@
     "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",
     "docx": "^9.6.1",
-    "dompurify": "^3.3.3",
+    "dompurify": "^3.4.2",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "express-rate-limit": "^7.4.0",
     "express-session": "^1.18.0",
-    "fast-xml-parser": "^5.5.11",
+    "fast-xml-parser": "^5.7.3",
     "handlebars": "^4.7.8",
     "helmet": "^8.0.0",
     "ioredis": "^5.10.1",
@@ -59,11 +59,12 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-linkedin-oauth2": "^2.0.0",
     "pdf-parse": "^1.1.4",
+    "pdfjs-dist": "^4.9.155",
     "pg": "^8.20.0",
-    "playwright-core": "^1.52.0",
+    "playwright-core": "^1.59.1",
     "rate-limit-redis": "^4.3.1",
     "resend": "^6.10.0",
-    "sanitize-html": "^2.13.0",
+    "sanitize-html": "^2.17.3",
     "sharp": "^0.34.5",
     "stripe": "^17.4.0",
     "uuid": "^10.0.0"
@@ -76,5 +77,9 @@
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
     "prettier": "^3.3.3"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "^0.8.13",
+    "postcss": "^8.5.10"
   }
 }

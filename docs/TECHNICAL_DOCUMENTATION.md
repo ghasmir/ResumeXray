@@ -13,7 +13,7 @@ Scope note:
 
 - This document covers the first-party source of truth in `server.js`, `config/`, `middleware/`, `routes/`, `lib/`, `db/`, `public/`, `tests/`, and the active deployment/configuration files.
 - Generated assets in `dist/` are mentioned as deployment artifacts, not as the editable source of truth.
-- Minified/vendor code such as `public/js/purify.min.js` is not line-annotated here because it is not authored project logic.
+- Minified/vendor code such as `public/js/purify.min.js` and `public/js/vendor/pdfjs/*` is not line-annotated here because it is not authored project logic.
 
 ## 1. Product Purpose
 
@@ -43,6 +43,8 @@ The repository currently has one active frontend and one active backend. All leg
 - `public/js/app.js`
 - `public/js/modules/ui-helpers.mjs`
 - `public/js/modules/pdf-preview.mjs`
+- `public/js/vendor/pdfjs/pdf.min.mjs`
+- `public/js/vendor/pdfjs/pdf.worker.min.mjs`
 - `public/css/tokens.css`
 - `public/css/styles.css`
 - `public/css/app-surfaces.css`
@@ -69,14 +71,14 @@ flowchart TD
     Render["PDF / DOCX Render Pipeline"]
     DB["SQLite or PostgreSQL Adapter"]
     Redis["Redis / Upstash (optional but preferred in prod)"]
-    Stripe["Stripe Checkout + Webhooks"]
+    Billing["Billing Providers (Stripe / Lemon Squeezy)"]
     Mail["Email Delivery"]
 
     Browser --> Express
     Express --> Auth
     Express --> Routes
     Routes --> Agent
-    Routes --> Stripe
+    Routes --> Billing
     Routes --> DB
     Agent --> AI
     Agent --> Render
@@ -84,7 +86,7 @@ flowchart TD
     Auth --> DB
     Auth --> Redis
     Routes --> Redis
-    Stripe --> DB
+    Billing --> DB
     Mail --> Browser
 ```
 
@@ -166,7 +168,7 @@ sequenceDiagram
 3. `routes/agent.js` calls `renderResumePdf()` in `lib/render-service.js`.
 4. `renderResumePdf()` chooses the resume text source, ATS profile, template, and density, then calls `generatePDF()` in `lib/resume-builder.js`.
 5. The backend returns a PDF buffer.
-6. Frontend converts the PDF response to a blob URL and loads it into the iframe.
+6. Frontend converts the PDF response to a blob URL and renders it with the self-hosted PDF.js runtime and same-origin worker under `public/js/vendor/pdfjs/`.
 
 Current results-tab contract:
 
@@ -176,10 +178,11 @@ Current results-tab contract:
 
 ### 5.5 User exports
 
-1. Frontend calls `/api/agent/download/:scanId?format=pdf|docx`.
-2. `middleware/usage.js` enforces export credit requirements.
-3. Backend renders the export and deducts credit atomically.
-4. File downloads to the client.
+1. Frontend calls `POST /api/agent/download/:scanId?format=pdf|docx`.
+2. CSRF middleware validates the session token before any authenticated export can spend credits.
+3. `middleware/usage.js` marks guest exports as watermarked and passes authenticated exports to the atomic deduction path.
+4. Backend renders the export and deducts credit atomically.
+5. File downloads to the client.
 
 ## 6. Directory-Level Structure
 
@@ -329,12 +332,15 @@ Important exports:
 
 - `generalLimiter`, `authLimiter`, `apiLimiter`, `aiLimiter`, `agentLimiter`, `downloadLimiter`
 
-### `config/stripe.js`
+### `lib/billing-service.js`, `config/stripe.js`, and `config/lemonsqueezy.js`
 
-Owns Stripe client initialization and checkout session creation.
+Own provider registration and checkout/webhook behavior. `lib/billing-service.js` selects the active provider from `BILLING_PROVIDER` and exposes provider-neutral checkout and webhook methods. Stripe and Lemon Squeezy keep their provider-specific pack metadata, checkout construction, and signature verification in their config modules.
 
 Key functions:
 
+- `billingService.getAvailablePacks()`
+- `billingService.createCheckout(userId, email, packId)`
+- `billingService.getProvider(name)`
 - `getStripe()`
 - `createCheckoutSession(userId, email, packId)`
 
@@ -454,8 +460,8 @@ Responsibilities:
 
 - credit pack catalog
 - current credits
-- Stripe checkout
-- Stripe webhook processing
+- provider-neutral checkout
+- Stripe and Lemon Squeezy webhook processing
 
 Endpoints:
 
@@ -463,6 +469,7 @@ Endpoints:
 - `GET /billing/credits`
 - `POST /billing/checkout`
 - `POST /billing/webhook`
+- `POST /billing/lemonsqueezy-webhook`
 
 ## 9.4 `routes/api.js`
 
@@ -518,8 +525,10 @@ Endpoints:
   Returns inline preview PDF.
 - `GET /api/agent/cover-letter-preview/:scanId`
   Returns preview HTML/PDF-ish cover-letter view.
+- `POST /api/agent/download/:scanId`
+  Generates downloadable export and charges credit after CSRF validation.
 - `GET /api/agent/download/:scanId`
-  Generates downloadable export and charges credit.
+  Serves only unauthenticated token-backed downloads; authenticated exports must use `POST`.
 
 ## 10. Analysis Pipeline
 
@@ -674,6 +683,9 @@ Functions:
 
 - `getJobDescription(input)`
 - `getHeaders()`
+- `assertSafeUrl(rawUrl)`
+- `safeFetch(url, options, maxRedirects)`
+- `readLimitedText(res, maxBytes)`
 - `scrapeWorkday(url)`
 - `parseWorkdayResponse(data, jobReqId)`
 - `scrapeGreenhouse(url)`
@@ -685,6 +697,13 @@ Functions:
 - `scrapeGenericHTML(url)`
 - `extractFromJsonLd(html)`
 - `cleanText(text)`
+
+Important security behavior:
+
+- job URL scraping validates `http:` / `https:` URLs before fetch
+- initial URLs and every redirect target are DNS-resolved and checked against loopback, private, link-local, multicast, and metadata host ranges
+- response bodies are capped at 2 MB before parsing
+- `tests/core-flow.test.js` includes direct private-URL and redirect-to-private-network regression coverage
 
 ## 11. LLM Layer
 
@@ -1350,7 +1369,7 @@ Major function groups:
 - `public/js/modules/ui-helpers.mjs`
   Owns shared DOM helpers, inline SVG icons, ARIA announcements, toast rendering, clipboard copy, escaping, HTML decoding, and DOMPurify-backed sanitization helpers.
 - `public/js/modules/pdf-preview.mjs`
-  Owns the PDF preview controller, shared preview state, focus-mode toggles, toolbar controls, blob-backed iframe loading, retry UI, and responsive preview sizing.
+  Owns the PDF preview controller, shared preview state, focus-mode toggles, toolbar controls, blob-backed PDF.js rendering, retry UI, and responsive preview sizing. PDF.js and its worker are self-hosted under `public/js/vendor/pdfjs/` so production CSP `worker-src 'self' blob:` does not block preview rendering.
 
 ### Auth and routing
 
@@ -1522,8 +1541,10 @@ Important contracts currently in play:
   returns preview PDF
 - `/api/agent/cover-letter-preview/:scanId`
   returns cover-letter preview content
-- `/api/agent/download/:scanId`
-  returns downloadable export and consumes credits
+- `POST /api/agent/download/:scanId`
+  returns downloadable export and consumes credits after CSRF validation
+- `GET /api/agent/download/:scanId`
+  remains available only for unauthenticated token-based preview downloads; authenticated callers receive `405` and must use `POST`
 
 ## 17. Billing and Credits
 
@@ -1531,9 +1552,9 @@ Credit behavior:
 
 - scans and previews are free
 - exports cost credits
-- Stripe checkout sells one-time credit packs
-- webhook fulfillment updates balances
-- atomic deduction logic prevents double charging
+- the active billing provider sells one-time credit packs through the provider registry
+- webhook fulfillment updates balances and relies on provider signature verification plus event idempotency; webhook retries are not dropped based on the original provider event creation timestamp
+- atomic deduction logic prevents double charging; PostgreSQL uses a transaction-scoped advisory lock keyed by export idempotency key so two identical concurrent exports cannot both deduct credits before the history row exists
 
 Relevant modules:
 
@@ -1566,6 +1587,10 @@ Important operational nuance:
 
 - the repo supports both a Railway-style direct Node deploy and a PM2/Caddy production topology
 - Redis is preferred in clustered deployments for shared rate-limiting and render-slot coordination
+- systemd deployments with `ProtectSystem=strict` must keep `uploads`, `tmp_uploads`, `logs`, `db`, and PM2 home writable
+- `deploy/deploy.sh` installs the Chromium browser from the repository's locked `playwright-core` package as the service user after `npm ci --omit=dev --ignore-scripts`
+- `deploy/crontab` uses `/home/deploy/ats-resume-checker` as the canonical VPS application path
+- `.github/workflows/ci.yml` now runs build/syntax, production audit, lint, Prettier format check, and the default test suite without `|| true` suppressions
 
 Budget-hosting guidance recorded during the April 2026 remediation planning:
 
@@ -1587,7 +1612,7 @@ Budget-hosting guidance recorded during the April 2026 remediation planning:
 - `tests/smoke.test.js`
   server boot, health endpoints, SPA routes, security headers
 - `tests/core-flow.test.js`
-  ATS detection, structured fallback text, normalized job context, readable PDF preview
+  ATS detection, scraper SSRF guardrails, structured fallback text, normalized job context, readable PDF preview
 
 ### Additional manual/debug scripts
 
@@ -2400,94 +2425,112 @@ This pass fixes five confirmed UX bugs across the scan/results flow.
 - `.results-context-card` padding: `sp-3 sp-4` → `sp-4 sp-5`. Label font-size: `0.6875rem` → `0.75rem`.
 - "AI Cover Letter" → "A.I. Cover Letter" in pane title.
 
-## 7.3 Payment Gateway Integration: From Stripe to Lemon Squeezy
+## 7.3 Payment Gateway Integration: Multi-Provider Billing
 
 ### Overview
 
-This section details the migration from Stripe to Lemon Squeezy for handling one-time credit pack purchases. The primary goal is to leverage Lemon Squeezy's hosted checkout solution for simplicity and reliability, while maintaining the existing credit-based system for user entitlements.
+Credit pack purchases are handled through a provider strategy layer. Lemon Squeezy is the default provider, Stripe remains registered when configured, and the rest of the application consumes the same checkout and webhook contract regardless of provider.
 
 ### Key Changes and Components
 
 #### 1. Multi-Provider Architecture (Strategy Pattern)
 
-The payment system has been refactored to support multiple providers simultaneously. This allows for easy switching between Stripe and Lemon Squeezy via environment variables.
+The payment system supports multiple providers simultaneously. `BILLING_PROVIDER` selects the default provider for catalog and checkout calls, while webhook handling can still detect the provider from request headers.
 
--   **`BILLING_PROVIDER`**: Environment variable to set the active provider (`stripe` or `lemonsqueezy`).
--   **`lib/billing-service.js`**: A new service that acts as a factory and registry for payment providers. It standardizes the interface for creating checkouts and processing webhooks.
+- **`BILLING_PROVIDER`**: Environment variable to set the active provider (`stripe` or `lemonsqueezy`).
+- **`lib/billing-service.js`**: Provider registry and strategy facade for pack lookup, checkout creation, webhook verification, and webhook event normalization.
 
 #### 2. Backend Integration
 
-##### `lib/billing-service.js` (New Module)
+##### `lib/billing-service.js`
 
 This module implements the Strategy Pattern:
--   **`registerProvider(name, provider)`**: Registers a new payment strategy.
--   **`getProvider(name)`**: Retrieves the active or specified provider.
--   **`createCheckout(userId, email, packId)`**: Standardized method to initiate a purchase.
--   **`verifyWebhook(req)`**: Standardized method to verify webhook signatures.
--   **`processWebhookEvent(event, db)`**: Standardized method to extract transaction data from webhook events.
+
+- **`registerProvider(name, provider)`**: Registers a payment strategy.
+- **`getProvider(name)`**: Retrieves the active or explicitly requested provider.
+- **`getAvailablePacks()`**: Returns credit packs from the active provider.
+- **`createCheckout(userId, email, packId)`**: Initiates a purchase through the active provider.
+- **`verifyWebhook(req)`**: Provider method that verifies webhook signatures.
+- **`processWebhookEvent(event, db)`**: Provider method that normalizes successful purchase events into `{ userId, packId, credits, transactionId, eventId, eventType }`.
 
 ##### `routes/billing.js`
 
--   **`POST /billing/checkout`**: Now uses `billingService.createCheckout()` to generate the checkout URL, making it provider-agnostic.
--   **`POST /billing/webhook`**: A unified webhook endpoint that automatically detects the provider (Stripe or Lemon Squeezy) based on request headers and processes the event accordingly.
--   **`POST /billing/lemonsqueezy-webhook`**: Maintained for backward compatibility, internally redirects to the unified `/webhook` handler.
+- **`POST /billing/checkout`**: Uses `billingService.createCheckout()` to generate a provider-specific checkout URL behind a provider-neutral route.
+- **`POST /billing/webhook`**: Detects Stripe or Lemon Squeezy from webhook headers, verifies the provider signature, normalizes successful purchase events, checks event idempotency, and adds credits.
+- **`POST /billing/lemonsqueezy-webhook`**: Backward-compatible endpoint that delegates to the unified webhook handler.
+- Webhook replay protection is event-id based. Provider signature verification is the freshness/authenticity boundary; delayed retries are not rejected solely because the provider event was originally created earlier.
 
 ##### `db/database.js`
 
--   **`addCredits` Function**: The `addCredits` function will be refactored to accept a generic `paymentGatewayTransactionId` instead of `stripeSessionId`. This change will make the function agnostic to the specific payment gateway, allowing it to be reused for Lemon Squeezy and potentially other future integrations.
--   **`credit_transactions` Table**: A database migration will be required to rename the `stripe_session_id` column to `payment_gateway_transaction_id` in the `credit_transactions` table. This ensures consistency and flexibility for different payment gateways.
+- **`addCredits` function**: Accepts the provider transaction id in the existing idempotency column and prevents duplicate credit grants for the same purchase transaction.
+- **Event ledgers**: Stripe events use `stripe_events`; Lemon Squeezy events use `lemon_squeezy_events`.
+- **`lemon_squeezy_events` table**: Stores Lemon Squeezy webhook IDs for idempotency, matching the existing Stripe event processing model.
 
 #### 3. Frontend Integration (`public/js/app.js`)
 
--   **`startCheckout(packId)` Function**: This function will be updated to make an API call to the modified `/billing/checkout` endpoint. Upon receiving the Lemon Squeezy hosted checkout URL, the frontend will redirect the user to this URL to complete the purchase.
--   **UI Updates**: Existing UI elements that might display Stripe-specific branding or information will be reviewed and updated to reflect the transition to Lemon Squeezy, although the current credit-focused UI is largely payment-gateway agnostic.
+- **`startCheckout(packId)`**: Calls `/billing/checkout` and redirects the browser to the returned provider checkout URL.
+- **Credit UI**: Remains provider-neutral; users buy credit packs, and the selected provider owns the hosted payment screen.
 
-### Data Flow for Lemon Squeezy Checkout
+### Data Flow for Active Provider Checkout
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Frontend as public/js/app.js
     participant Backend as routes/billing.js
-    participant LS as Lemon Squeezy Hosted Checkout
-    participant LS_Webhook as Lemon Squeezy Webhook Service
+    participant Billing as lib/billing-service.js
+    participant Provider as Stripe or Lemon Squeezy
     participant DB as db/database.js
 
-    User->>Frontend: Clicks 
-on "Buy Now" for a credit pack
+    User->>Frontend: Clicks "Buy Now" for a credit pack
     Frontend->>Backend: POST /billing/checkout { packId, userId, email }
-    Backend->>Backend: Calls createCheckoutUrl(packId, userId, email)
-    Backend->>LS: Requests hosted checkout URL
-    LS-->>Backend: Returns hosted checkout URL
-    Backend-->>Frontend: { url: LemonSqueezyCheckoutUrl }
-    Frontend->>User: Redirects to LemonSqueezyCheckoutUrl
-    User->>LS: Completes payment on hosted checkout page
-    LS->>LS_Webhook: Sends order_created webhook event
-    LS_Webhook->>Backend: POST /billing/lemonsqueezy-webhook { event_payload }
-    Backend->>Backend: Verifies webhook signature
-    Backend->>DB: addCredits(userId, amount, 'purchase', order_id, description)
+    Backend->>Billing: createCheckout(userId, email, packId)
+    Billing->>Provider: Creates hosted checkout
+    Provider-->>Billing: Returns checkout URL
+    Billing-->>Backend: { url }
+    Backend-->>Frontend: { url }
+    Frontend->>Provider: Redirects user to hosted checkout
+    User->>Provider: Completes payment
+    Provider->>Backend: POST /billing/webhook
+    Backend->>Billing: getProvider(...).verifyWebhook(req)
+    Backend->>Billing: processWebhookEvent(event, db)
+    Backend->>DB: Check event idempotency
+    Backend->>DB: addCredits(userId, credits, 'purchase', transactionId, description)
+    Backend->>DB: Record provider event id
     DB-->>Backend: Credits added successfully
-    Backend-->>LS_Webhook: 200 OK
-    LS-->>User: Redirects to success_url (e.g., /dashboard?purchased=true)
+    Backend-->>Provider: 200 OK
+    Provider-->>User: Redirects to success_url
     User->>Frontend: Lands on success page, UI updates credit balance
+```
 
 ### Implementation Details
 
 #### `config/lemonsqueezy.js`
 
-This new module centralizes Lemon Squeezy configuration. It defines `CREDIT_PACKS` mapping internal pack IDs to Lemon Squeezy variant IDs and provides `createCheckoutUrl` for generating hosted checkout URLs and `verifyWebhookSignature` for validating incoming webhooks.
+Centralizes Lemon Squeezy configuration. It defines `CREDIT_PACKS`, maps internal pack IDs to variant IDs, builds hosted checkout URLs, and verifies incoming webhook signatures.
+
+#### `config/stripe.js`
+
+Keeps Stripe client setup, Stripe credit pack price IDs, and Checkout Session creation for deployments that set `BILLING_PROVIDER=stripe`.
+
+#### `lib/billing-service.js`
+
+Registers Stripe and Lemon Squeezy providers when their config modules are available. The provider methods normalize successful purchases so `routes/billing.js` does not need provider-specific checkout session or order shapes.
 
 #### `routes/billing.js`
 
--   The `POST /billing/checkout` route has been updated to use `createCheckoutUrl` from `config/lemonsqueezy.js` to generate the checkout URL and redirect the user.
--   A new route, `POST /billing/lemonsqueezy-webhook`, has been added to handle Lemon Squeezy `order_created` webhook events. This route verifies the webhook signature, parses the event payload, and calls `db.addCredits` with the Lemon Squeezy order ID for idempotency.
+- `POST /billing/checkout` delegates to `billingService.createCheckout()`.
+- `POST /billing/webhook` handles Stripe `checkout.session.completed` and Lemon Squeezy `order_created` through the normalized provider result.
+- `POST /billing/lemonsqueezy-webhook` remains as a compatibility alias for the unified webhook handler.
+- Authenticated export downloads use CSRF-protected `POST /api/agent/download/:scanId`; billing webhooks remain raw-body provider callbacks.
 
 #### `db/database.js`
 
--   The `addCredits` function has been made more generic to accept a `paymentGatewayTransactionId` instead of `stripeSessionId`.
--   New functions `isLemonSqueezyEventProcessed` and `recordLemonSqueezyEvent` have been added to handle idempotency for Lemon Squeezy webhooks, similar to the existing Stripe event handling.
--   A migration has been added to `runMigrations` to create the `lemon_squeezy_events` table in the database schema.
+- `addCredits()` uses provider transaction IDs for purchase idempotency.
+- `isStripeEventProcessed()` / `recordStripeEvent()` track Stripe webhook ids.
+- `isLemonSqueezyEventProcessed()` / `recordLemonSqueezyEvent()` track Lemon Squeezy webhook ids.
+- `runMigrations()` creates the Lemon Squeezy event table in SQLite; the PostgreSQL schema has the matching table.
 
 #### `db/schema.sql`
 
--   The `lemon_squeezy_events` table has been added to the schema to store Lemon Squeezy webhook event IDs for idempotency checking.
+- `lemon_squeezy_events` stores Lemon Squeezy webhook event IDs for idempotency.

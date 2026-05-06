@@ -24,10 +24,9 @@ sudo apt-get install -y python3 make g++ git curl build-essential
 # 3. Playwright system dependencies (Ubuntu path, NOT Alpine)
 echo "-----------------------------------------------------------"
 echo " Installing Playwright dependencies..."
-# We install playwright temporarily just to get it to download system deps
-sudo -E npx -y playwright@1.49.1 install-deps chromium
-# Install the browser natively globally
-sudo -E npx -y playwright@1.49.1 install chromium
+# The matching Chromium browser is installed by deploy/deploy.sh from the
+# app's locked playwright-core package as the deploy user.
+sudo -E npx -y playwright-core@1.59.1 install-deps chromium
 
 # 4. Global process manager
 echo "-----------------------------------------------------------"

@@ -23,7 +23,7 @@ async function waitForServer(url, attempts = 50) {
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await fetch(`${url}/healthz`);
-      if (res.ok) return;
+      if (res.ok) {return;}
     } catch {
       /* retry */
     }
@@ -41,7 +41,7 @@ async function get(path, options = {}) {
 }
 
 before(async () => {
-  if (BASE) return;
+  if (BASE) {return;}
 
   const port = 3300 + Math.floor(Math.random() * 200);
   BASE = `http://127.0.0.1:${port}`;
@@ -60,17 +60,17 @@ before(async () => {
   try {
     await waitForServer(BASE);
   } catch (error) {
-    if (serverProcess) serverProcess.kill('SIGTERM');
+    if (serverProcess) {serverProcess.kill('SIGTERM');}
     throw new Error(error.message);
   }
 });
 
 after(async () => {
-  if (!serverProcess) return;
+  if (!serverProcess) {return;}
   await new Promise(resolve => {
     let resolved = false;
     const finish = () => {
-      if (resolved) return;
+      if (resolved) {return;}
       resolved = true;
       resolve();
     };

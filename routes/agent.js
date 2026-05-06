@@ -2,7 +2,7 @@
  * Agent Routes — SSE-based streaming agent pipeline.
  * POST /agent/start   → Upload resume + JD, returns sessionId
  * GET  /agent/stream/:sessionId → SSE stream of analysis + fixes
- * GET  /agent/download/:scanId  → Download optimized resume (DOCX/PDF)
+ * POST /agent/download/:scanId  → Download optimized resume (DOCX/PDF)
  *
  * Value Wall Implementation:
  * - Scans are FREE (shows ATS score + knockout risks)
@@ -28,10 +28,7 @@ const {
 } = require('../lib/jd-processor');
 const { validateResumeContent } = require('../lib/resume-validator');
 const { runAgentPipeline } = require('../lib/agent-pipeline');
-const {
-  generateDOCX,
-  renderHtmlToPdf,
-} = require('../lib/resume-builder');
+const { generateDOCX, renderHtmlToPdf } = require('../lib/resume-builder');
 const { parseCoverLetter } = require('../lib/cover-letter-parser');
 const {
   renderResumePdf,
@@ -54,7 +51,9 @@ function parseScanId(raw) {
 
 function normalizeTemplateChoice(raw) {
   const value = sanitizeInput(String(raw || '')).toLowerCase();
-  return ['refined', 'executive', 'corporate', 'modern', 'classic', 'minimal'].includes(value) ? value : '';
+  return ['refined', 'executive', 'corporate', 'modern', 'classic', 'minimal'].includes(value)
+    ? value
+    : '';
 }
 
 function normalizeDensityChoice(raw) {
@@ -136,8 +135,12 @@ function sendEmbeddedState(res, statusCode, { title, message, accent = '#8b5cf6'
 }
 
 function readJobContext(rawJobContext, fallback = {}) {
-  if (!rawJobContext) return normalizeJobContext(fallback);
-  if (typeof rawJobContext === 'object') return normalizeJobContext(rawJobContext);
+  if (!rawJobContext) {
+    return normalizeJobContext(fallback);
+  }
+  if (typeof rawJobContext === 'object') {
+    return normalizeJobContext(rawJobContext);
+  }
   try {
     return normalizeJobContext(JSON.parse(rawJobContext));
   } catch {
@@ -178,7 +181,9 @@ function buildCoverLetterContext(scan = {}) {
   if (!contact) {
     const extractedFields = scan.xray_data?.extractedFields || {};
     const parts = [extractedFields.Email, extractedFields.Phone].filter(Boolean);
-    if (parts.length) contact = parts.join(' | ');
+    if (parts.length) {
+      contact = parts.join(' | ');
+    }
   }
 
   return {
@@ -202,7 +207,9 @@ function jobContextNeedsManualPaste(jobContext) {
 // Session data is persisted in SQLite scan_sessions table (survives restarts).
 
 const UPLOAD_TMP = path.join(__dirname, '..', 'tmp_uploads');
-if (!fs.existsSync(UPLOAD_TMP)) fs.mkdirSync(UPLOAD_TMP, { recursive: true });
+if (!fs.existsSync(UPLOAD_TMP)) {
+  fs.mkdirSync(UPLOAD_TMP, { recursive: true });
+}
 
 // Periodic cleanup: purge expired sessions + stale temp files (every 2 min)
 setInterval(
@@ -346,9 +353,10 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
       const ip = req.ip || 'unknown';
       const guestCount = await db.getGuestScanCount(ip);
       if (guestCount >= 2) {
-        return res
-          .status(429)
-          .json({ error: 'Free guest preview limit reached for today. Create a free account to continue.', signup: true });
+        return res.status(429).json({
+          error: 'Free guest preview limit reached for today. Create a free account to continue.',
+          signup: true,
+        });
       }
     }
 
@@ -381,7 +389,9 @@ router.post('/start', agentLimiter, upload.single('resume'), async (req, res) =>
     // Phase 6 §3.1-A: Track scan session for guest IDOR protection
     // Store sessionId in browser session so we can tie scans to this browser later.
     if (!req.user && req.session) {
-      if (!req.session.guestScanTokens) req.session.guestScanTokens = [];
+      if (!req.session.guestScanTokens) {
+        req.session.guestScanTokens = [];
+      }
       // We'll push the actual access_token after scan creation in /stream
       req.session.guestSessionIds = req.session.guestSessionIds || [];
       req.session.guestSessionIds.push(sessionId);
@@ -454,7 +464,9 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
 
   // §9.5: Enforce max 2 concurrent SSE streams per user
   const streamKey = session.userId ? `u:${session.userId}` : `ip:${req.ip}`;
-  if (!activeStreams.has(streamKey)) activeStreams.set(streamKey, new Set());
+  if (!activeStreams.has(streamKey)) {
+    activeStreams.set(streamKey, new Set());
+  }
   const userStreams = activeStreams.get(streamKey);
   if (userStreams.size >= 2) {
     log.warn('SSE concurrent limit exceeded', { streamKey, active: userStreams.size });
@@ -467,7 +479,9 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
 
   // §9.2: Heartbeat — send `: ping` every 15s to keep Cloudflare/proxies alive
   const heartbeat = setInterval(() => {
-    if (!res.writableEnded) res.write(': ping\n\n');
+    if (!res.writableEnded) {
+      res.write(': ping\n\n');
+    }
   }, 15_000);
 
   // §9.7: Max SSE lifetime — force-close after 5 minutes
@@ -495,7 +509,9 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
   // §9.4: Event IDs for Last-Event-ID reconnection
   let eventId = 0;
   function sseWrite(event, data) {
-    if (res.writableEnded) return Promise.resolve();
+    if (res.writableEnded) {
+      return Promise.resolve();
+    }
     eventId++;
     const msg = `id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     const ok = res.write(msg);
@@ -508,19 +524,29 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
   const emitter = {
     async emitStep(step, name, status, label, data = null) {
       const payload = { step, name, status, label };
-      if (data) payload.data = data;
+      if (data) {
+        payload.data = data;
+      }
       await sseWrite('step', payload);
     },
     async emitToken(step, name, chunk, bulletIndex) {
       const payload = { step, name, chunk };
-      if (bulletIndex !== undefined) payload.bulletIndex = bulletIndex;
+      if (bulletIndex !== undefined) {
+        payload.bulletIndex = bulletIndex;
+      }
       await sseWrite('token', payload);
     },
     async emitBullet(step, index, status, original, rewritten, method, targetKeyword) {
       const payload = { step, index, status, original };
-      if (rewritten) payload.rewritten = rewritten;
-      if (method) payload.method = method;
-      if (targetKeyword) payload.targetKeyword = targetKeyword;
+      if (rewritten) {
+        payload.rewritten = rewritten;
+      }
+      if (method) {
+        payload.method = method;
+      }
+      if (targetKeyword) {
+        payload.targetKeyword = targetKeyword;
+      }
       await sseWrite('bullet', payload);
     },
     async emitScores(scores) {
@@ -576,12 +602,16 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
   // clearTimeout and Set.delete which would otherwise race.
   let cleanupDone = false;
   function sseCleanup() {
-    if (cleanupDone) return;
+    if (cleanupDone) {
+      return;
+    }
     cleanupDone = true;
     clearInterval(heartbeat);
     clearTimeout(maxLifetime);
     userStreams.delete(res);
-    if (userStreams.size === 0) activeStreams.delete(streamKey);
+    if (userStreams.size === 0) {
+      activeStreams.delete(streamKey);
+    }
   }
   // Fire cleanup immediately if the client disconnects before pipeline finishes
   res.on('close', () => {
@@ -637,13 +667,17 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
   // Phase 6 §3.1-A: Store guest scan access token in session for IDOR-safe claiming.
   // When this guest later signs up, only scans with tokens in their session will be claimed.
   if (!session.userId && accessToken && req.session) {
-    if (!req.session.guestScanTokens) req.session.guestScanTokens = [];
+    if (!req.session.guestScanTokens) {
+      req.session.guestScanTokens = [];
+    }
     req.session.guestScanTokens.push(accessToken);
     // H-4 Fix: await session.save() properly — fire-and-forget silently drops
     // the token if the async store (Supabase/Redis) hasn't flushed before SSE ends.
     await new Promise(resolve => {
       req.session.save(err => {
-        if (err) log.warn('Guest scan token session save failed', { error: err.message });
+        if (err) {
+          log.warn('Guest scan token session save failed', { error: err.message });
+        }
         resolve();
       });
     });
@@ -670,7 +704,9 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
       jobContext: session.jobContext,
     });
 
-    if (aborted) return;
+    if (aborted) {
+      return;
+    }
 
     // Update database with final results
     if (session.userId && resumeId) {
@@ -839,7 +875,8 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
     if (!scanId) {
       return sendEmbeddedState(res, 400, {
         title: 'Cover letter unavailable',
-        message: 'We could not open this cover-letter preview because the scan reference is invalid.',
+        message:
+          'We could not open this cover-letter preview because the scan reference is invalid.',
       });
     }
     const scan = await db.getFullScan(scanId, userId, accessToken);
@@ -848,7 +885,8 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
     if (!scan) {
       return sendEmbeddedState(res, 404, {
         title: 'Cover letter unavailable',
-        message: 'This scan could not be found. Start a fresh scan with a target job to generate a letter.',
+        message:
+          'This scan could not be found. Start a fresh scan with a target job to generate a letter.',
       });
     }
 
@@ -875,8 +913,7 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
     }
 
     const jobContext = resolveScanJobContext(scan);
-    const resolvedTemplate =
-      preferredTemplate || jobContext.templateProfile?.template || 'refined';
+    const resolvedTemplate = preferredTemplate || jobContext.templateProfile?.template || 'refined';
     const resolvedDensity =
       preferredDensity || jobContext.templateProfile?.defaultDensity || 'standard';
     const parsed = parseCoverLetter(scan.cover_letter_text || '', buildCoverLetterContext(scan));
@@ -925,16 +962,22 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
   }
 });
 
-// ── GET /agent/download/:scanId — Generate and serve optimized resume ─────────
+// ── POST /agent/download/:scanId — Generate and serve optimized resume ───────
+// Authenticated exports spend credits, so they must use a CSRF-protected POST.
+// The GET route remains only for unauthenticated token previews.
 
-router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, res) => {
+async function handleDownload(req, res) {
   try {
     const userId = req.user ? req.user.id : null;
     const scanId = parseScanId(req.params.scanId);
     const accessToken = typeof req.query.token === 'string' ? req.query.token : null;
-    if (!scanId) return res.status(400).json({ error: 'Invalid scan ID.' });
+    if (!scanId) {
+      return res.status(400).json({ error: 'Invalid scan ID.' });
+    }
     const scan = await db.getFullScan(scanId, userId, accessToken);
-    if (!scan) return res.status(404).json({ error: 'Scan not found.' });
+    if (!scan) {
+      return res.status(404).json({ error: 'Scan not found.' });
+    }
 
     const format = req.query.format || 'docx';
     const exportType = req.query.type || 'resume'; // 'resume' or 'cover_letter'
@@ -949,6 +992,10 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
     const sectionData = scan.section_data || {};
     const optimizedBullets = scan.optimized_bullets || [];
     const keywordPlan = scan.keyword_plan || [];
+
+    if (exportType === 'cover_letter' && !String(scan.cover_letter_text || '').trim()) {
+      return res.status(404).json({ error: 'No cover letter available for this scan.' });
+    }
 
     // Atomic credit deduction with idempotency key (prevents double-deduction)
     if (req.user) {
@@ -1073,6 +1120,18 @@ router.get('/download/:scanId', downloadLimiter, checkExportCredit, async (req, 
     log.error('Download error', { error: err.message, scanId: req.params.scanId });
     res.status(500).json({ error: 'Failed to generate resume file.' });
   }
+}
+
+router.post('/download/:scanId', downloadLimiter, checkExportCredit, handleDownload);
+
+router.get('/download/:scanId', downloadLimiter, checkExportCredit, (req, res) => {
+  if (req.user) {
+    return res.status(405).json({
+      error: 'Authenticated exports must be requested with POST.',
+      code: 'DOWNLOAD_REQUIRES_POST',
+    });
+  }
+  return handleDownload(req, res);
 });
 
 module.exports = router;

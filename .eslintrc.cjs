@@ -8,8 +8,19 @@ module.exports = {
   extends: ["eslint:recommended", "prettier"],
   parserOptions: {
     ecmaVersion: "latest",
-    sourceType: "module",
+    sourceType: "script",
+    ecmaFeatures: {
+      globalReturn: true,
+    },
   },
+  overrides: [
+    {
+      files: ["*.mjs"],
+      parserOptions: {
+        sourceType: "module",
+      },
+    },
+  ],
   rules: {
     "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     "no-undef": "error",

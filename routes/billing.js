@@ -55,8 +55,11 @@ router.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req
   let provider;
   try {
     // Detect provider from headers or path if needed, otherwise use default
-    const providerName = req.headers['stripe-signature'] ? 'stripe' : 
-                         req.headers['x-signature'] ? 'lemonsqueezy' : null;
+    const providerName = req.headers['stripe-signature']
+      ? 'stripe'
+      : req.headers['x-signature']
+        ? 'lemonsqueezy'
+        : null;
     provider = billingService.getProvider(providerName);
   } catch (err) {
     return res.status(500).send('Billing provider not configured');
@@ -71,18 +74,23 @@ router.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req
   }
 
   try {
+    // Provider signature verification handles delivery authenticity/freshness.
+    // Do not reject by provider event creation time: delayed retries must still
+    // deliver purchased credits while idempotency handles duplicates.
     const result = await provider.processWebhookEvent(event, db);
-    
+
     if (!result) {
       return res.status(200).send('Event ignored');
     }
 
-    const { userId, packId, credits, transactionId, eventId, eventType } = result;
+    const { userId, packId, credits, transactionId, eventId, eventType, customerReference } =
+      result;
 
     // Idempotency check
-    const isProcessed = provider.name === 'stripe' 
-      ? await db.isStripeEventProcessed(eventId)
-      : await db.isLemonSqueezyEventProcessed(eventId);
+    const isProcessed =
+      provider.name === 'stripe'
+        ? await db.isStripeEventProcessed(eventId)
+        : await db.isLemonSqueezyEventProcessed(eventId);
 
     if (isProcessed) {
       log.info(`Duplicate ${provider.name} event skipped`, { eventId });
@@ -92,7 +100,7 @@ router.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req
     if (userId && credits > 0) {
       const packs = provider.CREDIT_PACKS;
       const pack = packs[packId];
-      
+
       const added = await db.addCredits(
         userId,
         credits,
@@ -102,13 +110,26 @@ router.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req
       );
 
       if (added) {
+        if (provider.name === 'stripe' && customerReference) {
+          const user = await db.getUserById(userId);
+          if (user && !user.stripe_customer_id) {
+            await db.setStripeCustomerId(userId, customerReference);
+          }
+        }
+
         // Record event as processed
         if (provider.name === 'stripe') {
           await db.recordStripeEvent(eventId, eventType);
         } else {
           await db.recordLemonSqueezyEvent(eventId, eventType);
         }
-        log.info('Credit purchase completed', { userId, credits, packId, transactionId, provider: provider.name });
+        log.info('Credit purchase completed', {
+          userId,
+          credits,
+          packId,
+          transactionId,
+          provider: provider.name,
+        });
       }
     }
 
@@ -123,12 +144,16 @@ router.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req
  * ── POST /billing/lemonsqueezy-webhook ────────────────────────────────────
  * Explicit endpoint for Lemon Squeezy webhooks.
  */
-router.post('/lemonsqueezy-webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
-  // We can just delegate to the main webhook handler or handle it explicitly
-  // For now, let's ensure the billing service is set to lemonsqueezy for this request
-  // or just handle it directly if we want to support multiple active webhooks.
-  req.url = '/webhook'; // Internal redirect to the unified handler
-  return router.handle(req, res);
-});
+router.post(
+  '/lemonsqueezy-webhook',
+  bodyParser.raw({ type: 'application/json' }),
+  async (req, res) => {
+    // We can just delegate to the main webhook handler or handle it explicitly
+    // For now, let's ensure the billing service is set to lemonsqueezy for this request
+    // or just handle it directly if we want to support multiple active webhooks.
+    req.url = '/webhook'; // Internal redirect to the unified handler
+    return router.handle(req, res);
+  }
+);
 
 module.exports = router;

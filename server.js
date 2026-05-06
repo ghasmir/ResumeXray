@@ -19,7 +19,14 @@ if (isPg) {
 }
 const { getDb, closeDb } = require('./db/database');
 const { configurePassport } = require('./config/passport');
-const { configureHelmet, generalLimiter, cspNonceMiddleware, permissionsPolicyMiddleware, clickjackingProtection, authLimiter } = require('./config/security');
+const {
+  configureHelmet,
+  generalLimiter,
+  cspNonceMiddleware,
+  permissionsPolicyMiddleware,
+  clickjackingProtection,
+  authLimiter,
+} = require('./config/security');
 const { AppError } = require('./lib/errors');
 const log = require('./lib/logger');
 const { initSentry, flushSentry } = require('./lib/error-tracker');
@@ -69,7 +76,9 @@ const activeConnections = new Set();
 let isShuttingDown = false;
 
 async function gracefulShutdown(signal) {
-  if (isShuttingDown) return; // Prevent double shutdown
+  if (isShuttingDown) {
+    return;
+  } // Prevent double shutdown
   isShuttingDown = true;
   log.info('Shutdown signal received — draining connections', { signal });
 
@@ -90,10 +99,27 @@ async function gracefulShutdown(signal) {
   await new Promise(resolve => setTimeout(resolve, 25000));
 
   // Step 4: Close external resources
-  try { await flushSentry(); } catch {}
-  try { await closeBrowser(); } catch {}
-  try { const { closeRedis } = require('./lib/redis'); await closeRedis(); } catch {}
-  try { await closeDb(); } catch {}
+  try {
+    await flushSentry();
+  } catch {
+    // Best-effort shutdown cleanup.
+  }
+  try {
+    await closeBrowser();
+  } catch {
+    // Best-effort shutdown cleanup.
+  }
+  try {
+    const { closeRedis } = require('./lib/redis');
+    await closeRedis();
+  } catch {
+    // Best-effort shutdown cleanup.
+  }
+  try {
+    await closeDb();
+  } catch {
+    // Best-effort shutdown cleanup.
+  }
 
   log.info('Graceful shutdown complete', { signal });
   process.exit(0);
@@ -108,7 +134,7 @@ process.on('unhandledRejection', (reason, promise) => {
     stack: reason instanceof Error ? reason.stack : undefined,
   });
 });
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   log.fatal('Uncaught exception — shutting down', {
     error: err.message,
     stack: err.stack,
@@ -128,9 +154,12 @@ app.use((req, res, next) => {
 // Logs method, path, status, and duration for every request
 app.use((req, res, next) => {
   // Skip noisy health checks and static assets in dev
-  const skip = req.path === '/health' || req.path.startsWith('/js/') ||
-               req.path.startsWith('/css/') || req.path.startsWith('/img/') ||
-               req.path.startsWith('/fonts/');
+  const skip =
+    req.path === '/health' ||
+    req.path.startsWith('/js/') ||
+    req.path.startsWith('/css/') ||
+    req.path.startsWith('/img/') ||
+    req.path.startsWith('/fonts/');
 
   if (!skip) {
     const start = Date.now();
@@ -153,7 +182,7 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   const start = process.hrtime.bigint();
   const origWriteHead = res.writeHead;
-  res.writeHead = function(statusCode, ...rest) {
+  res.writeHead = function (statusCode, ...rest) {
     const ns = Number(process.hrtime.bigint() - start);
     const ms = (ns / 1e6).toFixed(1);
     // Inject Server-Timing before headers flush
@@ -199,8 +228,8 @@ app.use(express.json({ limit: '200kb' }));
 app.use(express.urlencoded({ extended: true, limit: '200kb' }));
 
 // Setup Session Management — Hardened per OWASP recommendations
-const SESSION_IDLE_MS  = 2 * 60 * 60 * 1000;   // 2 hours idle timeout
-const SESSION_ABS_MS   = 8 * 60 * 60 * 1000;   // 8 hours absolute max lifetime
+const SESSION_IDLE_MS = 2 * 60 * 60 * 1000; // 2 hours idle timeout
+const SESSION_ABS_MS = 8 * 60 * 60 * 1000; // 8 hours absolute max lifetime
 
 // Phase 6 §10.7: __Host- cookie prefix — forces Secure + Path=/ + no Domain.
 // Prevents cookie tossing from subdomains. Only applied in production (requires HTTPS).
@@ -211,18 +240,18 @@ const COOKIE_NAME = isProd ? '__Host-rxsid' : '__rxsid';
 let storeConfig;
 if (isPg) {
   storeConfig = new SessionStore({
-    pool: getDb(),              // pg.Pool instance from pg-database.js
+    pool: getDb(), // pg.Pool instance from pg-database.js
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 900,  // Purge expired sessions every 15 min (seconds)
+    pruneSessionInterval: 900, // Purge expired sessions every 15 min (seconds)
   });
 } else {
   storeConfig = new SessionStore({
     client: db,
     expired: {
       clear: true,
-      intervalMs: 900000        // Purge every 15 min (milliseconds)
-    }
+      intervalMs: 900000, // Purge every 15 min (milliseconds)
+    },
   });
 }
 
@@ -234,22 +263,24 @@ if (isProd && !process.env.SESSION_SECRET) {
 }
 const SESSION_SECRET = process.env.SESSION_SECRET || 'fallback-secret-development-only';
 
-app.use(session({
-  store: storeConfig,
-  name: COOKIE_NAME,     // Phase 6 §10.7: __Host- in prod, __rxsid in dev
-  secret: SESSION_SECRET,
-  resave: false,         // Only save session when modified (prevents overwriting CSRF tokens)
-  saveUninitialized: false,
-  rolling: true,         // Resets idle timer on every response (sliding expiration)
-  cookie: {
-    secure: isProd,      // __Host- requires Secure (HTTPS only)
-    httpOnly: true,      // Block JS access to cookie (XSS mitigation)
-    sameSite: 'lax',     // CSRF mitigation for cross-site navigation
-    maxAge: SESSION_IDLE_MS,
-    path: '/',           // __Host- requires explicit Path=/
-    // Domain intentionally omitted — __Host- forbids Domain attribute
-  }
-}));
+app.use(
+  session({
+    store: storeConfig,
+    name: COOKIE_NAME, // Phase 6 §10.7: __Host- in prod, __rxsid in dev
+    secret: SESSION_SECRET,
+    resave: false, // Only save session when modified (prevents overwriting CSRF tokens)
+    saveUninitialized: false,
+    rolling: true, // Resets idle timer on every response (sliding expiration)
+    cookie: {
+      secure: isProd, // __Host- requires Secure (HTTPS only)
+      httpOnly: true, // Block JS access to cookie (XSS mitigation)
+      sameSite: 'lax', // CSRF mitigation for cross-site navigation
+      maxAge: SESSION_IDLE_MS,
+      path: '/', // __Host- requires explicit Path=/
+      // Domain intentionally omitted — __Host- forbids Domain attribute
+    },
+  })
+);
 
 // ── Absolute Session Timeout Middleware ─────────────────────────
 // Prevents indefinite session extension via sliding expiration.
@@ -261,12 +292,19 @@ app.use((req, res, next) => {
     }
     const age = Date.now() - req.session._createdAt;
     if (age > SESSION_ABS_MS) {
-      return req.session.destroy((err) => {
-        if (err) log.error('Session destroy error', { error: err.message });
+      return req.session.destroy(err => {
+        if (err) {
+          log.error('Session destroy error', { error: err.message });
+        }
         res.clearCookie(COOKIE_NAME);
         // For API requests return 401, for page requests redirect
-        if (req.xhr || req.path.startsWith('/api') || req.path.startsWith('/user') ||
-            req.path.startsWith('/ai') || req.path.startsWith('/billing')) {
+        if (
+          req.xhr ||
+          req.path.startsWith('/api') ||
+          req.path.startsWith('/user') ||
+          req.path.startsWith('/ai') ||
+          req.path.startsWith('/billing')
+        ) {
           return res.status(401).json({ error: 'Session expired. Please log in again.' });
         }
         return res.redirect('/login');
@@ -294,22 +332,24 @@ app.use(
 
 // Serve static files — 1-day cache with ETag revalidation.
 // Avoids the 1-year stale cache problem where deploys don't update user's CSS/JS.
-app.use(express.static(path.join(__dirname, 'public'), {
-  index: false, // SPA routes handle '/' so nonce can be injected into <script> tags
-  maxAge: '1d',
-  etag: true,
-  lastModified: true,
-  setHeaders: (res, filePath) => {
-    // HTML files should never be cached (SPA routes)
-    if (filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    }
-    // XML/TXT files (sitemap, robots) — cache for 1 hour
-    if (filePath.endsWith('.xml') || filePath.endsWith('.txt')) {
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-    }
-  }
-}));
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    index: false, // SPA routes handle '/' so nonce can be injected into <script> tags
+    maxAge: '1d',
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      // HTML files should never be cached (SPA routes)
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+      // XML/TXT files (sitemap, robots) — cache for 1 hour
+      if (filePath.endsWith('.xml') || filePath.endsWith('.txt')) {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      }
+    },
+  })
+);
 
 // ── SEO: Explicit sitemap and robots routes ───────────────────
 // Ensures correct Content-Type for crawlers
@@ -331,8 +371,10 @@ const { csrfProtection, getCsrfToken } = require('./middleware/csrf');
 // may not complete before the client fires its next POST → "Security validation failed".
 app.get('/api/csrf-token', (req, res) => {
   const token = getCsrfToken(req);
-  req.session.save((err) => {
-    if (err) log.warn('CSRF session save error', { error: err.message });
+  req.session.save(err => {
+    if (err) {
+      log.warn('CSRF session save error', { error: err.message });
+    }
     res.json({ token });
   });
 });
@@ -354,10 +396,24 @@ app.use('/auth', authRoutes);
 // The following routes will serve the index.html SPA
 // The frontend JS will handle actual rendering based on the URL
 const spaRoutes = [
-  '/', '/login', '/signup', '/dashboard', '/scan', '/results/:id', '/agent-results',
-  '/resumes', '/jobs', '/ai-tools', '/pricing', '/settings', '/profile',
-  '/forgot-password', '/verify/:token', '/reset-password/:token',
-  '/privacy', '/terms'
+  '/',
+  '/login',
+  '/signup',
+  '/dashboard',
+  '/scan',
+  '/results/:id',
+  '/agent-results',
+  '/resumes',
+  '/jobs',
+  '/ai-tools',
+  '/pricing',
+  '/settings',
+  '/profile',
+  '/forgot-password',
+  '/verify/:token',
+  '/reset-password/:token',
+  '/privacy',
+  '/terms',
 ];
 
 // Phase 3 #15: Read index.html once, inject CSP nonce on each request
@@ -374,8 +430,10 @@ function renderSpaShell(req, res, { robotsTag = 'index, follow', statusCode = 20
   }
 
   const nonce = res.locals.cspNonce;
-  const html = indexHtmlTemplate
-    .replace(/<script(?![^>]*type=["']application\/ld\+json["'])/gi, `<script nonce="${nonce}"`);
+  const html = indexHtmlTemplate.replace(
+    /<script(?![^>]*type=["']application\/ld\+json["'])/gi,
+    `<script nonce="${nonce}"`
+  );
 
   res.type('html').send(html);
 }
@@ -421,7 +479,9 @@ app.get('/readyz', async (req, res) => {
       dbCheck.prepare('SELECT 1').get();
     }
     checks.postgres = true;
-  } catch {}
+  } catch {
+    checks.postgres = false;
+  }
   try {
     // Redis check (optional — may not be configured)
     const { getRedis } = require('./lib/redis');
@@ -480,41 +540,47 @@ app.get('/metrics', (req, res) => {
     return res.status(403).send('Forbidden');
   }
   const mem = process.memoryUsage();
-  const metrics = [
-    `# HELP nodejs_heap_used_bytes Node.js heap used`,
-    `# TYPE nodejs_heap_used_bytes gauge`,
-    `nodejs_heap_used_bytes ${mem.heapUsed}`,
-    `# HELP nodejs_rss_bytes Resident set size`,
-    `# TYPE nodejs_rss_bytes gauge`,
-    `nodejs_rss_bytes ${mem.rss}`,
-    `# HELP nodejs_uptime_seconds Process uptime`,
-    `# TYPE nodejs_uptime_seconds gauge`,
-    `nodejs_uptime_seconds ${Math.round(process.uptime())}`,
-    `# HELP http_active_connections Active HTTP connections`,
-    `# TYPE http_active_connections gauge`,
-    `http_active_connections ${activeConnections.size}`,
-    `# HELP nodejs_eventloop_lag_seconds Event loop lag`,
-    `# TYPE nodejs_eventloop_lag_seconds gauge`,
-    `nodejs_eventloop_lag_seconds 0`,
-  ].join('\n') + '\n';
+  const metrics =
+    [
+      `# HELP nodejs_heap_used_bytes Node.js heap used`,
+      `# TYPE nodejs_heap_used_bytes gauge`,
+      `nodejs_heap_used_bytes ${mem.heapUsed}`,
+      `# HELP nodejs_rss_bytes Resident set size`,
+      `# TYPE nodejs_rss_bytes gauge`,
+      `nodejs_rss_bytes ${mem.rss}`,
+      `# HELP nodejs_uptime_seconds Process uptime`,
+      `# TYPE nodejs_uptime_seconds gauge`,
+      `nodejs_uptime_seconds ${Math.round(process.uptime())}`,
+      `# HELP http_active_connections Active HTTP connections`,
+      `# TYPE http_active_connections gauge`,
+      `http_active_connections ${activeConnections.size}`,
+      `# HELP nodejs_eventloop_lag_seconds Event loop lag`,
+      `# TYPE nodejs_eventloop_lag_seconds gauge`,
+      `nodejs_eventloop_lag_seconds 0`,
+    ].join('\n') + '\n';
   res.type('text/plain; version=0.0.4; charset=utf-8').send(metrics);
 });
 
 // Phase 6 Wave 4: CSP violation reporting endpoint
 // Receives browser reports when CSP blocks a resource — critical for auditing
-app.post('/api/csp-report', generalLimiter, express.json({ type: ['application/csp-report', 'application/json'] }), (req, res) => {
-  const report = req.body?.['csp-report'] || req.body;
-  if (report) {
-    log.warn('CSP violation', {
-      blockedUri: report['blocked-uri'] || report.blockedURL,
-      directive: report['violated-directive'] || report.effectiveDirective,
-      documentUri: report['document-uri'] || report.documentURL,
-      sourceFile: report['source-file'],
-      lineNumber: report['line-number'],
-    });
+app.post(
+  '/api/csp-report',
+  generalLimiter,
+  express.json({ type: ['application/csp-report', 'application/json'] }),
+  (req, res) => {
+    const report = req.body?.['csp-report'] || req.body;
+    if (report) {
+      log.warn('CSP violation', {
+        blockedUri: report['blocked-uri'] || report.blockedURL,
+        directive: report['violated-directive'] || report.effectiveDirective,
+        documentUri: report['document-uri'] || report.documentURL,
+        sourceFile: report['source-file'],
+        lineNumber: report['line-number'],
+      });
+    }
+    res.status(204).end();
   }
-  res.status(204).end();
-});
+);
 
 // Phase 6 Wave 4: Client-side error reporting
 // Receives window.onerror and unhandledrejection events from the browser
@@ -524,7 +590,9 @@ app.post('/api/client-error', generalLimiter, express.json(), (req, res) => {
     log.warn('Client-side error', {
       message: typeof message === 'string' ? message.substring(0, 500) : 'unknown',
       source: typeof source === 'string' ? source.substring(0, 200) : undefined,
-      line, column, type,
+      line,
+      column,
+      type,
       userId: req.user?.id,
       requestId: req.id,
     });
@@ -538,12 +606,14 @@ app.get('/.well-known/security.txt', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', '.well-known', 'security.txt'));
 });
 
-
-
 // §13.9: Branded 404 — separate handling for API vs HTML requests
 // API routes get proper JSON 404; HTML routes get the SPA shell for client-side routing
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api/') || req.path.startsWith('/auth/') || req.path.startsWith('/billing/')) {
+  if (
+    req.path.startsWith('/api/') ||
+    req.path.startsWith('/auth/') ||
+    req.path.startsWith('/billing/')
+  ) {
     return res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
   }
   // SPA: serve index.html for all other routes — client-side router handles 404 page
@@ -594,7 +664,9 @@ app.use((err, req, res, next) => {
 httpServer = app.listen(PORT, () => {
   log.info(`ResumeXray running at http://localhost:${PORT}`, { port: PORT });
   // Phase 6 Wave 2: Signal PM2 that the server is ready (for wait_ready + graceful reload)
-  if (typeof process.send === 'function') process.send('ready');
+  if (typeof process.send === 'function') {
+    process.send('ready');
+  }
 
   // Phase 6 Wave 2: Startup cleanup — purge stale temp uploads from previous runs
   const TMP_DIR = path.join(__dirname, 'tmp_uploads');
@@ -612,9 +684,13 @@ httpServer = app.listen(PORT, () => {
             fs.unlinkSync(filePath);
             cleaned++;
           }
-        } catch {}
+        } catch {
+          // Ignore races with other cleanup passes or files already removed.
+        }
       }
-      if (cleaned > 0) log.info('Cleaned stale temp files', { count: cleaned });
+      if (cleaned > 0) {
+        log.info('Cleaned stale temp files', { count: cleaned });
+      }
     } catch (err) {
       log.warn('Temp cleanup failed', { error: err.message });
     }
@@ -622,7 +698,7 @@ httpServer = app.listen(PORT, () => {
 });
 
 // Phase 6 Wave 2: Track connections for graceful drain
-httpServer.on('connection', (conn) => {
+httpServer.on('connection', conn => {
   activeConnections.add(conn);
   conn.on('close', () => activeConnections.delete(conn));
 });

@@ -21,6 +21,7 @@ const { renderTemplate } = require('../lib/template-renderer');
 const { getUploadsRoot, uploadUrlToPath } = require('../lib/uploads');
 const { parseCoverLetter } = require('../lib/cover-letter-parser');
 const { extractLinkedInAvatarUrl } = require('../lib/oauth-profiles');
+const { getJobDescription } = require('../lib/scraper');
 
 async function extractDocxXml(buffer, filePath = 'word/document.xml') {
   const zip = await JSZip.loadAsync(buffer);
@@ -212,6 +213,36 @@ Excellent attention to detail`;
       extractCompanyFromUrl('https://careers-screwfix.icims.com/jobs/143097/job'),
       'Screwfix'
     );
+  });
+
+  it('blocks direct private job-description URLs', async () => {
+    await assert.rejects(
+      () => getJobDescription('http://127.0.0.1:8080/private-job'),
+      /internal or private/
+    );
+  });
+
+  it('does not follow job-description redirects into private networks', async () => {
+    const originalFetch = global.fetch;
+    const requestedUrls = [];
+    global.fetch = async input => {
+      requestedUrls.push(String(input));
+      return new Response('', {
+        status: 302,
+        headers: { location: 'http://127.0.0.1:8080/private-job' },
+      });
+    };
+
+    try {
+      await assert.rejects(
+        () => getJobDescription('https://example.com/jobs/customer-success'),
+        /Could not extract from example\.com/
+      );
+      assert.ok(requestedUrls.length > 0);
+      assert.ok(requestedUrls.every(url => url.startsWith('https://example.com/')));
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 
   it('does not surface short ambiguous keywords like go and r without programming context', () => {

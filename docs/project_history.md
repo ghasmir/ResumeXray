@@ -890,3 +890,46 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Lemon Squeezy Integration**: Added full support for Lemon Squeezy hosted checkout and `order_created` webhooks while preserving the existing Stripe implementation.
 - **Database Hardening**: Added `lemon_squeezy_events` table and corresponding idempotency checks in `db/database.js` to ensure reliable credit delivery.
 - **Backward Compatibility**: Maintained existing Stripe routes and configurations, ensuring a seamless transition or rollback capability.
+
+---
+
+## 2026-05-06 (Senior Dev Hardening Pass — Security, Frontend Reliability, CI, Deployment)
+
+**Scope:** Full multi-review remediation pass across backend/security, frontend behavior, deployment scripts, dependency hygiene, CI gates, formatting baseline, and documentation.
+
+### Security and Billing Fixes
+
+- Converted authenticated export downloads from credit-spending `GET` requests to CSRF-protected `POST /api/agent/download/:scanId` requests. Authenticated `GET` export calls now return `405`, while unauthenticated token-backed downloads remain available.
+- Hardened PostgreSQL export idempotency with a transaction-scoped advisory lock keyed by the export idempotency key. This closes the missing-row race where two identical concurrent exports could both deduct credits before `download_history` existed.
+- Removed stale-event rejection based on provider event creation timestamps. Provider signature verification and event idempotency now handle replay/duplicate safety while allowing delayed webhook retries to deliver purchased credits.
+- Restored the intended OAuth password-verification linking flow for existing password accounts. OAuth sign-ins matching an existing password account now set `requiresLinking` and must complete `/auth/link-account` before provider IDs are attached.
+- Rebuilt job URL fetching around redirect-aware SSRF protection. The scraper now validates initial URLs and every redirect target, resolves DNS before connecting, blocks private/loopback/link-local/metadata ranges, and caps response bodies at 2 MB.
+
+### Frontend Reliability and Accessibility
+
+- Self-hosted PDF.js and its worker under `public/js/vendor/pdfjs/` so the production CSP worker policy no longer blocks PDF preview rendering.
+- Fixed invalid results routes so they render into the existing `#results-error` surface instead of replacing the persistent results dashboard DOM.
+- Prevented duplicate SPA navigation by making delegated link handling respect already-prevented click events.
+- Made the resume upload zone keyboard accessible with button semantics, focus styling, and Enter/Space activation.
+- Hid cover-letter download actions unless an actual cover letter exists for the scan.
+- Honored the password-change `requireRelogin` contract by clearing authenticated UI state and sending the user back to login.
+- Fixed CSRF retry header normalization and changed client error telemetry beacons to send `application/json`.
+
+### Tooling, Dependencies, and Deployment
+
+- Updated vulnerable production dependencies and overrides: `dompurify`, `fast-xml-parser`, `sanitize-html`, transitive `@xmldom/xmldom`, and transitive `postcss`. Refreshed the self-hosted DOMPurify bundle.
+- Added `pdfjs-dist` as the source for self-hosted PDF.js assets.
+- Fixed the lint parser configuration for CommonJS files, repaired blocking lint errors, and excluded committed vendor bundles from lint.
+- Established a green Prettier baseline and ignored vendor/minified browser bundles via `.prettierignore`.
+- Tightened GitHub Actions CI so build/syntax, production audit, lint, format check, and tests fail the workflow instead of being masked with `|| true`.
+- Updated VPS deployment scripts: `ProtectSystem=strict` now whitelists `tmp_uploads` and `logs`, `deploy/deploy.sh` creates runtime write directories and installs Chromium from the locked `playwright-core` package as the service user, Oracle setup installs only system dependencies, and cron paths now match `/home/deploy/ats-resume-checker`.
+
+### Regression Coverage and Verification
+
+- Added core-flow tests for direct private job URLs and public URLs redirecting into private networks.
+- Verified:
+  - `npm run build`
+  - `npm run lint` (passes with existing warnings)
+  - `npm run format:check`
+  - `npm test` (45/45)
+  - `npm audit --audit-level=high --omit=dev`

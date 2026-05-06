@@ -24,16 +24,22 @@ router.use((req, res, next) => {
 // Validates file binary signature (not just extension/Content-Type header)
 // which can be spoofed by attackers. Only JPEG and PNG allowed.
 const IMAGE_MAGIC = {
-  jpeg: [0xFF, 0xD8, 0xFF],  // JFIF / Exif / JFXX marker
-  png:  [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],  // PNG signature
+  jpeg: [0xff, 0xd8, 0xff], // JFIF / Exif / JFXX marker
+  png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], // PNG signature
 };
 
 function detectImageType(buffer) {
-  if (!buffer || buffer.length < 8) return null;
+  if (!buffer || buffer.length < 8) {
+    return null;
+  }
   const isPng = IMAGE_MAGIC.png.every((byte, i) => buffer[i] === byte);
-  if (isPng) return 'png';
+  if (isPng) {
+    return 'png';
+  }
   const isJpeg = IMAGE_MAGIC.jpeg.every((byte, i) => buffer[i] === byte);
-  if (isJpeg) return 'jpeg';
+  if (isJpeg) {
+    return 'jpeg';
+  }
   return null; // Unknown or disallowed format
 }
 
@@ -59,10 +65,13 @@ router.get('/me', isAuthenticated, async (req, res) => {
     const tier = await db.getUserTier(req.user.id);
 
     // Derive which OAuth providers are connected
-    const provider = user.google_id ? 'google'
-      : user.linkedin_id ? 'linkedin'
-      : user.github_id ? 'github'
-      : null;
+    const provider = user.google_id
+      ? 'google'
+      : user.linkedin_id
+        ? 'linkedin'
+        : user.github_id
+          ? 'github'
+          : null;
 
     res.json({
       user: {
@@ -70,16 +79,16 @@ router.get('/me', isAuthenticated, async (req, res) => {
         name: user.name,
         email: user.email,
         avatar: user.avatar_url,
-        avatarUrl: user.avatar_url,  // alias for backwards compat with older JS code paths
+        avatarUrl: user.avatar_url, // alias for backwards compat with older JS code paths
         tier,
         creditBalance,
         scansUsed: user.scans_used,
         joinedAt: user.created_at,
         isVerified: !!user.is_verified,
         emailVerifiedAt: user.email_verified_at || null,
-        provider,                        // 'google' | 'linkedin' | 'github' | null
+        provider, // 'google' | 'linkedin' | 'github' | null
         hasPassword: !!user.password_hash, // false for OAuth-only users
-      }
+      },
     });
   } catch (err) {
     log.error('Fetch user error', { error: err.message, userId: req.user?.id });
@@ -106,7 +115,7 @@ router.get('/dashboard', isAuthenticated, async (req, res) => {
 // GET /user/credit-history — Paginated credit transactions
 router.get('/credit-history', isAuthenticated, async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
     const history = await db.getCreditHistory(req.user.id, limit);
     res.json({ history });
   } catch (err) {
@@ -122,7 +131,8 @@ router.put('/password', isAuthenticated, async (req, res) => {
     // OAuth-only users have no password_hash — changing password is not applicable
     if (!user.password_hash) {
       return res.status(403).json({
-        error: 'Password management is not available for accounts signed in via Google, LinkedIn, or GitHub.'
+        error:
+          'Password management is not available for accounts signed in via Google, LinkedIn, or GitHub.',
       });
     }
 
@@ -143,16 +153,24 @@ router.put('/password', isAuthenticated, async (req, res) => {
     // Prevent reusing the same password
     const isSame = await bcrypt.compare(newPassword, user.password_hash);
     if (isSame) {
-      return res.status(400).json({ error: 'New password cannot be the same as your current password.' });
+      return res
+        .status(400)
+        .json({ error: 'New password cannot be the same as your current password.' });
     }
 
     const hash = await bcrypt.hash(newPassword, 12);
     await db.updatePassword(req.user.id, hash);
 
     // Force re-login after password change — prevents old sessions from persisting
-    req.session.regenerate((err) => {
-      if (err) log.error('Session regeneration error after password change', { error: err.message });
-      res.json({ success: true, message: 'Password updated successfully. Please log in again.', requireRelogin: true });
+    req.session.regenerate(err => {
+      if (err) {
+        log.error('Session regeneration error after password change', { error: err.message });
+      }
+      res.json({
+        success: true,
+        message: 'Password updated successfully. Please log in again.',
+        requireRelogin: true,
+      });
     });
   } catch (err) {
     log.error('Password change error', { error: err.message, userId: req.user?.id });
@@ -162,118 +180,135 @@ router.put('/password', isAuthenticated, async (req, res) => {
 
 // PUT /user/avatar — Upload and sanitize profile picture
 // Security: magic number validation + CDR (EXIF strip + re-encode via sharp) + UUID filename
-router.put('/avatar', isAuthenticated, (req, res, next) => {
-  avatarUpload.single('avatar')(req, res, (err) => {
-    if (err instanceof multer.MulterError) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'Image must be under 5MB.' });
-      }
-      return res.status(400).json({ error: err.message });
-    }
-    if (err) return res.status(400).json({ error: err.message });
-    next();
-  });
-}, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image provided.' });
-    }
-
-    const buffer = req.file.buffer;
-
-    // Deep packet inspection: reject anything that doesn't match JPEG or PNG magic bytes.
-    // This cannot be spoofed by changing the file extension or Content-Type header.
-    const detectedType = detectImageType(buffer);
-    if (!detectedType) {
-      return res.status(400).json({ error: 'Invalid image format. Only JPEG and PNG files are allowed.' });
-    }
-
-    // Content Disarm and Reconstruction (CDR):
-    // Re-encode the image through sharp to strip EXIF metadata, GPS data,
-    // embedded thumbnails, and any potential steganographic payloads.
-    // The output is a clean, re-encoded image with no metadata passthrough.
-    let sanitizedBuffer;
-    const outputFormat = detectedType === 'png' ? 'png' : 'jpeg';
-    try {
-      const sharpInstance = sharp(buffer)
-        .resize(512, 512, { fit: 'cover', position: 'centre' }) // Normalize dimensions
-        .withMetadata(false); // Strip ALL metadata (EXIF, IPTC, ICC, XMP)
-
-      if (outputFormat === 'jpeg') {
-        sanitizedBuffer = await sharpInstance.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
-      } else {
-        sanitizedBuffer = await sharpInstance.png({ compressionLevel: 6 }).toBuffer();
-      }
-    } catch (sharpErr) {
-      log.error('Sharp image processing failed', { error: sharpErr.message, userId: req.user.id });
-      return res.status(400).json({ error: 'Could not process the image. Please try a different file.' });
-    }
-
-    // UUID filename — prevents directory traversal and user enumeration via filenames
-    const uploadsDir = getAvatarUploadsDir();
-    const filename = `${uuidv4()}.${outputFormat === 'jpeg' ? 'jpg' : 'png'}`;
-    const filepath = path.join(uploadsDir, filename);
-    const avatarUrl = `/uploads/avatars/${filename}`;
-
-    // Delete the old avatar file if it was locally stored (clean up disk)
-    try {
-      const existingUser = await db.getUserById(req.user.id);
-      const oldPath = existingUser?.avatar_url?.startsWith('/uploads/avatars/')
-        ? uploadUrlToPath(existingUser.avatar_url)
-        : null;
-      if (oldPath && path.dirname(oldPath) === uploadsDir && fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
-    } catch (cleanupErr) {
-      log.warn('Failed to clean up old avatar', { error: cleanupErr.message, userId: req.user.id });
-    }
-
-    try {
-      fs.writeFileSync(filepath, sanitizedBuffer);
-    } catch (writeErr) {
-      log.error('Avatar write failed', {
-        error: writeErr.message,
-        code: writeErr.code,
-        userId: req.user.id,
-        filepath,
-      });
-      return res.status(500).json({ error: 'Avatar storage is temporarily unavailable.' });
-    }
-
-    try {
-      // Update avatar_url in the database
-      await db.updateAvatarUrl(req.user.id, avatarUrl);
-    } catch (dbErr) {
-      try {
-        if (fs.existsSync(filepath)) {
-          fs.unlinkSync(filepath);
+router.put(
+  '/avatar',
+  isAuthenticated,
+  (req, res, next) => {
+    avatarUpload.single('avatar')(req, res, err => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'Image must be under 5MB.' });
         }
-      } catch (unlinkErr) {
-        log.warn('Failed to remove avatar after database error', {
-          error: unlinkErr.message,
+        return res.status(400).json({ error: err.message });
+      }
+      if (err) {
+        return res.status(400).json({ error: err.message });
+      }
+      next();
+    });
+  },
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image provided.' });
+      }
+
+      const buffer = req.file.buffer;
+
+      // Deep packet inspection: reject anything that doesn't match JPEG or PNG magic bytes.
+      // This cannot be spoofed by changing the file extension or Content-Type header.
+      const detectedType = detectImageType(buffer);
+      if (!detectedType) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid image format. Only JPEG and PNG files are allowed.' });
+      }
+
+      // Content Disarm and Reconstruction (CDR):
+      // Re-encode the image through sharp to strip EXIF metadata, GPS data,
+      // embedded thumbnails, and any potential steganographic payloads.
+      // The output is a clean, re-encoded image with no metadata passthrough.
+      let sanitizedBuffer;
+      const outputFormat = detectedType === 'png' ? 'png' : 'jpeg';
+      try {
+        const sharpInstance = sharp(buffer)
+          .resize(512, 512, { fit: 'cover', position: 'centre' }) // Normalize dimensions
+          .withMetadata(false); // Strip ALL metadata (EXIF, IPTC, ICC, XMP)
+
+        if (outputFormat === 'jpeg') {
+          sanitizedBuffer = await sharpInstance.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+        } else {
+          sanitizedBuffer = await sharpInstance.png({ compressionLevel: 6 }).toBuffer();
+        }
+      } catch (sharpErr) {
+        log.error('Sharp image processing failed', {
+          error: sharpErr.message,
           userId: req.user.id,
-          filepath,
+        });
+        return res
+          .status(400)
+          .json({ error: 'Could not process the image. Please try a different file.' });
+      }
+
+      // UUID filename — prevents directory traversal and user enumeration via filenames
+      const uploadsDir = getAvatarUploadsDir();
+      const filename = `${uuidv4()}.${outputFormat === 'jpeg' ? 'jpg' : 'png'}`;
+      const filepath = path.join(uploadsDir, filename);
+      const avatarUrl = `/uploads/avatars/${filename}`;
+
+      // Delete the old avatar file if it was locally stored (clean up disk)
+      try {
+        const existingUser = await db.getUserById(req.user.id);
+        const oldPath = existingUser?.avatar_url?.startsWith('/uploads/avatars/')
+          ? uploadUrlToPath(existingUser.avatar_url)
+          : null;
+        if (oldPath && path.dirname(oldPath) === uploadsDir && fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      } catch (cleanupErr) {
+        log.warn('Failed to clean up old avatar', {
+          error: cleanupErr.message,
+          userId: req.user.id,
         });
       }
 
-      log.error('Avatar database update failed', {
-        error: dbErr.message,
-        userId: req.user.id,
-        avatarUrl,
-      });
-      return res.status(500).json({ error: 'Failed to save avatar.' });
-    }
+      try {
+        fs.writeFileSync(filepath, sanitizedBuffer);
+      } catch (writeErr) {
+        log.error('Avatar write failed', {
+          error: writeErr.message,
+          code: writeErr.code,
+          userId: req.user.id,
+          filepath,
+        });
+        return res.status(500).json({ error: 'Avatar storage is temporarily unavailable.' });
+      }
 
-    res.json({ success: true, avatarUrl });
-  } catch (err) {
-    log.error('Avatar upload error', {
-      error: err.message,
-      code: err.code,
-      userId: req.user?.id,
-    });
-    res.status(500).json({ error: 'Failed to upload avatar.' });
+      try {
+        // Update avatar_url in the database
+        await db.updateAvatarUrl(req.user.id, avatarUrl);
+      } catch (dbErr) {
+        try {
+          if (fs.existsSync(filepath)) {
+            fs.unlinkSync(filepath);
+          }
+        } catch (unlinkErr) {
+          log.warn('Failed to remove avatar after database error', {
+            error: unlinkErr.message,
+            userId: req.user.id,
+            filepath,
+          });
+        }
+
+        log.error('Avatar database update failed', {
+          error: dbErr.message,
+          userId: req.user.id,
+          avatarUrl,
+        });
+        return res.status(500).json({ error: 'Failed to save avatar.' });
+      }
+
+      res.json({ success: true, avatarUrl });
+    } catch (err) {
+      log.error('Avatar upload error', {
+        error: err.message,
+        code: err.code,
+        userId: req.user?.id,
+      });
+      res.status(500).json({ error: 'Failed to upload avatar.' });
+    }
   }
-});
+);
 
 // DELETE /user/account — Delete user account
 router.delete('/account', isAuthenticated, async (req, res) => {

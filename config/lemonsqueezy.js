@@ -47,10 +47,14 @@ const CREDIT_PACKS = {
  */
 function createCheckoutUrl(packId, userId, email) {
   const pack = CREDIT_PACKS[packId];
-  if (!pack) throw new Error(`Invalid credit pack: ${packId}`);
+  if (!pack) {
+    throw new Error(`Invalid credit pack: ${packId}`);
+  }
 
   const storeId = process.env.LEMON_SQUEEZY_STORE_ID;
-  if (!storeId) throw new Error('Lemon Squeezy store ID not configured');
+  if (!storeId) {
+    throw new Error('Lemon Squeezy store ID not configured');
+  }
 
   const successUrl = `${process.env.APP_URL}/dashboard?purchased=true&pack=${packId}`;
   const cancelUrl = `${process.env.APP_URL}/pricing?cancelled=true`;
@@ -76,7 +80,9 @@ function createCheckoutUrl(packId, userId, email) {
  */
 function verifyWebhookSignature(payload, signature) {
   const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
-  if (!secret) return false;
+  if (!secret) {
+    return false;
+  }
 
   // Lemon Squeezy uses HMAC-SHA256 for webhook signatures
   const hash = crypto.createHmac('sha256', secret).update(payload).digest('hex');

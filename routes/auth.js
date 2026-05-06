@@ -20,8 +20,12 @@ const LOCKOUT_DURATION = 30 * 60 * 1000; // 30 min
 
 function checkLockout(key) {
   const entry = loginAttempts.get(key);
-  if (!entry) return false;
-  if (entry.lockedUntil && Date.now() < entry.lockedUntil) return true;
+  if (!entry) {
+    return false;
+  }
+  if (entry.lockedUntil && Date.now() < entry.lockedUntil) {
+    return true;
+  }
   // Reset if lockout expired or window passed
   if (entry.lockedUntil && Date.now() >= entry.lockedUntil) {
     loginAttempts.delete(key);
@@ -36,7 +40,9 @@ function checkLockout(key) {
 
 async function checkLockoutState(key) {
   const redis = getRedis();
-  if (!redis) return checkLockout(key);
+  if (!redis) {
+    return checkLockout(key);
+  }
 
   try {
     return (await redis.exists(`auth:lock:${key}`)) === 1;
@@ -60,7 +66,9 @@ function recordFailedLogin(key) {
       const toDelete = loginAttempts.size - 8000;
       let deleted = 0;
       for (const k of loginAttempts.keys()) {
-        if (deleted >= toDelete) break;
+        if (deleted >= toDelete) {
+          break;
+        }
         loginAttempts.delete(k);
         deleted++;
       }
@@ -129,8 +137,11 @@ const loginAttemptCleanup = setInterval(
   () => {
     const now = Date.now();
     for (const [key, entry] of loginAttempts) {
-      if (entry.lockedUntil && now >= entry.lockedUntil) loginAttempts.delete(key);
-      else if (now - entry.firstAttempt > LOCKOUT_WINDOW) loginAttempts.delete(key);
+      if (entry.lockedUntil && now >= entry.lockedUntil) {
+        loginAttempts.delete(key);
+      } else if (now - entry.firstAttempt > LOCKOUT_WINDOW) {
+        loginAttempts.delete(key);
+      }
     }
   },
   10 * 60 * 1000
@@ -207,9 +218,13 @@ router.post('/signup', authLimiter, async (req, res) => {
 
     // Auto-login after signup with session regeneration
     req.session.regenerate(async err => {
-      if (err) return res.status(500).json({ error: 'Account created but login failed.' });
+      if (err) {
+        return res.status(500).json({ error: 'Account created but login failed.' });
+      }
       req.login(user, async err => {
-        if (err) return res.status(500).json({ error: 'Account created but login failed.' });
+        if (err) {
+          return res.status(500).json({ error: 'Account created but login failed.' });
+        }
         req.session._createdAt = Date.now(); // Set absolute timeout anchor
 
         // Phase 6 §3.1-A: Claim only THIS session's guest scans (IDOR fix)
@@ -289,7 +304,9 @@ router.post('/login', authLimiter, async (req, res) => {
       }
 
       req.login(user, async err => {
-        if (err) return res.status(500).json({ error: 'Login failed.' });
+        if (err) {
+          return res.status(500).json({ error: 'Login failed.' });
+        }
         req.session._createdAt = Date.now(); // Set absolute timeout anchor
 
         // Claim guest scans from before login (same pattern as signup)
@@ -358,8 +375,9 @@ function oauthCallbackHandler(req, res) {
       if (guestTokens.length > 0) {
         try {
           const claimed = await db.claimGuestScans(user.id, guestTokens);
-          if (claimed > 0)
+          if (claimed > 0) {
             log.info('Claimed guest scans for OAuth user', { userId: user.id, claimed });
+          }
         } catch (e) {
           log.warn('Failed to claim guest scans on OAuth login', { error: e.message });
         }
@@ -407,13 +425,17 @@ router.post('/logout', (req, res, next) => {
     secure: isProd,
   };
   req.logout(err => {
-    if (err) return next(err);
+    if (err) {
+      return next(err);
+    }
     // Use regenerate() instead of destroy() — regenerate is guaranteed to
     // invalidate the OLD session ID immediately (new empty session is issued).
     // destroy() on Supabase session store can fail silently, leaving the old
     // session valid and causing ghost re-authentication on next page load.
     req.session.regenerate(regenErr => {
-      if (regenErr) log.error('Session regenerate error on logout', { error: regenErr.message });
+      if (regenErr) {
+        log.error('Session regenerate error on logout', { error: regenErr.message });
+      }
       // Clear session data on the new (empty) session
       req.session._csrfToken = undefined;
       req.session.save(() => {
@@ -453,7 +475,9 @@ router.post('/resend-verification', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
     const user = await db.getUserById(req.user.id);
-    if (!user) return res.status(404).json({ error: 'User not found.' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
     if (user.is_verified) {
       return res.json({ success: true, message: 'Your email is already verified.' });
     }
