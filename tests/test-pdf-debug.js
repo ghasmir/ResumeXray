@@ -20,14 +20,14 @@ Bachelor of Science in Computer Science | Punjab University | 2020`;
 
 async function run() {
   console.log('--- TESTING USER SPECIFIC RESUME ---');
-  
-  const pdfBuffer = await resumeBuilder.generatePDF(mockText, {}, [], {}, { watermark: true, density: 'standard' });
+
+  const pdfBuffer = await resumeBuilder.generatePDF(mockText, {}, [], {}, { density: 'standard' });
   fs.writeFileSync('test-user-resume.pdf', pdfBuffer);
-  
+
   const pdfStr = pdfBuffer.toString('latin1');
   const pages = (pdfStr.match(/\/Type\s*\/Page\b/g) || []).length;
   console.log('Final Pages:', pages);
-  
+
   if (pages > 1) {
     console.error('FAIL: Resume exceeded 1 page!');
   } else {

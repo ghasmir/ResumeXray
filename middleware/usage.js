@@ -6,10 +6,10 @@
  *   - AI bullet rewrites are FREE (sandbox — show full value before paying)
  *   - PDF/DOCX export costs 1 credit (the only credit gate)
  *   - Cover letter generation is included with export (same 1 credit)
- *   - Guests get 2 free scans (IP-limited), no exports
+ *   - Guests get 2 free scans (IP-limited)
  */
 
-const { getCreditBalance, deductCredit, getGuestScanCount } = require('../db/database');
+const { getCreditBalance, getGuestScanCount } = require('../db/database');
 
 /**
  * Check scan limit — scans are free for logged-in users, IP-limited for guests.
@@ -54,21 +54,20 @@ async function checkAiCredit(req, res, next) {
  * This is the ONLY credit gate in v3.
  *
  * CRITICAL ARCHITECTURE NOTE:
- * This middleware does NOT make the final watermark decision based on balance.
+ * This middleware does NOT make the final export decision based on balance.
  * The actual balance check happens INSIDE the atomic transaction in the route
  * handler (deductCreditAtomic). This prevents the TOCTOU race condition where
- * two simultaneous requests both read balance=1, both set isWatermarked=false,
- * and both deduct — resulting in a negative balance.
+ * two simultaneous requests both read balance=1 and both deduct — resulting in
+ * a negative balance.
  *
  * Flow:
- *   1. Middleware: Sets req.isWatermarked = false (tentative)
+ *   1. Middleware: Sets req.isWatermarked = false for legacy callers
  *   2. Route handler: deductCreditAtomic checks balance inside transaction
- *   3. If deduction fails: route overrides req.isWatermarked = true
+ *   3. If deduction fails: route returns 402 and does not generate the file
  */
 async function checkExportCredit(req, res, next) {
   if (!req.user) {
-    // Guests can download — but with watermark (handled in the route)
-    req.isWatermarked = true;
+    req.isWatermarked = false;
     return next();
   }
 

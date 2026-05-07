@@ -13,15 +13,20 @@ const fs = require('fs');
 async function run() {
   // Get the latest scan
   const latestScan = db.getDb().prepare('SELECT * FROM scans ORDER BY id DESC LIMIT 1').get();
-  if (!latestScan) { console.error('No scans in database'); return; }
+  if (!latestScan) {
+    console.error('No scans in database');
+    return;
+  }
 
   console.log(`\nScan ID: ${latestScan.id}`);
   console.log(`User ID: ${latestScan.user_id}`);
-  
+
   // Parse the JSON columns exactly like the preview route does
   const { resumeText, source } = resolveResumeText(latestScan);
   const sectionData = latestScan.section_data ? JSON.parse(latestScan.section_data) : {};
-  const optimizedBullets = latestScan.optimized_bullets ? JSON.parse(latestScan.optimized_bullets) : [];
+  const optimizedBullets = latestScan.optimized_bullets
+    ? JSON.parse(latestScan.optimized_bullets)
+    : [];
   const keywordPlan = latestScan.keyword_plan ? JSON.parse(latestScan.keyword_plan) : [];
 
   console.log(`\nResume text length: ${resumeText.length}`);
@@ -39,7 +44,7 @@ async function run() {
 
   // Now call the same validated render pipeline the preview/download routes use
   try {
-    const { buffer, renderMeta } = await renderResumePdf(latestScan, { watermark: true });
+    const { buffer, renderMeta } = await renderResumePdf(latestScan);
 
     const outputPath = path.join(process.cwd(), 'test-live-output.pdf');
     fs.writeFileSync(outputPath, buffer);

@@ -180,8 +180,8 @@ Current results-tab contract:
 
 1. Frontend calls `POST /api/agent/download/:scanId?format=pdf|docx`.
 2. CSRF middleware validates the session token before any authenticated export can spend credits.
-3. `middleware/usage.js` marks guest exports as watermarked and passes authenticated exports to the atomic deduction path.
-4. Backend renders the export and deducts credit atomically.
+3. `middleware/usage.js` leaves all generated files clean and passes authenticated exports to the atomic deduction path.
+4. Backend renders the export and deducts credit atomically; insufficient-credit requests return `402` and do not receive a degraded file.
 5. File downloads to the client.
 
 ## 6. Directory-Level Structure
@@ -757,7 +757,9 @@ Important behavior:
 - chooses optimized resume text first
 - falls back to structured text rebuilt from extracted sections if needed
 - selects ATS-aware template profile and fallback attempts
-- validates the produced PDF before declaring it ready
+- validates the produced PDF text layer and page budget before declaring it ready
+- uses an experience-aware page target: `1` page for `<= 3` years, `1.5` pages with a hard `2` page max for `> 3` years
+- generated PDFs and DOCX files are clean; visual watermarks are no longer rendered
 
 ## 12.2 `lib/resume-builder.js`
 
@@ -799,12 +801,13 @@ Pipeline summary:
 3. normalize dates and symbols on that original text
 4. parse sections heuristically, including explicit header extraction and exact section-header matching
 5. recover cleaner header/contact/summary fields and preserve concise honest source headlines when possible
-6. highlight metrics and trim content toward the allowed page budget while the data is still in flat arrays; guard against dropping >25% of experience entries — if threshold exceeded, restore dropped entries preferring bullet-level trimming instead
+6. highlight metrics while preserving every parsed resume section; the legacy trim helper is now a no-op compatibility shim
 7. structure flat lines into nested template-friendly objects
 8. apply optimized bullet rewrites directly to structured nodes, skipping any rewrite that already failed `contextAudit`; bullet rewrites carry a `preserveAllEntries` directive
-9. render the Handlebars HTML template or DOCX section content from those objects
-10. use Playwright to generate PDF when PDF output is requested
-11. validate text layer and page bounds
+9. apply evidence-bound keyword suggestions only when the resume already supports the added term
+10. render the Handlebars HTML template or DOCX section content from those objects
+11. use Playwright to generate PDF when PDF output is requested, tightening density and bounded print scale instead of deleting sections
+12. validate text layer and page bounds
 
 Template support:
 
@@ -814,7 +817,7 @@ Template support:
 - DOCX exports remain deliberately ATS-safe:
   - single-column only
   - no tables / text boxes
-  - standard section headers
+  - standard section headers, including `SKILLS` for generated/fallback skill sections
   - deterministic title / company / date ordering
 - the current DOCX theme mapping is:
   - `refined` -> professional Word-style theme
@@ -1014,6 +1017,7 @@ This pass added an explicit mobile audit loop for the public site and repaired t
   - open state restores visibility and interaction
 
 Practical effect:
+
 - the hidden menu no longer leaks into the accessibility tree as an active dialog
 - offscreen mobile nav no longer bleeds into full-page mobile captures
 - closed-state menu controls are no longer accidentally interactive.
@@ -1043,11 +1047,12 @@ This replaces the previous phone behavior where the pill row overflowed and the 
   - `reloadCoverLetterPreview(...)` now builds the preview wrapper and iframe via DOM APIs instead of `safeHtml(...)`
 
 Why this was necessary:
+
 - `safeHtml(...)` sanitizes iframe tags away
 - the previous combination of:
   - `X-Frame-Options: DENY`
   - sanitized iframe markup
-  meant the cover-letter tab could remain stuck in its loading skeleton even when the server returned a valid preview document.
+    meant the cover-letter tab could remain stuck in its loading skeleton even when the server returned a valid preview document.
 
 #### Cookie Banner Mobile Tuning
 
@@ -1622,7 +1627,7 @@ Budget-hosting guidance recorded during the April 2026 remediation planning:
 - `tests/test-builder.js`
 - `tests/test-integrity.js`
 - `tests/test-analyzer.js`
-- `tests/test-watermark.js`
+- `tests/test-watermark.js` (manual clean-export regression helper)
 - `tests/test-bug.js`
 - `tests/test-parse-debug.js`
 - `tests/test-typst.js`
@@ -1741,7 +1746,7 @@ This appendix lists the first-party code and config files that matter to maintai
 - `tests/test-pdf-live.js`
 - `tests/test-pdf.js`
 - `tests/test-typst.js`
-- `tests/test-watermark.js`
+- `tests/test-watermark.js` (manual clean-export regression helper)
 
 ### Deployment and infrastructure
 
@@ -1979,7 +1984,7 @@ Changes shipped:
   - `lib/templates/modern.html`
   - `lib/templates/classic.html`
   - `lib/templates/minimal.html`
-  so the render pipeline can selectively tighten or trim low-priority content when the export overflows
+    so the render pipeline can selectively tighten or trim low-priority content when the export overflows
 - updated `lib/resume-builder.js` so the export budget is now experience-aware:
   - `maxPages = 1` when effective experience is `<= 3 years`
   - `maxPages = 2` when effective experience is `> 3 years`
@@ -1987,9 +1992,9 @@ Changes shipped:
 - corrected the fit-height calculation to use printable content height rather than full sheet height
 - added a PDF-only compaction pass that progressively:
   - applies compact density classes
-  - trims summary length
-  - reduces older-role bullet counts
-  - removes low-priority sections only if necessary for the current page budget
+  - tightens template spacing
+  - applies bounded print scale
+  - preserves projects, certifications, languages, summary, and experience content
 
 Missing-skill handling was also improved:
 
@@ -2281,6 +2286,7 @@ This pass implemented the Phase 3 architecture and polish items from the Senior 
 **1. CSS Token Extraction** (`tokens.css` new file, `styles.css`, `index.html`)
 
 Extracted all design tokens from `styles.css` into a new `public/css/tokens.css` file. This file contains:
+
 - All `@font-face` declarations for Inter (400, 600, 700)
 - The complete `:root` custom properties block (colors, spacing, typography, motion, radii, shadows, gradients)
 
@@ -2295,6 +2301,7 @@ Removed the unused `--bg-base: #0e0e14` token. Only `--bg-deep: #0a0a0f` was ref
 **3. Typography Scale Standardization** (`styles.css`)
 
 Added three new design tokens to the `:root` scale:
+
 - `--text-sm: 0.8125rem` (13px, compact labels)
 - `--text-xs: 0.6875rem` (11px, micro labels)
 - `--text-2xs: 0.625rem` (10px, badge minimums)
@@ -2304,6 +2311,7 @@ These formalize sizes that were already in use as hardcoded `font-size` values t
 **4. Unified Accent Family for Credits Badge** (`styles.css`)
 
 Changed `.credits-badge`, `.premium-glow`, `@keyframes pulse-glow`, and `.verify-banner` from the divergent purple `#a855f7` / `rgba(168, 85, 247)` to the app's accent family `#635bff` / `rgba(99, 91, 255)`. Specific changes:
+
 - `.credits-badge` background: `rgba(168, 85, 247, 0.1)` → `var(--accent-subtle)`
 - `.credits-badge` border: `rgba(168, 85, 247, 0.2)` → `rgba(99, 91, 255, 0.2)`
 - `.credits-badge` color: `#c084fc` → `#a5b4fc`
@@ -2349,6 +2357,7 @@ Reviewed all 30+ `showToast()` calls in `app.js`. The existing copy is already u
 - `reloadCoverLetterPreview()` in `app.js` now sets `iframe.scrolling = 'auto'` on the created preview iframe, guaranteeing that the iframe itself presents scrollbars if the internal A4-sized document grows taller than the iframe bounds.
 
 **Verified:**
+
 - `npm run syntax:frontend` passed
 - `npm test` passed (41/41)
 
@@ -2399,7 +2408,7 @@ This pass fixes five confirmed UX bugs across the scan/results flow.
 **Issue 2 — Resume Optimization Destructiveness (`lib/resume-builder.js`, `lib/agent-pipeline.js`)**
 
 - `isJunior` threshold moved from `yearsExp < 5` to `yearsExp < 3`. Bullet-level trimming is preferred for 3–7 year candidates instead of entry removal.
-- Post-trim guard in `buildResumeData()`: if >25% of experience entries are dropped, they are restored.
+- Superseded on 2026-05-07: `trimForSinglePage()` no longer drops entries or bullets at all; page fitting now happens only in the PDF renderer.
 - `createDocxDocument()` now strips consecutive empty Paragraph nodes.
 - Bullet rewrite calls include `{ preserveAllEntries: true }`. Keyword plans carry an `_instruction` field: "Rewrite and reorder only; do not remove or skip any experience entries."
 
@@ -2424,6 +2433,48 @@ This pass fixes five confirmed UX bugs across the scan/results flow.
 - `.download-bar-lock-label`: removed `text-transform: uppercase`.
 - `.results-context-card` padding: `sp-3 sp-4` → `sp-4 sp-5`. Label font-size: `0.6875rem` → `0.75rem`.
 - "AI Cover Letter" → "A.I. Cover Letter" in pane title.
+
+### 23.24 PDF Integrity, ATS Prompt, and Product UI Refresh (2026-05-07)
+
+This pass addresses the May 2026 product-quality complaint: generated PDFs were allowed to drop content, previews/downloads still carried watermark assumptions, and the frontend looked over-decorated instead of like a credible paid product.
+
+**PDF/rendering contract**
+
+- `lib/resume-builder.js`
+  - `trimForSinglePage()` is now a no-op compatibility shim; it no longer deletes summary, projects, certifications, languages, bullets, or older roles.
+  - `buildResumeData()` now returns both `maxPages` and `targetPages`.
+  - `generatePDF()` derives `maxPages` from the parsed resume when callers do not pass it, so direct PDF calls no longer force experienced resumes into a one-page default.
+  - `renderHtmlToPdf()` fits content by applying density classes and bounded print scale instead of DOM section deletion.
+- `lib/render-service.js`
+  - forwards the `targetPages` value into PDF generation.
+  - no longer treats page overflow as a successful render.
+- `lib/templates/base.css`
+  - entry dates remain in simple reading order instead of relying on right-aligned flex layout.
+- `lib/template-renderer.js`
+  - one-line degree/school/date education entries now parse into proper degree and school fields instead of rendering a leading separator.
+
+**Watermark policy**
+
+- Resume and cover-letter templates no longer contain watermark blocks.
+- Preview and download routes request clean files only.
+- Insufficient-credit exports return `402` instead of serving a degraded file.
+- The legacy `download_history.watermarked` fields remain in the schema for backward compatibility only.
+
+**ATS content policy**
+
+- Generated/fallback skill headings now use standard `SKILLS`.
+- The keyword insertion prompt now uses the supplied job advert context, plans up to 15 missing high-value keywords, classifies suggestions as `REFRAMED` or `ESTIMATED`, and explicitly forbids fabricated experience, tools, credentials, employers, projects, and metrics.
+- Bullet rewriting now includes the same evidence-bound rule, a pronoun-free readability pass, no em dashes, and JD keyword use only when the original bullet supports it.
+
+**Frontend refresh**
+
+- `public/index.html`
+  - hero copy now leads with `ResumeXray` and promises one parse-ready resume for one target job.
+  - removed preview/download watermark language from the main value proposition.
+- `public/css/styles.css`
+  - added a May 2026 product UI override layer.
+  - replaced animated purple/glass decoration with calmer neutral surfaces, restrained blue accents, solid controls, cleaner proof rows, and less motion.
+  - scan, results tabs, PDF toolbar, pricing cards, and download bar now read as product workflow surfaces instead of decorative marketing cards.
 
 ## 7.3 Payment Gateway Integration: Multi-Provider Billing
 

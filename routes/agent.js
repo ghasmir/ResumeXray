@@ -7,7 +7,7 @@
  * Value Wall Implementation:
  * - Scans are FREE (shows ATS score + knockout risks)
  * - AI bullet rewrites: 1 free teaser, rest require credits
- * - PDF/DOCX export: requires 1 credit (watermarked without)
+ * - PDF/DOCX export: requires 1 credit
  */
 
 const express = require('express');
@@ -569,7 +569,8 @@ router.get('/stream/:sessionId', agentLimiter, async (req, res) => {
         canDownloadClean,
         downloadUrl: `/api/agent/download/${scanId}`,
         creditBalance,
-        isWatermarked: !canDownloadClean,
+        isWatermarked: false,
+        requiresExportCredit: !canDownloadClean,
         resumeText: session.resumeText,
         hasCoverLetter: true,
         previewReady: true,
@@ -813,7 +814,6 @@ router.get('/preview/:scanId', async (req, res) => {
     }
 
     const { buffer, renderMeta } = await renderResumePdf(scan, {
-      watermark: true,
       template: preferredTemplate || undefined,
       density: preferredDensity || undefined,
     });
@@ -918,7 +918,6 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
       preferredDensity || jobContext.templateProfile?.defaultDensity || 'standard';
     const parsed = parseCoverLetter(scan.cover_letter_text || '', buildCoverLetterContext(scan));
     const html = renderTemplate('cover-letter', parsed, {
-      watermark: false,
       density: resolvedDensity,
       template: resolvedTemplate,
     });
@@ -929,21 +928,6 @@ router.get('/cover-letter-preview/:scanId', async (req, res) => {
         width: 100%;
         max-width: 100%;
         box-sizing: border-box;
-      }
-      body::after {
-        content: 'ResumeXray Preview';
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) rotate(-35deg);
-        font-size: 3.5rem;
-        font-weight: 900;
-        color: rgba(148, 163, 184, 0.08);
-        pointer-events: none;
-        z-index: 9999;
-        white-space: nowrap;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
       }
     `;
 
@@ -1014,7 +998,7 @@ async function handleDownload(req, res) {
       );
 
       if (!result.success && !result.alreadyProcessed) {
-        // Insufficient credits — block download entirely (don't serve watermarked file)
+        // Insufficient credits — block download entirely; exports are always clean files.
         return res.status(402).json({
           error: 'You have no credits remaining. Purchase credits to download your files.',
           upgrade: true,
@@ -1034,17 +1018,13 @@ async function handleDownload(req, res) {
       if (format === 'pdf') {
         const parsed = parseCoverLetter(coverLetterText, buildCoverLetterContext(scan));
         const html = renderTemplate('cover-letter', parsed, {
-          watermark: req.isWatermarked,
           density: resolvedDensity,
           template: resolvedTemplate,
         });
         const buffer = await renderHtmlToPdf(html);
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="cover-letter${req.isWatermarked ? '-preview' : ''}.pdf"`
-        );
+        res.setHeader('Content-Disposition', 'attachment; filename="cover-letter.pdf"');
         res.send(buffer);
       } else {
         const buffer = await generateDOCX(coverLetterText, {}, [], [], {
@@ -1056,24 +1036,16 @@ async function handleDownload(req, res) {
           'Content-Type',
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         );
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="cover-letter${req.isWatermarked ? '-preview' : ''}.docx"`
-        );
+        res.setHeader('Content-Disposition', 'attachment; filename="cover-letter.docx"');
         res.send(buffer);
       }
 
-      // Record watermarked download for audit
-      if (req.isWatermarked && req.user) {
-        await db.recordWatermarkedDownload(req.user.id, scanId, format, 'cover_letter');
-      }
       return;
     }
 
     // Export resume
     if (format === 'pdf') {
       const { buffer, renderMeta } = await renderResumePdf(scan, {
-        watermark: req.isWatermarked,
         template: preferredTemplate || undefined,
         density: preferredDensity || undefined,
       });
@@ -1083,10 +1055,7 @@ async function handleDownload(req, res) {
       });
 
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="optimized-resume${req.isWatermarked ? '-preview' : ''}.pdf"`
-      );
+      res.setHeader('Content-Disposition', 'attachment; filename="optimized-resume.pdf"');
       res.send(buffer);
     } else {
       const buffer = await generateDOCX(resumeText, sectionData, optimizedBullets, keywordPlan, {
@@ -1097,16 +1066,8 @@ async function handleDownload(req, res) {
         'Content-Type',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="optimized-resume${req.isWatermarked ? '-preview' : ''}.docx"`
-      );
+      res.setHeader('Content-Disposition', 'attachment; filename="optimized-resume.docx"');
       res.send(buffer);
-    }
-
-    // Record watermarked download for audit
-    if (req.isWatermarked && req.user) {
-      await db.recordWatermarkedDownload(req.user.id, scanId, format, 'resume');
     }
   } catch (err) {
     const scanId = parseScanId(req.params.scanId);

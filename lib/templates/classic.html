@@ -79,10 +79,6 @@
     </style>
   </head>
   <body class="{{#if compact}}density-compact{{/if}}">
-    {{#if watermark}}
-    <div class="watermark-overlay">PREVIEW ONLY – DOWNLOAD TO UNLOCK</div>
-    {{/if}}
-
     <!-- Header -->
     <div class="resume-header">
       <h1 class="resume-name">{{name}}</h1>
@@ -105,7 +101,7 @@
     <!-- Experience -->
     {{#if experience}}
     <div class="section section-experience">
-      <h2 class="section-title">PROFESSIONAL EXPERIENCE</h2>
+      <h2 class="section-title">EXPERIENCE</h2>
       {{#each experience}}
       <div class="entry">
         <div class="entry-header">

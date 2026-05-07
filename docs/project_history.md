@@ -3,34 +3,44 @@
 This exhaustive document tracks both the macro-architectural evolution of the ResumeXray platform and the precise step-by-step, day-by-day chronological implementations based on Git and SRE histories.
 
 Reconciliation note:
+
 - This ledger has been manually reconciled against the current repository state and recent git history through the active April 2026 workstream.
 - Going forward, it should be updated alongside meaningful changes to architecture, runtime behavior, deployment, or product flow.
 
 ---
 
 # Part 1: Macro-Architectural Evolutions (Thematic History)
-*Derived from historical AI Agent implementations plans, detailing the conceptual evolution from a basic utility to a FAANG-grade platform.*
+
+_Derived from historical AI Agent implementations plans, detailing the conceptual evolution from a basic utility to a FAANG-grade platform._
 
 ## 1. Foundation: The ATS Resume Checker Prototype
+
 The initial application was conceived to bridge the gap between candidate resumes and raw job descriptions.
+
 - **Core Analysis Engine**: Engineered a pipeline to score resumes based on strict Job Description keywords, extracting an "ATS Compatibility Score".
 - **Gap Analysis**: Developed mechanisms to pinpoint formatting errors and missing high-value capabilities.
 
 ## 2. The "FAANG-Level" Resume Engine Overhaul
-It was decided that merely checking resumes wasn’t enough—we needed to programmatically *generate* high-caliber documents.
+
+It was decided that merely checking resumes wasn’t enough—we needed to programmatically _generate_ high-caliber documents.
+
 - **Experience-Based Formatting Algorithms**: Implemented dynamic logic calculating tenure. Candidates under 3 years of experience are dynamically compressed into high-density **One-Page**, single-column layouts optimized for modern ATS parsers like Workday and Lever.
 - **Premium Typography & Styling**: Added support for `.docx` generation (using Aptos/Calibri) and PDF embedding (utilizing clean Sans-Serif fonts like Helvetica/Inter).
 - **Metric Highlighting**: Built a system to parse qualitative bullets and intelligently auto-bold critical numerical metrics (e.g., "$1M", "25%") to ensure they pop for human reviewers.
 
 ## 3. Major Platform Upgrade: Identity, Access & Profiles
+
 The application transitioned from a stateless utility into a secure SaaS platform.
+
 - **Authentication & Gating**: Delivered a robust auth framework requiring verified email identities before granting full access to premium tiers (Cover Letters, Recruiter Views). Fixed deep CSRF & session validation regressions.
 - **Profile Image Subsystem**: Integrated image uploading via `sharp`, leveraging OWASP Magic Number validation and EXIF metadata stripping to protect user privacy.
 - **Copy Protection & Security**: Built specialized frontend copy-protection into Cover Letter UI components to prevent unverified data scraping.
 - **Visual Homogenization**: Introduced "Glassmorphism" styling inside the ATS diagnosis gauges for a premium, unified aesthetic.
 
 ## 4. Frontend Rewrites & Structural Restoration
+
 During scale-up, CSS cascade failures and module errors were systematically eliminated.
+
 - **Build Pipeline Overhaul**: We completely excised the Vite/ESM build pipeline that was causing CI deployment breakages, rewriting the app architecture into robust vanilla JavaScript chunks (`app.js`).
 - **Comprehensive CSS/JS Cleanup**: Executed a "Full Audit & Restoration" covering broken parsers, missing basic variable declarations, orphaned script logic, and enforcing FAANG-level in-code documentation.
 - **Mobile UI Rescue**: Fixed critical Viewport bugs natively, such as the 2x2 grid collapses on the main tabs, Score Gauge padding, and the iPhone 15 Pro PDF rendering cutoff. Added dynamic fallback UI loops when a PDF fails visual text extraction.
@@ -38,94 +48,118 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 ---
 
 # Part 2: Step-by-Step Chronological Ledger (Git Timeline)
-*A strict, day-by-day mapping of what was added (Implemented) and what was patched or deleted (Removed/Fixed), spanning since the v2.8.0 release.*
+
+_A strict, day-by-day mapping of what was added (Implemented) and what was patched or deleted (Removed/Fixed), spanning since the v2.8.0 release._
 
 ## Timeline: 2026-04-09
+
 **Focus:** Version 2.8.0 Release & Core Identity/Infrastructure Patches
 
 **Implemented (Added):**
+
 - **Production Overhauls**: Shifted all internal routing URLs natively to the Railway production domains.
-- **Identity & Auth**: Built real-time Password Strength UI into the profile modal and restricted password reuse. 
+- **Identity & Auth**: Built real-time Password Strength UI into the profile modal and restricted password reuse.
 - **Infrastructure Buffers**: Heavily increased Redis timeout limits to account for Upstash Serverless cold-starts.
 
 **Removed / Fixed:**
-- **Critical Auth Loops**: Squashed a severe mobile bug forcing infinite logout/re-login loops, and patched a race-condition during the standard logout flow. 
+
+- **Critical Auth Loops**: Squashed a severe mobile bug forcing infinite logout/re-login loops, and patched a race-condition during the standard logout flow.
 
 ## Timeline: 2026-04-10
+
 **Focus:** Major Platform IAM Upgrades & Security Gating
 
 **Implemented (Added):**
+
 - **IAM Identity Access & SSO**: Embedded the OAuth/Email verification gate. Configured proper SSO forgot-password loops and built logic for seamless account linking into PostgreSQL (via `atsProfileCache` Maps).
 - **Security Mitigation**: Fixed 12 outstanding audit issues, primarily halting CSRF race conditions upon sign-ups.
 
 **Removed / Fixed:**
+
 - **UI Bloat**: Removed focus outline boxes strictly from SPA nav headings for a cleaner aesthetic.
 - **Vague Errors**: Ripped out generic "Analysis failed" dummy copy and replaced it with real, trace-linked error parsing. Removed widespread duplicate CSS and cleaned up the `auth.js` backend logic.
 - **Crash Factors**: Fixed missing dummy dependencies (e.g. `atsProfileCache`) that caused immediate `ReferenceError` crashes during PDF scanning.
 
 ## Timeline: 2026-04-11
+
 **Focus:** Kimi AI Swapping & Mobile Layout Polishing
 
 **Implemented (Added):**
+
 - **Kimi AI Foundation**: Explicitly added the free **Kimi K2 AI** model layer directly into `lib/llm-service.js` utilizing Puter.js as a cost-free LLM routing alternative.
 - **Mobile Grid**: Completely restructured the Tab navigation into a 2x2 CSS Grid specifically to resolve viewport squeezing on mobile devices.
-- **OAuth Linker**: Configured automatic merging logic linking new OAuth logins to pre-existing email/password accounts. 
+- **OAuth Linker**: Configured automatic merging logic linking new OAuth logins to pre-existing email/password accounts.
 
 **Removed / Fixed:**
+
 - **Mobile Clipping**: Patched the native rendering limits causing the PDF iframe to clip aggressively off-screen on iPhone layouts.
 
 ## Timeline: 2026-04-12
+
 **Focus:** FAANG-Level Redesign, PII & PDF Upgrades
 
 **Implemented (Added):**
+
 - **FAANG-Level Scan Page**: Overhauled the raw scan interface entirely. Began live-detecting company names correctly instead of enforcing dummy labels.
 - **PDF Rendering Restructure**: Programmed adaptive iframe heights for the PDF preview mode. Added notification toasts when a user's PDF cannot be optically processed by the AI layer (suggesting `.docx` mapping).
-- **Data Protection**: Established strict PII masking inside the generated "Recruiter View" tables for any unauthorized guest scans. 
+- **Data Protection**: Established strict PII masking inside the generated "Recruiter View" tables for any unauthorized guest scans.
 
 **Removed / Fixed:**
+
 - **Redundant Context Header**: Purged the entire "scan context header bar" spanning over 100 lines of CSS.
 - **Exploits**: Closed a critical logic loophole that previously permitted unauthenticated, 0-credit document downloads. Stopped universally falling back to "LinkedIn" for missing company derivations.
 
 ## Timeline: 2026-04-13
+
 **Focus:** Comprehensive Hardening (Phases 1-6 Audits & Production DB)
 
 **Implemented (Added):**
+
 - **Production Databases & Migrations**: Drafted `db/pg-schema.sql` and `db/pg-database.js` to transfer local SQLite logic into robust Supabase PostgreSQL. Integrated rigorous foreign keys and query limiters.
-- **Security Phase Patching (C-1 to A-8)**: Enforced strict `x-forwarded-for` ip proxy tracking, bounded HTTP rate limits, and rebuilt the entire CSRF lifecycle manually through `middleware/csrf.js`. 
+- **Security Phase Patching (C-1 to A-8)**: Enforced strict `x-forwarded-for` ip proxy tracking, bounded HTTP rate limits, and rebuilt the entire CSRF lifecycle manually through `middleware/csrf.js`.
 - **Accessibility (WCAG)**: Deployed Phase 3 Accessibility fixes tightening color contrast layers and enforcing SSE (Server Sent Events) reconnection layers natively.
 - **High-Availability PM2 Architecture**: Orchestrated `ecosystem.config.js`. Scaled node operation across 2 clustered workers mapping back to Hostinger VKS vCPUs. Limited memory to 750MB/worker (mirroring `--max-old-space-size=700`), instituted exponential restart backoffs (`exp_backoff_restart_delay: 100`), and forced a generous 30-second `kill_timeout` to ensure LLM/SSE sessions drain elegantly before restarts drop.
 
 **Removed / Fixed:**
+
 - **Vite & ESM Pipeline Extirpation**: Made the decision to entirely abandon the Vite build structure. Removed thousands of lines mapped to `.mjs` modules and `tsconfig.json`, returning the SPA explicitly to simple vanilla JavaScript elements to resolve CI failure loops forever.
 - **Dummy Assets**: Cleared outdated `GA_Resume.pdf` and `junior_faang_resume.docx` bin elements taking up static space.
 
 ## Timeline: 2026-04-14
+
 **Focus:** Material Design Implementations
 
 **Implemented (Added):**
+
 - **UI Progressions System**: Established a Material Design-inspired visual system introducing actionable empty states containing clear CTA funnels.
 - **Progressive Disclosure**: Built UX states that slowly reveal the scan pipeline's data rather than dumping it concurrently.
 - **Google-Level Adjustments**: Sized up touch targets universally across the device width to pass Apple/Google UX standard constraints.
 
 **Removed / Fixed:**
+
 - **Grid De-sync**: Re-aligned the broken CSS flow breaking the horizontal axis on the Recruiter Tables.
 
 ## Timeline: 2026-04-15
+
 **Focus:** Frontend Audit Remediation & SPA Consolidation
 
 **Implemented (Added):**
+
 - **Frontend Audit Sweep**: Implemented route-aware document titles, keyboard-safe scan-history cards, clearer scan progressive disclosure, pricing copy cleanup, support-text readability upgrades, compact utility footers, and stronger signed-in workspace hierarchy.
 - **Results UX Upgrade**: Added a clearer results masthead, top-priority summary strip, stronger dashboard/profile guidance cards, and richer scan-state messaging throughout the live SPA.
 - **SPA Source-of-Truth Decision**: Formalized `public/index.html` + `public/js/app.js` + `public/css/styles.css` as the single active frontend, documented the architecture, and repurposed build verification around the live SPA instead of a parallel Vite client.
 
 **Removed / Fixed:**
+
 - **Legacy Frontend Drift**: Removed the inactive modular `src/` frontend path, dropped `vite.config.js` and stale TS build artifacts, and eliminated the repo ambiguity around which client was actually live.
 - **Visual Inconsistencies**: Cleaned up mismatched tone in pricing, auth, scan, and results surfaces, including casual labels and other UI moments that undercut the premium presentation.
 
 ## Timeline: 2026-04-16
+
 **Focus:** Core Flow Rescue, Export Reliability, and Landing Cohesion
 
 **Implemented (Added):**
+
 - **Server-Owned Job Context**: Centralized job-link intake around a normalized `jobContext` flowing through backend processing, scan persistence, results, preview, history, and cover-letter generation.
 - **ATS-Aware Preview/Export Pipeline**: Unified preview and export generation behind the same validated render path, stored render metadata on scans, and added stricter fallback behavior for resume PDF generation.
 - **Guest Flow & Results Rescue**: Reworked guest scan behavior so resume-only passes are clearly labeled, preview-before-pay is explicit, recruiter view is more readable, and invalid preview states render as designed UI rather than raw backend output.
@@ -133,6 +167,7 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 - **Project Ledger Maintenance**: Resumed updating this history file to reflect current engineering work rather than leaving it frozen at the earlier architectural cleanup stage.
 
 **Removed / Fixed:**
+
 - **False Partial Completion State**: Fixed the SSE completion logic that was incorrectly showing `Analysis completed with partial results.` after successful scans.
 - **Broken Export Preview Handoff**: Rebuilt PDF preview loading to fetch the generated PDF first, render it through a blob-backed iframe, and correctly reveal the preview in both live and saved-history results.
 - **PDF Rendering Regressions**: Fixed malformed date normalization, improved contact/headline recovery, tightened experience parsing, simplified entry header layout for better ATS-safe reading order, and corrected CSP to allow the new blob preview flow.
@@ -141,9 +176,11 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 - **Results Workspace Chrome Bloat**: Folded the job-context strip into the results masthead, simplified the workspace status language, removed repeated context noise, and redesigned the recruiter visibility tab from a raw debug-style table into a structured review grid with a clearer keyword signal panel.
 
 ## Timeline: 2026-04-17
+
 **Focus:** CSP Verification Closure, Local Runtime Recovery, Frontend Modularization, and Documentation Hygiene
 
 **Implemented (Added):**
+
 - **Phase 1 CSP Closure**: Removed the remaining inline `onclick` handlers from the live SPA runtime and routed those interactions through centralized `data-*` event delegation inside `public/js/app.js`, keeping the frontend aligned with the strict CSP policy already enforced in `config/security.js`.
 - **Native Module Recovery Path**: Re-verified the local SQLite runtime under a newer Node ABI by rebuilding `better-sqlite3`, restoring local server boot and the main smoke/core verification path without needing to wipe `node_modules` or regenerate the lockfile.
 - **Verified Local Boot Path**: Confirmed a clean local startup flow using the documented Redis-free fallback path (`UPSTASH_REDIS_URL=`), with healthy `/healthz` and `/readyz` responses while SQLite remained the active local datastore.
@@ -154,6 +191,7 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 - **Results UX Refinement**: Preserved the intended results-tab order as ATS Diagnosis → Recruiter View → Export Preview → Cover Letter and allowed sandboxed scripts/popups in the PDF preview iframe so users can fully expand generated drafts.
 
 **Removed / Fixed:**
+
 - **Blocked Smoke Suite**: Eliminated the `better-sqlite3` ABI mismatch that had been preventing the smoke suite from spawning a local server, returning `npm test` to a fully green state (`21/21` passing).
 - **Inline Handler Drift**: Closed the last known gap between runtime behavior and the configured CSP by replacing inline preview retry, copy, and metric-apply interactions with delegated listeners.
 - **Frontend Regression Surface**: Reduced the highest-risk share of the SPA monolith by extracting toast/sanitization helpers and PDF preview control logic into isolated modules without forcing a full client rewrite.
@@ -163,33 +201,40 @@ During scale-up, CSS cascade failures and module errors were systematically elim
 
 **Workstream Methodology & Multi-Model Collaboration:**
 This comprehensive remediation phase was successfully executed through a synchronized, multi-agent AI effort:
+
 - **Audit & Discovery**: Initiated by a severe Codex and infrastructure budget audit.
 - **Strategic Blueprint**: A foundational mitigation roadmap was originally proposed by Gemini, identifying the need for database state resilience.
 - **Implementation Design**: The raw plan was subsequently enhanced and corrected through collaborative input (involving Claude 3 Opus and Sonnet intelligence layers), culminating in a hardened remediation plan. This plan pivoted away from Gemini's suggested database migration and instead correctly identified the root cause in the render pipeline (flat-text string replacement vs structured node injection).
 - **Execution**: The final rollout was systematically executed step-by-step, validating the infrastructure (Oracle Cloud A1 requirement), strictly structuring the parsing logic, and actively collaborating with the user's ongoing UX feedback to delete the conflicting "Saved Resumes" UI dynamically.
 
 ## Timeline: 2026-04-19 (Current)
+
 **Focus:** Historical Reconciliation, Multi-Model Preservation, and Post-Remediation Reality Check
 
 **Implemented (Added):**
+
 - **Session History Preservation**: Updated the canonical docs in `docs/project_history.md` and `docs/TECHNICAL_DOCUMENTATION.md` to preserve the full April 2026 remediation story: the original Codex audit, Gemini's infrastructure/database proposal, Claude Sonnet/Opus plan refinement, the final execution decisions, and the user's follow-up UX constraints.
 - **Tab-Order Decision Freeze**: Explicitly recorded the product decision to keep the results information architecture as ATS Diagnosis → Recruiter View → Export Preview → Cover Letter, with Export Preview intentionally staying third and Cover Letter fourth.
 - **Infrastructure Planning Record**: Preserved the budget-hosting conclusion from the remediation plan: Playwright/browser rendering makes ultra-low-memory/serverless targets a poor fit, and Oracle Cloud A1 on Ubuntu is the most credible low-cost path if Railway is replaced.
 - **Documentation Source-of-Truth Cleanup**: Clarified that the maintained history/reference files now live under `docs/`, not the repository root, and should be updated together whenever scan flow, render behavior, or deployment guidance changes.
 
 **Validated / Still Open:**
+
 - **Resume Template Quality Is Improved, Not Fully Solved**: Post-remediation validation confirmed the new structured-node rewrite order is materially safer than the old flat-text replacement path, but malformed or heavily wrapped resumes can still be split into false experience entries during heuristic structuring/template rendering.
 - **Tab Behavior Still Requires Runtime Alignment**: The intended tab order is correct, but the results runtime still needs continued care so default activation logic, button order, pane order, and session persistence all stay aligned with the product decision above.
 - **Saved Resume Workspace Remains Rolled Back by Choice**: The "Your Resumes" dashboard experiment remains intentionally removed; the product currently stays focused on the linear diagnose/recruiter/export/cover-letter flow rather than a reusable resume-library model.
 
 ## Timeline: 2026-04-19 (Continuation)
+
 **Focus:** Trust-Breaking Flow Remediation, Job-Context Accuracy, Frontend Cleanup, and Full Data Reset
 
 **Implementation Plan Context Preserved:**
+
 - **Multi-Model Plan Consolidation**: Preserved and operationalized the remediation plan synthesized across the earlier Codex audit, Gemini's infra/database proposal, and Claude Sonnet/Opus refinement. The implementation kept the user's explicit tab-order preference intact: `ATS Diagnosis -> Recruiter View -> Export Preview -> Cover Letter`, with Export Preview third and Cover Letter fourth.
 - **Execution Strategy**: Chose to repair the highest-trust failures first: scan-form contract, job-context/title/company extraction, keyword false positives, broken resume structuring, results preview reliability, and dashboard clarity before any broader visual experiments.
 
 **Implemented (Added):**
+
 - **Strict Resume Upload Contract**: Reduced accepted upload formats to real resume inputs only (`PDF` and `DOCX`) across the frontend picker, upload middleware, parser path, and validation messaging.
 - **Stronger Resume Validation**: Tightened `lib/resume-validator.js` so arbitrary text documents are less likely to pass as resumes. The validator now weighs contact signals, section structure, bullet/date evidence, and negative non-resume signals instead of relying on weak keyword presence alone.
 - **Mutually Exclusive Targeting Inputs**: Reworked the scan-page input logic so pasted job descriptions and job-link fetch mode no longer fight each other. Manual JD input now locks the URL field, and a successfully resolved job link now locks the JD textarea.
@@ -213,6 +258,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **PostgreSQL Seeding Support**: Added `db/seed-pg.js` so Supabase/PostgreSQL can be truncated and reseeded with coherent demo accounts and realistic scans rather than being left empty or manually patched.
 
 **Removed / Fixed:**
+
 - **Non-Resume File Acceptance Drift**: Closed the mismatch where the UI and upload middleware still accepted `DOC` and `TXT` even though the product promise and validation flow were already centered on resume uploads.
 - **Scan-Form Source Ambiguity**: Removed the user-facing ambiguity where a fetched link and a pasted JD could both be populated and silently compete inside the same scan request.
 - **Dashboard Cognitive Overload**: Removed the confusing dashboard "journey" section that duplicated meaning without improving decision quality.
@@ -220,9 +266,11 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Preview Format Opacity**: Fixed the disconnect where multiple backend templates existed but the live frontend gave the user no way to choose between ATS-safe formats.
 
 ## Timeline: 2026-04-22
+
 **Focus:** Document Quality & Export Integrity Overhaul
 
 **Implemented (Added):**
+
 - **Expanded Resume Families**: Added two new ATS-safe export families, `Executive` and `Corporate`, alongside the existing `Refined`, `Modern`, `Classic`, and `Minimal` options. Wired them through HTML templates, DOCX themes, preview selection, and download requests.
 - **Exact-Variant Export Billing**: Changed export credit idempotency so one credit now unlocks only the exact chosen variant:
   - scan
@@ -230,7 +278,7 @@ This comprehensive remediation phase was successfully executed through a synchro
   - file format
   - template family
   - density
-  This preserves free re-downloads for the same variant while charging again for a different style or file type.
+    This preserves free re-downloads for the same variant while charging again for a different style or file type.
 - **Cover Letter / Resume Style Linking**: Made cover-letter preview and export inherit the currently selected resume family so both documents now read as one coherent set instead of two disconnected products.
 - **Shared Document Workspace Chrome**: Reworked the Cover Letter tab to use the same toolbar / preview-frame / bottom export-bar language as Export Preview, removing the previous ad hoc iframe wrapper and mismatched shell treatment.
 - **Job Context Recovery Hardening**: Tightened fallback JD parsing so headings like `Full job description` no longer become the role, company intros like `Lock Doctor are ...` are recognized correctly, and aggregator hostnames such as `ie.indeed.com` are suppressed as employer names.
@@ -241,12 +289,14 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **LinkedIn Avatar Recovery**: Added `lib/oauth-profiles.js` to normalize LinkedIn OIDC avatar payloads across multiple response shapes, and updated OAuth login/linking so valid provider avatars now overwrite stale values instead of getting blocked by `COALESCE` logic.
 
 **Removed / Fixed:**
+
 - **Broken Placeholder Headers**: Eliminated `Re: Full job description` and `ATS-Optimized` leakage from generated cover letters.
 - **False Keyword Diagnosis**: Removed the substring-driven recruiter-view/ATS-diagnosis bug that was surfacing irrelevant missing skills for customer-service and operations roles.
 - **Template Default Drift**: Reset frontend and backend defaults to `Refined` instead of continuing to fall back to older `Modern` assumptions in preview/export state.
 - **Cover Letter UI Mismatch**: Closed the visual gap where Cover Letter and Export Preview looked like unrelated products.
 
 **Verification Completed:**
+
 - `node --check config/passport.js`
 - `node --check lib/jd-processor.js`
 - `node --check lib/keywords.js`
@@ -257,6 +307,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 - `node --test tests/core-flow.test.js`
 
 **Database Reset / Reseed Performed:**
+
 - **Local SQLite Reset**: Deleted the local SQLite database and reseeded it via `npm run db:reset`. The local dataset now contains fresh demo users plus representative resume/scan/job fixtures instead of carrying stale historical records.
 - **Supabase / PostgreSQL Reset**: Truncated the live Postgres application tables (`users`, `resumes`, `scans`, `jobs`, `cover_letters`, `guest_scans`, `scan_sessions`, `download_history`, `stripe_events`, and session storage), then reseeded them using the new `db/seed-pg.js` script.
 - **Fresh Accounts Restored**:
@@ -265,6 +316,7 @@ This comprehensive remediation phase was successfully executed through a synchro
   - `hustler@resumexray.pro / pro12345`
 
 **Verification Completed:**
+
 - **Static Verification**: `npm run syntax:frontend` plus direct `node -c` checks passed for the touched backend files.
 - **Automated Tests**: `npm test` passed fully (`24/24`).
 - **Browser Verification (local on port 3367)**:
@@ -276,13 +328,16 @@ This comprehensive remediation phase was successfully executed through a synchro
   - projected score remains visible in results once a match score exists
 
 **Still Open / Residual Notes:**
+
 - **External Job-Site Variability Remains**: Indeed, LinkedIn, and custom portals can still partially degrade when remote anti-bot controls change. The scraper/job-context path is materially better now, but it still depends on third-party HTML staying accessible.
 - **Resume Output Quality Is Improved, Not Finished**: The wrapped-bullet/header bug is mitigated, but the broader resume-generation system still deserves deeper cleanup if the goal is consistently premium output across badly structured source resumes.
 
 ## Timeline: 2026-04-20
+
 **Focus:** Results-Workspace UI Refinement, Scan-Field Polish, and Documentation Reconciliation
 
 **Implemented (Added):**
+
 - **Results Tab Polish Pass**: Refined the results-workspace tab bar to feel more like a deliberate control surface and less like stacked generic buttons. The active state, spacing, icon alignment, and responsive layout were tightened while keeping the agreed tab order intact: `ATS Diagnosis -> Recruiter View -> Export Preview -> Cover Letter`.
 - **Tab Copy Cleanup**: Shortened the sublabels beneath each tab so they read as operational cues instead of marketing copy:
   - `Rules & gaps`
@@ -294,18 +349,22 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Documentation Sync**: Updated both canonical docs again so the Apr 20 frontend follow-up is preserved alongside the larger Apr 19 trust-remediation work.
 
 **Verified:**
+
 - `npm run syntax:frontend` passed
 - `npm test` passed fully (`24/24`)
 - local app boot on `http://localhost:3367` remained healthy after the follow-up pass
 
 **Still Open / Residual Notes:**
+
 - **Resume generation quality still needs deeper iteration**: The UI is cleaner and the pipeline is safer, but the strongest remaining product risk is still inconsistent resume quality on messy source documents.
 - **Live scraping remains probabilistic**: Indeed / Cezanne / custom-job-board extraction is improved, but third-party markup drift can still weaken job-title/company recovery without warning.
 
 ## Timeline: 2026-04-20 (Resume Export Follow-up)
+
 **Focus:** Resume Layout Quality, Experience-Aware Page Budgeting, and Honest Missing-Skill Injection
 
 **Implemented (Added):**
+
 - **Export Layout Rework**: Tightened the resume PDF templates (`modern`, `classic`, `minimal`) so the exported CV reads like a cleaner recruiter-facing document instead of a loose browser printout. The pass improved:
   - title / company / date alignment
   - bullet indentation and spacing
@@ -320,6 +379,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Summary Injection Guardrail**: Honest summary-level keyword suggestions can be appended conservatively when they do not duplicate the existing summary.
 
 **Verified:**
+
 - `npm test` passed fully at `26/26`
 - generated PDF preview validation confirmed:
   - `modern` template
@@ -328,13 +388,16 @@ This comprehensive remediation phase was successfully executed through a synchro
 - local artifact review confirmed the updated PDF uses tighter indentation, cleaner hierarchy, and better one-page composition
 
 **Product Clarification Preserved:**
+
 - Missing skills are **not** blindly stuffed into the resume.
 - Only keyword-plan items marked as honest are eligible for insertion, and the current automatic insertion is conservative and centered on the `Skills` section first.
 
 ## Timeline: 2026-04-21 (Hafiz Resume Parser / Export Fix)
+
 **Focus:** Two-Column PDF Recovery, Safer Experience Structuring, and Honest Resume Export Output
 
 **Implemented (Added):**
+
 - **Layout-Aware PDF Parsing for Two-Column Resumes**: Replaced the old linear `pdf-parse` path in `lib/parser.js` with a custom `pagerender` flow that groups text by row, splits rows into spans, detects left/right column clusters, and serializes content in recruiter-reading order. This specifically addressed resumes like Hafiz Talha Naseem’s where the old parser was mixing left-column experience bullets with right-column skills/strengths content.
 - **Header Extraction Tightening**: Reworked `parseSectionsAdvanced(...)` and related helpers in `lib/resume-builder.js` so the top-of-resume header is parsed more deliberately. The builder now:
   - detects the actual name instead of assuming line 1 is always safe
@@ -352,6 +415,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Refined Template Export Wiring Fixed**: Corrected the production export path so `refined` is accepted by both `routes/agent.js` and `generatePDF(...)` in `lib/resume-builder.js`. Before this fix, the UI could present `Refined` as selected while the backend silently rendered the `modern` template instead.
 
 **Verified:**
+
 - `node --check lib/parser.js`
 - `node --check lib/resume-builder.js`
 - `node --check lib/template-renderer.js`
@@ -365,13 +429,16 @@ This comprehensive remediation phase was successfully executed through a synchro
   - `refined` direct output now differs correctly from `modern`, and `generatePDF({ template: 'refined' })` now actually renders the refined layout instead of silently downgrading
 
 **Still Open / Residual Notes:**
+
 - **Tag-style skills are still plain-text, not chip-like**: the export is now structurally honest, but dense right-column skill tags still flatten into plain ATS-safe text rather than a more polished grouped representation.
 - **One-page bias still trims some valid content**: for early-career resumes exported into single-column ATS-safe templates, the renderer still trims lower-priority later bullets to stay within the one-page budget. That tradeoff is now cleaner, but it is still a deliberate tradeoff rather than perfect source preservation.
 
 ## Timeline: 2026-04-21
+
 **Focus:** Export Resume Quality Upgrade, Template Defaults, and Documentation Discipline
 
 **Implemented (Added):**
+
 - **Refined Resume Template Added**: Introduced a new `refined` ATS-safe resume template aimed at stronger visual hierarchy and more polished recruiter-facing output without relying on layout tricks that weaken ATS parsing.
 - **Preview Format Control Expanded**: Added `Refined` to the Export Preview format selector so users can compare a higher-quality default format directly in the results workspace.
 - **Higher-Quality ATS Defaults**: Reworked ATS template defaults in `lib/jd-processor.js` so the system now prefers `refined` or `classic` at `standard` density for most platforms instead of falling into `minimal` / `compact` too early.
@@ -380,6 +447,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Documentation Process Clarified**: From this point forward, implementation work is expected to update both `docs/project_history.md` and `docs/TECHNICAL_DOCUMENTATION.md` in the same change set so product behavior and historical context remain aligned.
 
 **Verified:**
+
 - `node --check public/js/app.js`
 - `node --check lib/jd-processor.js`
 - `node --check lib/render-service.js`
@@ -387,13 +455,16 @@ This comprehensive remediation phase was successfully executed through a synchro
 - `npm test -- --runInBand tests/core-flow.test.js` passed fully
 
 **Still Open / Residual Notes:**
+
 - **Bullet rewriting is still the next major quality lever**: This pass improved summary quality and template selection, but the strongest remaining resume-quality risk is still uneven bullet rewriting on messy source resumes.
 - **Live visual review is still required**: Automated PDF validation passed, but export quality should still be checked against several real scans to tune whitespace, role density, and section tradeoffs before claiming the output is fully premium.
 
 ## Timeline: 2026-04-21 (DOCX Export Contract Tightening)
+
 **Focus:** Template-Aware Word Exports Without Changing the Current Architecture
 
 **Implemented (Added):**
+
 - **DOCX Template Awareness Added**: Updated `generateDOCX(...)` in `lib/resume-builder.js` so Word exports now accept template and density options instead of always emitting one generic layout.
 - **ATS-Safe Theme Mapping for DOCX**: Added deterministic DOCX theme profiles that stay single-column and parser-safe while looking materially closer to a paid resume deliverable:
   - `refined` -> professional Word-style theme
@@ -415,23 +486,28 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Regression Coverage Added**: Added a DOCX regression test in `tests/core-flow.test.js` that opens the generated `.docx` ZIP and asserts that the requested theme actually changes the emitted Word XML.
 
 **Why This Mattered:**
+
 - PDF exports were already template-aware, but DOCX exports were effectively one-style-fits-all.
 - That meant users could choose a format in the product and still receive a bland Word file that ignored the selection.
 - This pass makes DOCX part of the actual paid value instead of a fallback artifact.
 
 **Verified:**
+
 - `node --check lib/resume-builder.js`
 - `node --check routes/agent.js`
 - `node --test tests/core-flow.test.js` passed fully with the new DOCX-theme regression included
 
 **Still Open / Residual Notes:**
+
 - **This improves the container, not the content model**: The Word export now respects the selected ATS-safe theme, but the next deeper quality win is still improving how bullets and summaries are authored from messy source resumes.
 - **Visual review against real uploads still matters**: The DOCX structure is materially better and now deterministic, but template polish should still be reviewed against several real customer resumes before making stronger premium claims.
 
 ## Timeline: 2026-04-21 (Profile Reliability & Email Observability)
+
 **Focus:** Profile CTA Cleanup, Avatar Upload Stability, and Mail Delivery Diagnostics
 
 **Implemented (Added):**
+
 - **Profile Banner CTA Simplified**: Removed the redundant secondary `View Dashboard` button from the profile momentum card so the profile page now presents one clear primary next step instead of two competing dashboard CTAs.
 - **Runtime Upload Directory Added**: Introduced `lib/uploads.js` to resolve a dedicated writable uploads root. Local development still defaults to `public/uploads`, while production now uses a runtime-safe uploads directory (or `UPLOADS_DIR` if explicitly configured) without changing the public `/uploads/...` URL shape.
 - **Avatar Storage Path Hardened**: Updated `routes/user.js` and `server.js` so avatar uploads are written to the runtime uploads directory and served explicitly from `/uploads`. The upload route now also cleans up old locally stored avatars through the shared path resolver instead of assuming the files live under the compiled `public/` tree.
@@ -440,6 +516,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 - **Regression Coverage Added**: Added tests covering the single dashboard CTA in the profile banner, safe upload-url path resolution, and recipient-domain extraction for mail logs.
 
 **Verified:**
+
 - `node --check server.js`
 - `node --check routes/user.js`
 - `node --check lib/uploads.js`
@@ -448,13 +525,16 @@ This comprehensive remediation phase was successfully executed through a synchro
 - local signup/login/avatar-upload flow against the running app confirmed the avatar endpoint now returns a successful upload response and serves the new image from `/uploads/avatars/...`
 
 **Still Open / Residual Notes:**
+
 - **Avatar files remain runtime-local, not object storage backed**: uploads now use a safer writable directory, but they are still ephemeral on platforms like Railway until a durable object store is added.
 - **Accepted email != inbox placement**: the app can now log that Resend accepted mail for `yahoo.com`, but inbox vs spam vs user-side blocking still needs Resend event visibility or recipient mailbox verification.
 
 ## Timeline: 2026-04-23 (DOCX Resume Reconstruction Repair)
+
 **Focus:** Stop DOCX-derived resumes from flattening into malformed exports
 
 **Implemented (Changed):**
+
 - **Header Noise Suppression Added**: Updated `lib/resume-builder.js` so decorative header lines like `Master CV`, `Ireland Tech Roles`, and tag-cloud style lines such as `Engineering | Data | Technical Support` no longer leak into:
   - contact info
   - summary text
@@ -469,7 +549,7 @@ This comprehensive remediation phase was successfully executed through a synchro
   - `lib/resume-builder.js`
   - `lib/template-renderer.js`
   - all ATS-safe resume templates
-  so export PDFs and DOCX files no longer drop or misplace quantified impact lines.
+    so export PDFs and DOCX files no longer drop or misplace quantified impact lines.
 - **DOCX Paragraph-to-Bullet Reconstruction Improved**: Updated `lib/template-renderer.js` so sentence-style role paragraphs from DOCX resumes are converted into clean bullets without requiring explicit bullet glyphs. This specifically fixes resumes where each accomplishment is a separate paragraph rather than a `•` list item.
 - **Location Lines Reattached Correctly**: Standalone lines like `Lahore, Pakistan (Hybrid)` and `Remote` are now recognized as entry locations instead of being absorbed into bullets or summary text.
 - **Education Pairing Fixed**: Degree lines such as `MSc, Data Analytics` now pair correctly with school/date lines like `Technological University of the Shannon | 2024` instead of rendering as malformed school/date output.
@@ -482,6 +562,7 @@ This comprehensive remediation phase was successfully executed through a synchro
   - rendered HTML containing the `SELECTED IMPACT` section
 
 **Why This Mattered:**
+
 - The supplied CV/JD case showed the export pipeline was not failing because LinkedIn JD detection broke.
 - The real defect was that DOCX-derived line structure was being flattened and then reconstructed too loosely, which caused:
   - summary/header pollution
@@ -491,6 +572,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 - This pass repairs the exported document structure without changing the overall architecture or requiring a schema migration.
 
 **Verified:**
+
 - `node --check lib/resume-builder.js`
 - `node --check lib/template-renderer.js`
 - `node --test tests/core-flow.test.js`
@@ -503,17 +585,20 @@ This comprehensive remediation phase was successfully executed through a synchro
   - correctly paired education entries
 
 **Still Open / Residual Notes:**
+
 - **Content targeting quality remains separate from structural repair**: this pass fixes malformed export structure, but it does not by itself guarantee the role-targeting decisions or summary emphasis are ideal for every JD.
 - **Highly stylized source resumes are still heuristic inputs**: this repair materially improves DOCX reconstruction, but resumes with heavy tables, text boxes, or unconventional heading systems can still require future parser hardening.
 
 ## Timeline: 2026-04-23 (Preview Shell Stability and Paper-Fit Repair)
+
 **Focus:** Stop preview rerender thrash and make one-page previews fit like paper
 
 **Implemented (Changed):**
+
 - **Same-Variant Preview Deduping Added**:
   - updated `public/js/modules/pdf-preview.mjs`
   - updated `public/js/app.js`
-  so revisiting `Export Preview` or `Cover Letter` with the same scan id, template, and density no longer forces another fetch/render cycle.
+    so revisiting `Export Preview` or `Cover Letter` with the same scan id, template, and density no longer forces another fetch/render cycle.
 - **PDF Preview Height Stabilized**:
   - the PDF canvas container now receives an explicit runtime height
   - single-page PDF previews are scaled against available preview height instead of always expanding to the widest allowed width
@@ -531,12 +616,14 @@ This comprehensive remediation phase was successfully executed through a synchro
   - the cover-letter iframe gets a visible sheet boundary and no longer feels clipped into the pane
 
 **Why This Mattered:**
+
 - Users were seeing two linked problems:
   - the preview tabs looked like they were rendering repeatedly
   - single-page previews did not visually fit as a full paper page
 - The underlying issues were redundant reloads for unchanged preview variants and width-first sizing that ignored paper height.
 
 **Verified:**
+
 - `node --check public/js/app.js`
 - `node --check public/js/modules/pdf-preview.mjs`
 - `node --check lib/template-renderer.js`
@@ -544,13 +631,16 @@ This comprehensive remediation phase was successfully executed through a synchro
 - direct template render validation confirmed the cover-letter HTML now emits the `letter-sheet` A4 preview wrapper
 
 **Still Open / Residual Notes:**
+
 - **Full browser validation still needs a concrete saved scan**: local code and render checks passed, but a true end-to-end visual pass of the live preview tabs still depends on real scan data in the running app.
 - **Multi-page resume previews still scroll by design**: this pass improves one-page fit, not multi-page “show every page at once” behavior.
 
 ## Timeline: 2026-04-23 (Mobile Responsiveness Audit and Preview Surface Repair)
+
 **Focus:** Verify the full site on phone breakpoints and fix the remaining mobile and preview-surface defects
 
 **Implemented (Changed):**
+
 - **Whole-Site Mobile Audit Completed**:
   - verified the public routes at `390px` and `320px` widths:
     - landing
@@ -581,6 +671,7 @@ This comprehensive remediation phase was successfully executed through a synchro
   - the first-visit consent panel now uses tighter mobile spacing, a shorter max-height, and sticky action buttons so it does not dominate the viewport on smaller screens.
 
 **Why This Mattered:**
+
 - The mobile pass exposed issues that desktop review would not clearly surface:
   - the hidden nav sheet still behaved like a live dialog while offscreen
   - the cover-letter tab could remain stuck in its loading skeleton
@@ -589,6 +680,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 - These were usability issues, not just visual polish problems, because they affected export selection, preview reliability, and page stability on mobile.
 
 **Verified:**
+
 - `node --check public/js/app.js`
 - `node --check config/security.js`
 - `node --test tests/core-flow.test.js`
@@ -600,25 +692,31 @@ This comprehensive remediation phase was successfully executed through a synchro
 - `curl -I /api/agent/cover-letter-preview/:scanId` now returns `X-Frame-Options: SAMEORIGIN`
 
 **Still Open / Residual Notes:**
+
 - **Full-page screenshot tools can still duplicate sticky chrome in the exported artifact**: that is a Playwright capture quirk, not a viewport rendering defect in the live UI.
 - **Authenticated dashboard/profile flows still deserve a separate signed-in phone pass**: the public site and seeded results workspace were verified here, but logged-in account pages were not exercised with a real user session in this pass.
 
 ## Timeline: 2026-04-24
+
 **Focus:** Comprehensive Engineering Audit & Remediation
 
 **Implemented (Added):**
+
 - **Critical XSS Patch**: Implemented `escape-html` library in `lib/template-renderer.js` to HTML-escape user input before processing with `boldMetrics` Handlebars helper, mitigating XSS vulnerability in PDF generation.
 - **Frontend Technical Debt Cleanup**: Removed inactive modular frontend code (`src/` and `_agents/` directories) and obsolete build configuration files (`vite.config.js`, `tailwind.config.js`, `postcss.config.js`, `tsconfig.json`).
 - **UI Rendering Hardening**: Enhanced `safeHtml` fallback in `public/js/app.js` to strip all HTML tags if `DOMPurify` is unavailable, preventing raw HTML injection.
 
 **Removed / Fixed:**
+
 - **XSS Vulnerability**: Eliminated a critical Cross-Site Scripting vulnerability in the PDF rendering pipeline.
 - **Legacy Frontend Code**: Removed `src/` and `_agents/` directories, along with associated build artifacts, simplifying the frontend architecture.
 
 ## Timeline: 2026-04-24 (Phase 1 UI/UX Accessibility and Readability Pass)
+
 **Focus:** Motion safety, touch-friendly interactions, contrast/readability floor, and Safari compositing guard
 
 **Implemented (Changed):**
+
 - **Global `prefers-reduced-motion` Guard Added**:
   - updated `public/css/styles.css`
   - added a comprehensive `@media (prefers-reduced-motion: reduce)` block that suppresses all CSS animations, transitions, and `scroll-behavior` for users who request reduced motion
@@ -653,6 +751,7 @@ This comprehensive remediation phase was successfully executed through a synchro
   - promotes the sticky navbar to its own compositor layer, preventing the known Safari flicker when the address bar collapses during scroll
 
 **Verified:**
+
 - `npm run syntax:frontend` passed
 - `npm test` passed (40/40)
 - visual check at 390px and 1200px: landing, scan, results, dashboard, pricing all render correctly
@@ -660,6 +759,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 - `@media (hover: hover)` guard confirmed: hover lifts only appear on pointer devices
 
 **Still Open / Residual Notes:**
+
 - **Phase 2 (UX flow improvements) and Phase 3 (CSS architecture split) remain to be implemented**: this pass covers only the P1 accessibility and readability quick wins.
 - **Full `@media (prefers-reduced-motion)` coverage for JS-driven animations** (toast slide-in, count-up, progress dots) is now declaratively suppressed via CSS — JS-driven DOM animations still fire but produce no visible movement because their CSS properties are forced to near-zero duration.
 
@@ -720,10 +820,12 @@ This comprehensive remediation phase was successfully executed through a synchro
    - increased bottom margin on CTA button for better spacing
 
 **Verified:**
+
 - `npm run syntax:frontend` passed
 - `npm test` passed (40/40)
 
 **Still Open:**
+
 - Progressive migration of hardcoded `font-size` values to `var(--text-*)` tokens (incremental, not blocking)
 
 ---
@@ -752,6 +854,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 7. **Toast Copy Audit**: Reviewed all 30+ `showToast()` calls. The existing copy is already user-friendly, specific, and actionable. No changes needed.
 
 **Verified:**
+
 - `npm run syntax:frontend` passed
 - `npm test` passed (40/40)
 - `tokens.css` file verified at `/public/css/tokens.css`
@@ -775,6 +878,7 @@ This comprehensive remediation phase was successfully executed through a synchro
    - Added `iframe.scrolling = 'auto'` in `app.js` when creating the cover-letter preview iframe, ensuring the iframe itself scrolls if internal content overflows.
 
 **Verified:**
+
 - `npm run syntax:frontend` passed
 - `npm test` passed (41/41)
 
@@ -783,6 +887,7 @@ This comprehensive remediation phase was successfully executed through a synchro
 **Scope:** Clean up the unpushed OpenCode patch after senior review, integrate upstream security fixes, and resolve the review regressions before pushing to `main`.
 
 **Changed:**
+
 - **Upstream Security Fixes Preserved**:
   - fast-forwarded local `main` to `origin/main` before continuing the OpenCode work
   - kept the `safeHtml(...)` DOMPurify fallback hardening in `public/js/app.js`
@@ -800,6 +905,7 @@ This comprehensive remediation phase was successfully executed through a synchro
   - added tests for leading-`The` company extraction, generic-fragment suppression, and `careers-` iCIMS customer name extraction
 
 **Verified:**
+
 - `git diff --check`
 - `npm run syntax`
 - `npm test` (43/43)
@@ -876,14 +982,17 @@ This comprehensive remediation phase was successfully executed through a synchro
 - "AI Cover Letter" heading changed to "A.I. Cover Letter" to prevent I/l confusion in some fonts.
 
 **Verified:**
+
 - `npm test` passed (43/43)
 - `node -e` module load checks passed for `resume-builder.js` and `agent-pipeline.js`
 - CSS file integrity verified
 
 ## Timeline: 2026-04-27
+
 **Focus:** Scalable Multi-Provider Payment Architecture (Strategy Pattern)
 
 **Implemented (Added):**
+
 - **Strategy Pattern Refactor**: Implemented a highly scalable `BillingService` in `lib/billing-service.js` that supports multiple payment providers (Stripe and Lemon Squeezy).
 - **Provider Registry**: Created a registry system allowing the app to switch between providers via the `BILLING_PROVIDER` environment variable without code changes.
 - **Unified Webhook Handler**: Developed a smart webhook endpoint in `routes/billing.js` that auto-detects the provider from request headers and processes events using standardized logic.
@@ -933,3 +1042,46 @@ This comprehensive remediation phase was successfully executed through a synchro
   - `npm run format:check`
   - `npm test` (45/45)
   - `npm audit --audit-level=high --omit=dev`
+
+---
+
+## 2026-05-07 (PDF Integrity, ATS Prompt Hardening, and Product UI Refresh)
+
+**Scope:** Fix the resume export trust break, remove watermark assumptions, make generated PDFs preserve source content, and refresh the frontend toward a calmer paid-product UI.
+
+**PDF and ATS Export Fixes**
+
+- Stopped destructive PDF fitting in `lib/resume-builder.js`. The legacy `trimForSinglePage()` hook no longer deletes summary, projects, certifications, languages, bullets, or older experience entries.
+- Added explicit `targetPages`: candidates with `<= 3` years target 1 page; candidates with `> 3` years target 1.5 pages with a hard 2-page validation ceiling.
+- Changed `renderHtmlToPdf()` to fit using density classes and bounded print scale instead of DOM content deletion.
+- Fixed direct `generatePDF()` calls so experienced resumes derive their max page budget from parsed resume tenure instead of defaulting to one page.
+- Removed watermark blocks from all resume and cover-letter templates. Preview/export routes now serve clean files only; insufficient credits return `402`.
+- Standardized generated/fallback skill headings to `SKILLS`.
+- Fixed one-line education parsing so entries like `B.Sc. ... - University ... 2018` render as clean degree/school/date rows without leading separators.
+
+**Prompt and Content Policy**
+
+- Folded the useful parts of the supplied CPRW-style CV prompt into the live LLM prompts:
+  - job advert context in keyword planning
+  - up to 15 missing high-value keyword suggestions
+  - seniority calibration
+  - evidence-bound keyword insertion
+  - `REFRAMED` / `ESTIMATED` assumption metadata
+  - pronoun-free human readability rules
+  - no em dashes
+- Rejected the unsafe "fabricate anything to force 100/100" rule. The shipped prompt explicitly forbids fabricated employers, roles, projects, credentials, tools, metrics, team sizes, revenue, or outcomes.
+
+**Frontend Refresh**
+
+- Reworked landing-page copy so the first viewport leads with `ResumeXray` and a concrete product promise: one target job, one parse-ready resume.
+- Added a May 2026 product UI override layer in `public/css/styles.css`:
+  - removes animated purple/glass decoration and particle/glow effects
+  - moves to neutral workflow surfaces with restrained blue accents
+  - calms scan, results tabs, PDF toolbar, pricing cards, proof rows, and download bar
+  - keeps the app document-first instead of marketing-card-first
+
+**Regression Coverage Added**
+
+- PDF preview test now asserts clean output contains `PROJECTS`, `CERTIFICATIONS`, `LANGUAGES`, and the sample project content.
+- Template regression now checks for standard `SKILLS` and rejects legacy `CORE SKILLS`, `TECHNICAL SKILLS`, `KEY SKILLS`, and `CORE CAPABILITIES` headings.
+- Prompt regression verifies the keyword insertion prompt remains evidence-bound and includes job advert context.

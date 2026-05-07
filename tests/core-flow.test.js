@@ -11,11 +11,16 @@ const {
   sanitizeCompanyNameValue,
 } = require('../lib/jd-processor');
 const { extractKeywords, matchKeywords } = require('../lib/keywords');
+const { buildKeywordPlanPrompt } = require('../lib/llm/prompts/keyword-plan');
 const { getEmailDomain } = require('../lib/mailer');
 const { closeBrowser } = require('../lib/playwright-browser');
 const pdfParse = require('pdf-parse');
 const { buildResumeData, generateDOCX, generatePDF } = require('../lib/resume-builder');
-const { renderResumePdf, resolveResumeText, resolveScanJobContext } = require('../lib/render-service');
+const {
+  renderResumePdf,
+  resolveResumeText,
+  resolveScanJobContext,
+} = require('../lib/render-service');
 const { validatePDF } = require('../lib/resume-builder');
 const { renderTemplate } = require('../lib/template-renderer');
 const { getUploadsRoot, uploadUrlToPath } = require('../lib/uploads');
@@ -129,7 +134,8 @@ English, French`,
       {
         keyword: 'portal completion',
         section: 'Experience',
-        suggestion: 'Mention how you reduced candidate drop-off or manual field correction after upload.',
+        suggestion:
+          'Mention how you reduced candidate drop-off or manual field correction after upload.',
       },
     ]),
     render_meta: JSON.stringify({ renderStatus: 'pending', renderAttempts: [] }),
@@ -160,7 +166,10 @@ describe('Core Flow Contracts', () => {
       'linkedin'
     );
     assert.equal(detectATS('https://www.indeed.com/viewjob?jk=123456').name, 'indeed');
-    assert.equal(detectATS('https://recruitment.cezannehr.com/RecruitmentPortal/apply').name, 'cezannehr');
+    assert.equal(
+      detectATS('https://recruitment.cezannehr.com/RecruitmentPortal/apply').name,
+      'cezannehr'
+    );
   });
 
   it('avoids sentence fragments when deriving job titles from pasted descriptions', async () => {
@@ -250,15 +259,27 @@ Excellent attention to detail`;
       'Support customers in the Apple Store environment with clear communication, teamwork, troubleshooting, and point-of-sale operations.'
     );
 
-    assert.equal(retailKeywords.hardSkills.some(item => item.term === 'go'), false);
-    assert.equal(retailKeywords.hardSkills.some(item => item.term === 'r'), false);
+    assert.equal(
+      retailKeywords.hardSkills.some(item => item.term === 'go'),
+      false
+    );
+    assert.equal(
+      retailKeywords.hardSkills.some(item => item.term === 'r'),
+      false
+    );
 
     const engineeringKeywords = extractKeywords(
       'Build backend services in Golang and Go microservices, then analyze product data in R programming and RStudio.'
     );
 
-    assert.equal(engineeringKeywords.hardSkills.some(item => item.term === 'golang'), true);
-    assert.equal(engineeringKeywords.hardSkills.some(item => item.term === 'r'), true);
+    assert.equal(
+      engineeringKeywords.hardSkills.some(item => item.term === 'golang'),
+      true
+    );
+    assert.equal(
+      engineeringKeywords.hardSkills.some(item => item.term === 'r'),
+      true
+    );
   });
 
   it('does not derive hard skills from unrelated substrings in a customer-service JD', () => {
@@ -331,7 +352,10 @@ JavaScript, TypeScript, SQL, Python`;
     const data = buildResumeData(resumeText, {}, [], []);
     assert.equal(data.sections.experience.length, 1);
     assert.equal(data.sections.experience[0].bullets.length, 2);
-    assert.match(data.sections.experience[0].bullets[0], /javascript, typescript, SQL, NOSQL, python/i);
+    assert.match(
+      data.sections.experience[0].bullets[0],
+      /javascript, typescript, SQL, NOSQL, python/i
+    );
   });
 
   it('does not turn wrapped comma-heavy bullet lines into fake experience entries', () => {
@@ -394,6 +418,27 @@ JavaScript, TypeScript, SQL`;
     assert.doesNotMatch(data.sections.summary, /Known for clear execution/i);
   });
 
+  it('parses one-line education entries without leading separators', () => {
+    const resumeText = `Taylor Quinn
+taylor@example.com | Dublin, Ireland
+
+EXPERIENCE
+Support Specialist - Brightpath 01/2024 - Present
+• Supported customer escalations across phone and email channels.
+
+EDUCATION
+B.Sc. Business Information Systems - University College Dublin 2018
+
+SKILLS
+Customer Support, CRM`;
+
+    const data = buildResumeData(resumeText, {}, [], []);
+
+    assert.equal(data.sections.education[0].degree, 'B.Sc. Business Information Systems');
+    assert.equal(data.sections.education[0].school, 'University College Dublin');
+    assert.equal(data.sections.education[0].dates, '2018');
+  });
+
   it('does not inject JD-only keyword-plan skills into exported resume content', () => {
     const resumeText = `Taylor Quinn
 taylor@example.com | +353 86 123 4567 | Dublin, Ireland
@@ -428,6 +473,19 @@ Customer Support, CRM`;
     assert.doesNotMatch(data.sections.skills[0], /SQL/i);
     assert.doesNotMatch(data.sections.skills[0], /Documentation/i);
     assert.doesNotMatch(data.sections.skills[0], /Kubernetes/i);
+  });
+
+  it('keeps keyword insertion prompts evidence-bound while using job advert context', () => {
+    const config = buildKeywordPlanPrompt(
+      'Taylor Quinn\n\nEXPERIENCE\nSupport Specialist - Brightpath\n- Resolved customer escalations.',
+      ['case management'],
+      'The role requires case management and stakeholder communication.'
+    );
+
+    assert.match(config.systemPrompt, /Fabricated items are not allowed/i);
+    assert.match(config.systemPrompt, /single-column/i);
+    assert.match(config.prompt, /case management and stakeholder communication/i);
+    assert.match(config.prompt, /REFRAMED\|ESTIMATED/i);
   });
 
   it('keeps the summary grounded in resume evidence instead of keyword-plan hints', () => {
@@ -541,12 +599,11 @@ B.Sc. Business 2015`;
 
     const data = buildResumeData(resumeText, {}, [], []);
     assert.equal(data.maxPages, 2);
+    assert.equal(data.targetPages, 1.5);
   });
 
   it('uses structured fallback text when optimized text is missing', () => {
-    const { resumeText, source } = resolveResumeText(
-      createFixture({ optimized_resume_text: '' })
-    );
+    const { resumeText, source } = resolveResumeText(createFixture({ optimized_resume_text: '' }));
     assert.equal(source, 'structured_fallback');
     assert.match(resumeText, /Alex Morgan/);
     assert.match(resumeText, /EXPERIENCE/);
@@ -561,7 +618,10 @@ B.Sc. Business 2015`;
     assert.equal(data.sections.other, '');
     const rawOther = JSON.stringify(data.sections).toLowerCase();
     assert.ok(!rawOther.includes('dear hiring manager'), 'cover letter content should be stripped');
-    assert.ok(!rawOther.includes('i am excited to apply'), 'cover letter content should be stripped');
+    assert.ok(
+      !rawOther.includes('i am excited to apply'),
+      'cover letter content should be stripped'
+    );
   });
 
   it('normalizes persisted job context', () => {
@@ -573,21 +633,26 @@ B.Sc. Business 2015`;
 
   it('renders a readable portal-targeted PDF preview', async () => {
     const fixture = createFixture();
-    const { buffer, renderMeta } = await renderResumePdf(fixture, {
-      watermark: true,
-      template: 'modern',
-    });
+    const { buffer, renderMeta } = await renderResumePdf(fixture, { template: 'modern' });
     assert.ok(buffer.length > 5000, 'expected non-trivial PDF output');
     assert.equal(renderMeta.renderStatus, 'ready');
 
     const validation = await validatePDF(buffer, {
       expectedName: 'Alex Morgan',
-      maxPages: 1,
+      maxPages: 2,
       minTextLength: 90,
     });
 
     assert.equal(validation.valid, true);
-    assert.equal(validation.pageCount, 1);
+    assert.ok(validation.pageCount <= 2, `expected <= 2 pages, got ${validation.pageCount}`);
+    assert.doesNotMatch(
+      validation.extractedText,
+      /PREVIEW ONLY|DOWNLOAD TO UNLOCK|ResumeXray Preview/i
+    );
+    assert.match(validation.extractedText, /PROJECTS/i);
+    assert.match(validation.extractedText, /CERTIFICATIONS/i);
+    assert.match(validation.extractedText, /LANGUAGES/i);
+    assert.match(validation.extractedText, /Recruiter Workflow Console/i);
   });
 
   it('renders the refined template when explicitly requested', async () => {
@@ -601,8 +666,11 @@ B.Sc. Business 2015`;
     );
 
     const extracted = await pdfParse(buffer);
-    assert.match(extracted.text, /CORE SKILLS/i);
-    assert.doesNotMatch(extracted.text, /TECHNICAL SKILLS/i);
+    assert.match(extracted.text, /\bSKILLS\b/i);
+    assert.doesNotMatch(
+      extracted.text,
+      /CORE SKILLS|TECHNICAL SKILLS|KEY SKILLS|CORE CAPABILITIES/i
+    );
   });
 
   it('renders template-aware DOCX themes for ATS-safe exports', async () => {
@@ -665,10 +733,7 @@ B.Sc. Business 2015`;
     const avatarPath = uploadUrlToPath('/uploads/avatars/example.png');
 
     assert.ok(avatarPath);
-    assert.equal(
-      avatarPath,
-      path.join(uploadsRoot, 'avatars', 'example.png')
-    );
+    assert.equal(avatarPath, path.join(uploadsRoot, 'avatars', 'example.png'));
     assert.equal(uploadUrlToPath('/public/avatars/example.png'), null);
   });
 
@@ -678,11 +743,14 @@ B.Sc. Business 2015`;
   });
 
   it('strips placeholder job context from cover letter rendering data', () => {
-    const parsed = parseCoverLetter('Re: Full job description\n\nDear Hiring Team,\n\nThis is a sample.\n\nSincerely,\nTaylor', {
-      name: 'Taylor',
-      companyName: 'ATS-Optimized',
-      jobTitle: 'Full job description',
-    });
+    const parsed = parseCoverLetter(
+      'Re: Full job description\n\nDear Hiring Team,\n\nThis is a sample.\n\nSincerely,\nTaylor',
+      {
+        name: 'Taylor',
+        companyName: 'ATS-Optimized',
+        jobTitle: 'Full job description',
+      }
+    );
 
     assert.equal(parsed.companyName, '');
     assert.equal(parsed.recipientTitle, '');
