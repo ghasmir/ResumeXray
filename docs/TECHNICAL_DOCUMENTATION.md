@@ -571,12 +571,27 @@ Functions:
 Important behavior:
 
 - `parsePDF(...)` now attempts a layout-aware extraction path before falling back to the legacy linear `pdf-parse` text stream.
-- The layout-aware path groups page text into rows, splits rows into spans, detects two-column separation heuristically, and serializes content in this order:
-  1. header-left
-  2. header-right
-  3. body left column
-  4. body right column
-- This materially reduces right-column leakage into left-column experience content on two-column resumes without introducing an external OCR dependency.
+- A `PARSE_PAGE_LIMIT = 8` guard reads PDF metadata via a cheap `{ max: 1 }` probe before the expensive layout-aware path. PDFs above the limit fall through to a capped linear parse, bounding CPU/memory against malicious resource-exhaustion uploads (resumes are functionally never longer than 6 pages).
+- The layout-aware path groups page text into rows, splits rows into spans (gap threshold 28pt — wide enough to keep adjacent table cells from merging at 12pt body type), and detects column separation heuristically:
+  - `kmeans2` finds the binary split point. For layouts where the spread is < 280pt this is the final answer (legacy two-column behavior).
+  - When the binary spread is ≥ 280pt, `kmeans3` runs to detect a possible third column. If a tight middle cluster exists with each gap ≥ 100pt, `detectColumnSplit` returns an array of split points (`[splitLeftMid, splitMidRight]`) representing a 3-band layout.
+- `serializeEntries` walks N bands via the `bandOf` helper, emitting header content per band first, then a blank-line separator, then body content per band. This generalization is what lets sidebar/main/secondary 3-column resumes serialize without cross-band bleed.
+
+### `lib/resume-builder.js` — text normalization
+
+`sanitizeForATS(text)` applies a normalization sweep before any structural parsing:
+
+- Decorative bullets (`▪►●…` etc.) → standard `•`.
+- Curly quotes → straight; em/en dashes → `-`.
+- Replacement / non-printable / decorative Unicode stripped (basic Latin + accented characters retained).
+- Tab characters collapsed to two spaces. Mammoth's DOCX table extraction emits `\t` between cells, which corrupts entry-header parsers that scan for `-`/`|` separators; the visual gap is preserved without confusing the regex pipelines.
+
+`stripCoverLetter(text)` truncates the resume text at the start of an embedded cover letter. Two pattern sets are checked:
+
+1. **Salutation-led letters** (fast path, full document scan): `Dear …`, `To Whom It May Concern`, `Cover Letter`, `Letter of Application`, `Application Letter`.
+2. **Salutation-free embedded letters** (fallback path, applied only after the first six non-empty lines): first-person opening sentences such as `I am writing to express`, `I would like to apply`, `Please find enclosed`, `With great interest I…`. The skip-first-six-lines guard prevents false positives on bullets that legitimately begin with "I".
+
+`isDecorativeHeaderLine(line)` rejects banner/decoration lines like `Master CV`, `Master CV - Tech Roles`, `Master Resume — Engineering`, `Final CV (Draft)`. The detection uses a word-boundary anchor (`\b`) — earlier versions used `$` and missed any decorative banner with a trailing modifier.
 
 ### `lib/sections.js`
 
@@ -675,6 +690,24 @@ Functions:
 5. normalizes scrape status and template profile
 6. returns canonical `jobContext`
 
+#### Sanitization guarantees (May 2026 hardening)
+
+Every code path that produces `jobTitle` or `companyName` flows through `sanitizeJobTitleValue` / `sanitizeCompanyNameValue`. These were strengthened to handle the worst-case sources (low-quality search-page scrapes, aggregator branding, manual paste-of-page-fragment):
+
+`sanitizeJobTitleValue` rejects:
+
+- The legacy invalid-title patterns (`Full job description`, `Job description`, `Role description`, `ATS-Optimized`, etc.).
+- Strings longer than 80 characters (real titles never run that long; long values are page banners).
+- Sentence fragments that begin with `Please|Provide|Enter|Select|Fill|Choose|Click|See|View|Read|Browse|Search|Find|Sign`.
+- First-person/marketing copy that begins with `We|Our|Your|Their|This|That|These|Those`.
+- Section labels like `About|Overview|Summary|Responsibilities|Requirements|Benefits|Salary|Location|Department|Posted|Employment Type`.
+- Strings ending in `?`, `!`, or a single trailing period (real titles never carry sentence-terminating punctuation). Trailing-ellipsis fragments are caught by an explicit `\.{2,}$` pattern.
+
+`sanitizeCompanyNameValue` rejects:
+
+- The legacy invalid-company patterns (`ATS-Optimized`, `Target Company Pending`, `Company`, `Employer`, …).
+- Plain aggregator brand names: `Indeed`, `LinkedIn`, `Glassdoor`, `Monster`, `ZipRecruiter`, `Naukri`, `Jobsora`. These are page branding rather than employer names. The earlier `isAggregatorHostname` guard only matched full URLs, so brand strings used to slip through.
+
 ### `lib/scraper.js`
 
 Portal-specific job scraping logic.
@@ -734,6 +767,27 @@ Purpose:
 - consumes resolved job context
 - bans generic/fluffy opening phrases
 - keeps output scoped to facts supported by the resume/JD
+
+### `lib/llm/output-validator.js`
+
+Defense-in-depth Layer 3 — validates LLM outputs **after** generation, complementing the input sanitizer (Layer 1) and prompt fence (Layer 2).
+
+Functions:
+
+- `validateScore(raw, type)` — clamps numeric scores to 0–98 (perfect 100s are flagged as suspicious and capped at 98).
+- `validateBulletResult(result)` — sanitizes bullet rewrites and **detects fabricated metrics** (May 2026 hardening).
+- `detectFabricatedMetrics(original, rewritten)` — returns numeric tokens present in `rewritten` but not in `original`.
+- `extractNumericTokens(text)` — pulls percentages, currency, multipliers, and integers; excludes calendar years 1900–2099.
+- `sanitizeLLMOutput(text)` — strips HTML/script tags, event handlers, javascript:/data: URIs, and prompt-fence leakage.
+- `validateJSON(text, requiredFields, context)` — strips markdown fences and verifies required-field presence.
+- `enforceResponseSize(text, type)` — truncates to per-operation limits (bullets 500 chars, cover letters 5000, etc.).
+
+Fabricated-metric guard contract (Phase 6 Wave 4 — May 2026):
+
+- Both `original` and `rewritten` are tokenized via `extractNumericTokens`.
+- Calendar years are excluded so honest date references aren't flagged.
+- If any number appears in `rewritten` that wasn't in `original`, the rewrite is reverted to the original verbatim, `needsMetric` is forced to `true`, the offending tokens are recorded on `fabricatedMetrics`, and `method` is stamped `'reverted: fabricated metric detected'`.
+- Until this guard shipped, the evidence-bound rule was prompt-only — a degraded or adversarial model could insert fabricated percentages and the validator would pass them. This is the first code-level enforcement of the no-fabricated-metrics contract.
 
 ## 12. Rendering and Export Pipeline
 
@@ -808,6 +862,30 @@ Pipeline summary:
 10. render the Handlebars HTML template or DOCX section content from those objects
 11. use Playwright to generate PDF when PDF output is requested, tightening density and bounded print scale instead of deleting sections
 12. validate text layer and page bounds
+
+#### Density ladder (May 2026 hardening)
+
+`renderHtmlToPdf` enforces the page budget through a **four-tier density ladder** plus a bounded print-scale floor — never by deleting content. The tiers are applied in order, each one only kicking in if the previous tier still doesn't fit `targetHeight`:
+
+1. `density-compact` — base compact (9.25pt body, 1.16 line-height).
+2. `pdf-tight` — 8.75pt body, 1.10 line-height, smaller name (15pt) and meta sizes.
+3. `pdf-ultra-tight` — 8.25pt body, 1.04 line-height, 14pt name, 8.2pt entry items.
+4. `pdf-veteran-tight` — 7.8pt body, 1.02 line-height, 13pt name, 7.7pt entry items, 0.10in bullet padding. This is the lowest readable floor before ATS parsers degrade on Workday/Taleo. Triggers only on extreme veteran content.
+
+After all four tiers are applied, if the body is still taller than `targetHeight`, a clamped print scale is applied:
+
+- 1-page mode: minimum scale `0.80`
+- 2-page mode: minimum scale `0.82` (lowered from `0.86` so 10-year veteran resumes complete a 2-page export without overflow)
+
+`trimForSinglePage()` remains an **intentional no-op** compatibility shim. Page fitting belongs exclusively to `renderHtmlToPdf` via the density ladder + scale floor. Any future implementation that wants to act here MUST preserve all experience entries and only trim trailing bullets from the OLDEST role.
+
+#### Paragraph-to-bullet reconstruction
+
+`structureExperience` (in `lib/template-renderer.js`) calls `reconstructBulletsFromParagraph` on narrative lines that lack explicit bullet markers. This handles the worst-case where a DOCX/PDF was authored as paragraph-only achievements (no `•`, `-`, or `*` markers). The reconstructor:
+
+- Splits on sentence-end punctuation (`.`, `!`, `?`) followed by whitespace + a capital starter (lookbehind / lookahead).
+- Returns the original line unchanged for lines under 100 chars or lines that already have bullet markers, dates, or insufficient sentence count.
+- Requires ≥ 2 sentences with ≥ 4 words each before accepting the split — protects against false splits on terse lines.
 
 Template support:
 

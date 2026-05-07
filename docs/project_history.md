@@ -1085,3 +1085,58 @@ This comprehensive remediation phase was successfully executed through a synchro
 - PDF preview test now asserts clean output contains `PROJECTS`, `CERTIFICATIONS`, `LANGUAGES`, and the sample project content.
 - Template regression now checks for standard `SKILLS` and rejects legacy `CORE SKILLS`, `TECHNICAL SKILLS`, `KEY SKILLS`, and `CORE CAPABILITIES` headings.
 - Prompt regression verifies the keyword insertion prompt remains evidence-bound and includes job advert context.
+
+## 2026-05-07 (Worst-Case Pipeline Stress Audit — 10 Hardening Fixes)
+
+**Scope:** Multi-agent UX/QA audit identified ten worst-case input scenarios where the parse → analyze → render pipeline previously degraded. All ten fixes shipped in one pass with focused regression coverage.
+
+**Parser hardening (lib/parser.js)**
+
+- **3-column layout detection.** `kmeans2` was the only column splitter, which collapsed sidebar/main/secondary 3-column resumes onto a single split-point and bled content between bands. Added `kmeans3` and a tertiary detection path: when the binary split spans more than 280pt and a tight middle cluster exists with each gap ≥ 100pt, `detectColumnSplit` now returns `[splitLeftMid, splitMidRight]`. `serializeEntries` was generalized to walk an N-band split array via a new `bandOf` helper, with empty-section separators between bands.
+- **Wider per-row gap threshold.** Raised `splitRowIntoSpans` `gapThreshold` from 20 → 28pt so tightly-packed table cells at 12pt no longer merge into one span across cell boundaries.
+- **Page-count guard.** Added `PARSE_PAGE_LIMIT = 8`. `parsePDF` now does a cheap `{ max: 1 }` metadata read first and falls back to a capped linear parse for PDFs above the limit, bounding the O(n²) row/cluster passes against malicious resource-exhaustion uploads.
+
+**Resume normalization (lib/resume-builder.js)**
+
+- **Decorative banner regex anchor fix.** `isDecorativeHeaderLine` previously required the line to end exactly at "cv"/"resume" (`$` anchor), so common pollution like "Master CV - Tech Roles" or "Master Resume — Engineering" passed through as candidate-name material. Changed to a word-boundary match (`\b`) and broadened the verb set (master/general/base/primary/final/main/target/tailored).
+- **Salutation-free embedded cover letters.** `stripCoverLetter` now scans past the first six non-empty lines for first-person opening sentences ("I am writing to express", "I would like to apply", "Please find enclosed", "With great interest I…") and truncates the resume text at that point. Salutation-led letters keep the existing fast path.
+- **Tab character normalization in `sanitizeForATS`.** Mammoth's DOCX table extraction emits `\t` between cells, which corrupted entry-header parsers that scan for `-`/`|` separators. Tabs are now collapsed to two spaces — the visual gap is preserved, but the regex pipelines no longer mis-split.
+
+**JD context (lib/jd-processor.js)**
+
+- **Sentence-fragment job titles rejected.** `sanitizeJobTitleValue` now rejects: titles longer than 80 chars, page-instruction copy ("Provide accurate info…", "Please enter your details", "We are looking for…"), and any value ending in `?`/`!` or a trailing single period. Trailing-ellipsis strings are caught by an explicit pattern. This protects context that comes in via URL extraction, manual entry, and scrape metadata — paths that don't go through the existing `isLikelyJobTitleLine` filter.
+- **Aggregator brand names rejected as employer.** `sanitizeCompanyNameValue` now strips plain brand names (Indeed, LinkedIn, Glassdoor, Monster, ZipRecruiter, Naukri, Jobsora) that appear as page branding rather than the employer. The existing `isAggregatorHostname` guard only worked on full URLs, so brand strings slipped through.
+
+**LLM safety (lib/llm/output-validator.js)**
+
+- **Fabricated-metric detection.** `validateBulletResult` now extracts numeric tokens (percentages, currency, multipliers, plain integers) from both `original` and `rewritten` bullets. Calendar years (1900–2099 four-digit values) are excluded. Any number present in the rewrite but absent from the original triggers a revert to the original bullet, sets `needsMetric: true`, attaches a `fabricatedMetrics` array, and stamps `method: 'reverted: fabricated metric detected'`. Until now, the evidence-bound rule was prompt-only; this is the first code-level guard against metric hallucination.
+- New helpers `detectFabricatedMetrics` and `extractNumericTokens` exported for direct use in tests and other validators.
+
+**Page-budget pressure (lib/resume-builder.js + lib/templates/base.css)**
+
+- **Fourth density tier `pdf-veteran-tight`.** Added a final fallback CSS tier (~7.7pt body, 7.4pt meta, 13pt name, 1.05 line-height, tight margins) applied by `renderHtmlToPdf` only after `density-compact` → `pdf-tight` → `pdf-ultra-tight` have all failed to fit the content. This is the lowest readable floor before ATS parsers degrade on Workday/Taleo. Lowered the 2-page scale floor from 0.86 → 0.82 so 10-year veteran resumes complete a 2-page export without overflowing.
+- **Architectural decision documented.** The `trimForSinglePage()` no-op shim now carries an explicit `INTENTIONAL NO-OP` block stating that page fitting belongs in `renderHtmlToPdf` only, and that any future implementation must preserve all experience entries and only trim trailing bullets from the oldest role.
+
+**Bullet structuring (lib/template-renderer.js)**
+
+- **Paragraph-to-bullet reconstruction.** `reconstructBulletsFromParagraph` splits a dense narrative paragraph into individual bullets when the source DOCX/PDF lacks bullet markers (mammoth flat extraction of paragraph-only resumes). Splits on sentence-end punctuation followed by capitalized starters, requires ≥ 2 sentences with ≥ 4 words each, and falls back to the original line otherwise. Wired into the implicit-bullet branches of `structureExperience` so per-achievement structure survives extraction.
+
+**Regression coverage**
+
+- New `tests/worst-case-pipeline.test.js` (9 tests) — one per fix, asserting both the worst-case input and that real-world content is still preserved. Wired into `npm test` and `npm run test:ci`.
+- All 56 tests pass (47 baseline + 9 worst-case).
+
+**Vulnerability summary fixed in this pass**
+
+| # | File | Vulnerability | Severity |
+|---|---|---|---|
+| 1 | `lib/parser.js` | k-means binary split fails 3-column PDFs | HIGH |
+| 2 | `lib/resume-builder.js` | `isDecorativeHeaderLine` `$` anchor misses suffixed banners | HIGH |
+| 3 | `lib/jd-processor.js` | Sentence-fragment job titles bypass sanitizer | HIGH |
+| 4 | `lib/resume-builder.js` + base.css | 10-year vets hit PDF overflow at scale floor | HIGH |
+| 5 | `lib/llm/output-validator.js` | No fabricated-metric detection in bullet validator | MEDIUM |
+| 6 | `lib/resume-builder.js` | `stripCoverLetter` misses salutation-free embedded letters | MEDIUM |
+| 7 | `lib/jd-processor.js` | Aggregator brand names accepted as employer | MEDIUM |
+| 8 | `lib/parser.js` | No page-count guard before layout-aware parse | LOW |
+| 9 | `lib/resume-builder.js` | Tab characters from mammoth corrupt entry parsing | LOW |
+| 10 | `lib/template-renderer.js` | Paragraphs-only DOCX produces zero-bullet entries | LOW |

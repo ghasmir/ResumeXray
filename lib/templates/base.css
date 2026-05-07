@@ -183,6 +183,62 @@ body.pdf-ultra-tight .bullet-list li {
   line-height: 1.1;
 }
 
+/* ── Veteran-Tight: extreme-overflow tier for 10+ year resumes ───────────
+ * Triggered only after density-compact + pdf-tight + pdf-ultra-tight have
+ * all failed to fit the content. Reduces font sizes a final notch and
+ * tightens entry margins so 2-page exports don't spill onto a third page.
+ * This is the hardest readable floor — anything below 7.5pt risks ATS
+ * parser failures on Workday/Taleo. */
+body.pdf-veteran-tight {
+  font-size: 7.8pt;
+  line-height: 1.02;
+}
+
+body.pdf-veteran-tight .resume-header {
+  margin-bottom: 0.05in;
+  padding-bottom: 0.02in;
+}
+
+body.pdf-veteran-tight .resume-name {
+  font-size: 13pt;
+}
+
+body.pdf-veteran-tight .contact-line,
+body.pdf-veteran-tight .entry-dates,
+body.pdf-veteran-tight .entry-location {
+  font-size: 7.4pt;
+}
+
+body.pdf-veteran-tight .section {
+  margin-bottom: 0.04in;
+}
+
+body.pdf-veteran-tight .section-title {
+  font-size: 8pt;
+  margin-bottom: 0.02in;
+}
+
+body.pdf-veteran-tight .entry {
+  margin-bottom: 0.02in;
+}
+
+body.pdf-veteran-tight .entry-title,
+body.pdf-veteran-tight .entry-subtitle,
+body.pdf-veteran-tight .skill-category,
+body.pdf-veteran-tight .summary-text,
+body.pdf-veteran-tight .bullet-list li,
+body.pdf-veteran-tight .simple-list li {
+  font-size: 7.7pt;
+}
+
+body.pdf-veteran-tight .bullet-list {
+  padding-left: 0.1in;
+}
+
+body.pdf-veteran-tight .bullet-list li {
+  line-height: 1.05;
+}
+
 /* ── Header (Name + Contact) ────────────────────────────────────────────── */
 
 .resume-header {
