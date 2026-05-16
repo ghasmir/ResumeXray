@@ -46,3 +46,6 @@ tmp_uploads/
 
 # Generated artifacts
 output/
+
+# Local agent config
+.claude/settings.local.json
